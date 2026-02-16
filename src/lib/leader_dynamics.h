@@ -8,7 +8,7 @@
 #include <barrett/units.h>
 #include <barrett/systems.h>
 #include <barrett/math/kinematics.h> 
-#include "leader_beta_ares_wrist_highvel.h"
+#include "leader_beta_ares_link.h"
 #include "regressor_W.h"
 
 using namespace barrett;

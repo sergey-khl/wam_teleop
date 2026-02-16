@@ -8,7 +8,7 @@
 #include <barrett/units.h>
 #include <barrett/systems.h>
 #include <barrett/math/kinematics.h> 
-#include "follower_beta_zeus_hand_highvel.h"
+#include "follower_beta_slax.h"
 #include "regressor_W.h"
 
 using namespace barrett;

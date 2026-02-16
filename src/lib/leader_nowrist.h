@@ -183,14 +183,14 @@ class Leader : public barrett::systems::System {
 
         // cases where the controllers on the follower is different
 
-        jt_type u7 = -0.5 * cur_extTorque; // cur external torque as feedforward (on the follower side it should be zero)
+        jt_type u7 = -0.75 * cur_extTorque; // cur external torque as feedforward (on the follower side it should be zero) / -1 made the system unstable
 
-        jt_type u8 = -0.25 * (ref_extTorque + cur_extTorque); // only a force controller on the leader side (on the follower side it should be zero)
+        jt_type u8 = -0.75 * (ref_extTorque + cur_extTorque); // only a force controller on the leader side (on the follower side it should be zero) / -1 made the system unstable
 
         // jt_type u9 = -0.5 * cur_extTorque -0.25 * (ref_extTorque + cur_extTorque);
 
 
 
-        return u1;
+        return u2;
     };
 };
