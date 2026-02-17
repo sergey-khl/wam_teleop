@@ -370,15 +370,15 @@ template <size_t DOF> int wam_main(int argc, char **argv, ProductManager &pm, sy
     // Create the data directory using the provided name
 	std::string folderName = argv[4];
 	// Create the data directory using the provided name
-	std::string command = std::string("mkdir -p data/") + folderName; // -p flag ensures it doesn't fail if the directory exists
+	std::string command = std::string("mkdir -p ../data/") + folderName; // -p flag ensures it doesn't fail if the directory exists
 	if (system(command.c_str()) != 0) {
     	std::cerr << "Error: Could not create directory." << std::endl;
     	return 1;
 	}
 
-    std::string kinematicsFilename = "data/" + folderName + "/kinematics.txt";
-	std::string dynamicsFilename = "data/" + folderName + "/dynamics.txt";
-	std::string configFilename = "data/" + folderName + "/config.txt";
+    std::string kinematicsFilename = "../data/" + folderName + "/kinematics.txt";
+	std::string dynamicsFilename = "../data/" + folderName + "/dynamics.txt";
+	std::string configFilename = "../data/" + folderName + "/config.txt";
 	std::ofstream kinematicsFile(kinematicsFilename);
 	std::ofstream dynamicsFile(dynamicsFilename);
 	std::ofstream configFile(configFilename);

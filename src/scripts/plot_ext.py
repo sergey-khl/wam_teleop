@@ -105,10 +105,13 @@ def calculate_nrmse(desired, feedback, normalization='range'):
 def calculate_rms(signal):
     return np.sqrt(np.mean(np.square(signal)))
 
+
 def calculate_errors(kinematics_data, dynamics_data, dof=4):
     pos_nrmse_list = []
     ext_torque_nrmse_list = []
-    ext_torque_est_nrmse_list = []
+    leader_ext_torque_est_nrmse_list = []
+    follower_ext_torque_est_nrmse_list = []   # NEW
+
     pos_rms_list = []
     leader_ext_rms_list = []
     follower_ext_rms_list = []
@@ -117,13 +120,23 @@ def calculate_errors(kinematics_data, dynamics_data, dof=4):
     for joint in range(dof):
         pos_des = kinematics_data['desired joint pos'][:, joint]
         pos_feedback = kinematics_data['feedback joint pos'][:, joint]
+
         leader_ext_torque = dynamics_data['leader external torque'][:, joint]
         virtual_leader_ext_torque = dynamics_data['leader virtual external torque'][:, joint]
+
         follower_ext_torque = dynamics_data['follower external torque'][:, joint]
 
+        # NEW: follower virtual external torque is a zero vector
+        virtual_follower_ext_torque = np.zeros_like(follower_ext_torque)
+
         ext_torque_nrmse = calculate_nrmse(leader_ext_torque, -follower_ext_torque)
-        ext_torque_est_nrmse = calculate_nrmse(leader_ext_torque, -virtual_leader_ext_torque)
+        leader_ext_torque_est_nrmse = calculate_nrmse(leader_ext_torque, -virtual_leader_ext_torque)
+
+        # NEW: follower external torque estimation (measured vs estimated=0)
+        follower_ext_torque_est_nrmse = calculate_nrmse(follower_ext_torque, virtual_follower_ext_torque)
+
         pos_nrmse = calculate_nrmse(pos_des, pos_feedback)
+
         pos_rms = calculate_rms(pos_feedback - pos_feedback[0])
         leader_ext_rms = calculate_rms(leader_ext_torque)
         follower_ext_rms = calculate_rms(follower_ext_torque)
@@ -131,7 +144,13 @@ def calculate_errors(kinematics_data, dynamics_data, dof=4):
 
         pos_nrmse_list.append(pos_nrmse)
         ext_torque_nrmse_list.append(ext_torque_nrmse)
-        ext_torque_est_nrmse_list.append(ext_torque_est_nrmse)
+
+        # FIXED: append the correct variable name
+        leader_ext_torque_est_nrmse_list.append(leader_ext_torque_est_nrmse)
+
+        # NEW
+        follower_ext_torque_est_nrmse_list.append(follower_ext_torque_est_nrmse)
+
         pos_rms_list.append(pos_rms)
         leader_ext_rms_list.append(leader_ext_rms)
         follower_ext_rms_list.append(follower_ext_rms)
@@ -149,8 +168,13 @@ def calculate_errors(kinematics_data, dynamics_data, dof=4):
     for joint, value in enumerate(ext_torque_nrmse_list):
         print(f"  Joint {joint+1}: {value:.4f}")
 
-    print("\n---- nRMSE (Estimated External Torque) ----")
-    for joint, value in enumerate(ext_torque_est_nrmse_list):
+    print("\n---- nRMSE (Leader Estimated External Torque) ----")
+    for joint, value in enumerate(leader_ext_torque_est_nrmse_list):
+        print(f"  Joint {joint+1}: {value:.4f}")
+
+    # NEW
+    print("\n---- nRMSE (Follower Estimated External Torque) ----")
+    for joint, value in enumerate(follower_ext_torque_est_nrmse_list):
         print(f"  Joint {joint+1}: {value:.4f}")
 
     print("\n---- RMS Position ----")
@@ -165,8 +189,9 @@ def calculate_errors(kinematics_data, dynamics_data, dof=4):
     for joint, value in enumerate(follower_ext_rms_list):
         print(f"  Joint {joint+1}: {value:.4f}")
 
+
 def main(folder_name):
-    base_folder = '../data'
+    base_folder = '../../../data'
     folder_path = os.path.join(base_folder, folder_name)
 
     config_file = os.path.join(folder_path, 'config.txt')

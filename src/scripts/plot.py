@@ -212,7 +212,7 @@ def export_metrics_to_csv(kinematics_data, dynamics_data, out_path, joints=(1, 3
 #     calculate_errors(kinematics_data, dynamics_data, dof=4)
 
 def main(folder_name):
-    base_folder = '../data'
+    base_folder = '../../../data'
     folder_path = os.path.join(base_folder, folder_name)
 
     config_file = os.path.join(folder_path, 'config.txt')
