@@ -228,6 +228,6 @@ class Leader : public barrett::systems::System {
 
 
 
-        return u7;
+        return u4;
     };
 };
