@@ -41,8 +41,14 @@ source devel/setup.bash
 
 In first terminl, source CAN in a terminal in `amir\catkin_ws\src\wam_teleop`
 ```bash
-source scripts\can_init.sh
+source scripts\pci_can_init.sh
 ```
+if you are doing this with the pci card or if you are using usb:
+```bash
+source scripts\usb_can_init.sh
+```
+NOTE: you might have to tweak the can# based on the order you plugged stuff into the computer.
+
 
 In a separate terminal session, start the master node with: `roscore`.
 
