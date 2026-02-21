@@ -9,7 +9,7 @@ FORCE_FRAME = "base"   # "base" or "tool"
 SIGN_LEADER = +1.0
 SIGN_FOLLOWER = -1.0
 
-TOOL_OFFSET_FOLLOWER = 0.36  # meters
+TOOL_OFFSET_FOLLOWER = 0.56 #0.36 (without any tool on the follower) # meters
 TOOL_OFFSET_LEADER   = 0.57  # meters
 
 # Low-pass cutoff for logged external torques (Hz)
