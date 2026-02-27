@@ -99,7 +99,7 @@ class Leader : public barrett::systems::System {
             extTorque << 0.0, 0.0, 0,0, 0.0;
         }
 
-        sendJpMsg << wamJP, 0.0, 0.0, 0.0;
+        sendJpMsg << wamJP, -1.57, 0.0, 1.57;
         sendJvMsg << wamJV, 0.0, 0.0, 0.0;
         sendExtTorqueMsg << extTorque, 0.0, 0.0, 0.0;
 
@@ -187,10 +187,16 @@ class Leader : public barrett::systems::System {
 
         jt_type u8 = -0.75 * (ref_extTorque + cur_extTorque); // only a force controller on the leader side (on the follower side it should be zero) / -1 made the system unstable
 
+        
+        jt_type u9 = -0.5 * ref_extTorque - 0.75 * cur_extTorque; // PF-PF with gravity compensation, ref external torque as feedback and cur external torque as feedforward
+        
+
+        jt_type u10 = -0.5 * ref_extTorque -0.25 * (ref_extTorque + cur_extTorque);
+
         // jt_type u9 = -0.5 * cur_extTorque -0.25 * (ref_extTorque + cur_extTorque);
 
 
 
-        return u1;
+        return u4;
     };
 };

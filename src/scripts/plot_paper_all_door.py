@@ -37,11 +37,18 @@ plt.rcParams.update({
 #     [(20, 31)]           # column 3
 # ]  # this was for u3
 
+# SHADED_WINDOWS = [
+#     [(21.40, 32.21)],     # column 0
+#     [(20.85, 33.11)],     # column 1
+#     [(21.19, 33.50)],     # column 2
+#     [(21.38, 30.62)]      # column 3
+# ]  # this was for u4 // this was for compression
+
 SHADED_WINDOWS = [
-    [(21.40, 32.21)],     # column 0
-    [(20.85, 33.11)],     # column 1
-    [(21.19, 33.50)],     # column 2
-    [(21.38, 30.62)]      # column 3
+    [(0.0, 0.0)],     # column 0
+    [(0.0, 0.0)],     # column 1
+    [(0.0, 0.0)],     # column 2
+    [(0.0, 0.0)]      # column 3
 ]  # this was for u4
 
 # Will be computed after cropping & time-shift:
@@ -228,7 +235,7 @@ def next_output_filename(base_dir="../data", prefix="compression_", ext=".pdf"):
     next_num = max(numbers, default=0) + 1
     return os.path.join(base_dir, f"{prefix}{next_num}{ext}")
 
-def crop_dataset(kin, dyn, tmin=10, tmax=35):
+def crop_dataset(kin, dyn, tmin=0, tmax=50):
     mask_kin = (kin['time'] >= tmin) & (kin['time'] <= tmax)
     for k in kin:
         kin[k] = kin[k][mask_kin]
@@ -356,7 +363,7 @@ def plot_four_icra(folders, cutoff_hz=5.0, joints=(1, 3), base_folder="../data",
         dyn = read_data(os.path.join(folder_path, "dynamics.txt"),   dyn_vars, dof=4)
 
         # Crop to [10,35]
-        kin, dyn = crop_dataset(kin, dyn, 10, 35)
+        # kin, dyn = crop_dataset(kin, dyn, 10, 35)
         # Record original start (used to shift shaded windows)
         t0_list_for_shading.append(kin['time'][0] if len(kin['time']) > 0 else 10.0)
         # Filter torques
@@ -459,7 +466,7 @@ def main():
         folders,
         cutoff_hz=cutoff,
         joints=(1, 3),
-        base_folder="../data",
+        base_folder="../../../data",
         fig_width_in=7.16,   # EXACT ICRA width
         fig_height_in=6.0    # your current height
     )

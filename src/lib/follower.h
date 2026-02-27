@@ -186,6 +186,10 @@ class Follower : public barrett::systems::System {
 
         // jt_type u9 = -0.0 * cur_extTorque - 0.0 * (ref_extTorque + cur_extTorque);
 
+        jt_type u9 = -0.5 * ref_extTorque; // PF-PF with ref external torque as feedback
+
+        jt_type u10 = -0.5 * ref_extTorque;
+
         jt_type u = u4;
 
         for (size_t i = 4; i < 7; ++i) {

@@ -153,7 +153,7 @@ template <size_t DOF> int wam_main(int argc, char **argv, ProductManager &pm, sy
 
     //Applied External Torque
     jt_type A;
-	A << 0.0, 9.0, 0.0, 2.0;
+	A << 0.0, 9.0, 0.0, 3.0;
 	double f = 0.3;
 	sinextorq<DOF> extorqFeedFWD(A, f);
 	systems::Summer<jt_type, 2> feedFwdSum;
