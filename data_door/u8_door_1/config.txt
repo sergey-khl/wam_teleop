@@ -1,0 +1,9 @@
+Teleop
+Kinematics data: time, desired joint pos, feedback joint pos
+Dynamics data: time, wam joint torque input, custom joint torque input, wam gravity input, dynamic input, leader external torque, follower external torque
+Joint Position PID Controller: 
+kp: [750, 1000, 400, 200]
+ki: [2.5, 1, 2.5, 0.5]
+kd: [10, 6, 3.3, 0.8]
+Control Signal Limit: [50, 50, 50, 30].
+Sync Pos:[0, -1.7, 0, 2.97]
