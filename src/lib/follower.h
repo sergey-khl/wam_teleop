@@ -190,7 +190,7 @@ class Follower : public barrett::systems::System {
 
         jt_type u10 = -0.5 * ref_extTorque;
 
-        jt_type u = u4;
+        jt_type u = u2;
 
         for (size_t i = 4; i < 7; ++i) {
             u[i] = 0.0;

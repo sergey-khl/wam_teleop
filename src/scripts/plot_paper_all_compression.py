@@ -45,10 +45,10 @@ plt.rcParams.update({
 # ]  # this was for u4 // this was for compression
 
 SHADED_WINDOWS = [
-    [(0.0, 0.0)],     # column 0
-    [(0.0, 0.0)],     # column 1
-    [(0.0, 0.0)],     # column 2
-    [(0.0, 0.0)]      # column 3
+    [(10.0, 17.5)],     # column 0
+    [(10.0, 18.0)],     # column 2
+    [(10.0, 19.0)],      # column 3
+    [(10.0, 17.0)],     # column 1
 ]  # this was for u4
 
 # Will be computed after cropping & time-shift:
@@ -351,7 +351,7 @@ def plot_four_icra(folders, cutoff_hz=5.0, joints=(1, 3), base_folder="../data",
         raise ValueError("Exactly four folder names/paths are required.")
 
     # Fixed column titles (requested)
-    col_titles = ["2c-GravComp", "2c-DynComp", "4c-GravComp", "4c-DynComp"]
+    col_titles = ["GC", "GC-FF", "GC-LFB", "DC"]
 
     # Resolve folder paths & load
     loaded = []
@@ -363,7 +363,7 @@ def plot_four_icra(folders, cutoff_hz=5.0, joints=(1, 3), base_folder="../data",
         dyn = read_data(os.path.join(folder_path, "dynamics.txt"),   dyn_vars, dof=4)
 
         # Crop to [10,35]
-        kin, dyn = crop_dataset(kin, dyn, 10, 35)
+        kin, dyn = crop_dataset(kin, dyn, 0, 20)
         # Record original start (used to shift shaded windows)
         t0_list_for_shading.append(kin['time'][0] if len(kin['time']) > 0 else 10.0)
         # Filter torques
@@ -448,7 +448,7 @@ def plot_four_icra(folders, cutoff_hz=5.0, joints=(1, 3), base_folder="../data",
                           color='black', linewidth=0.9))
 
     # Save to ../data with auto-increment name
-    out_name = next_output_filename("../data", prefix="compression_", ext=".pdf")
+    out_name = next_output_filename("../../../data", prefix="compression_", ext=".pdf")
     fig.savefig(out_name)
     print(f"Saved figure to {out_name}")
     plt.show()

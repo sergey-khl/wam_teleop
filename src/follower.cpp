@@ -58,9 +58,9 @@ template <size_t DOF> int wam_main(int argc, char **argv, ProductManager &pm, sy
         SYNC_POS[1] = -1.70;
         SYNC_POS[2] = 0.0;
         SYNC_POS[3] = 2.97;
-        SYNC_POS[4] = -1.57;
+        SYNC_POS[4] = 0.0;
         SYNC_POS[5] = 0.0;
-        SYNC_POS[6] = 1.57;
+        SYNC_POS[6] = 0.0;
 
     } else {
         printf("Error: 7 DOF supported\n");
