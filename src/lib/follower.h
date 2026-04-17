@@ -6,7 +6,7 @@
 #include <atomic>
 #include <thread>
 #include <chrono>
-#include "gripper/magnum_opus/magnum_gripper.h"
+#include "gripper/gecko/gecko_gripper.h"
 
 
 #include "udp_handler.h"
@@ -15,7 +15,7 @@
 #include <barrett/thread/abstract/mutex.h>
 #include <barrett/units.h>
 
-using namespace gripper::magnum_opus;
+using namespace gripper::gecko;
 
 template <size_t DOF>
 class Follower : public barrett::systems::System {
@@ -33,7 +33,7 @@ class Follower : public barrett::systems::System {
 
     enum class State { INIT, LINKED, UNLINKED };
 
-    explicit Follower(barrett::systems::ExecutionManager* em,  MagnumGripper* gripper, const std::string& remoteHost, int rec_port = 5554,
+    explicit Follower(barrett::systems::ExecutionManager* em,  GeckoGripper* gripper, const std::string& remoteHost, int rec_port = 5554,
                       int send_port = 5555, const std::string& sysName = "Follower")
         : System(sysName)
         , theirJp(0.0)
@@ -202,7 +202,7 @@ class Follower : public barrett::systems::System {
     Eigen::Matrix<double, DOF, 1> kd;
     Eigen::Matrix<double, DOF, 1> cf;
 
-    MagnumGripper* gripper;
+    GeckoGripper* gripper;
     std::thread io_thread;
     std::atomic<bool> io_running;
     std::atomic<float> target_gripper_vel;

@@ -81,15 +81,15 @@ template <size_t DOF> int wam_main(int argc, char **argv, ProductManager &pm, sy
         send_port = std::atoi(argv[3]);
     }
 
-    MagnumGripper gripper;
+    GeckoGripper gripper;
     bool gripper_initialized = false;
     try {
         gripper_initialized = gripper.initialize();
     } catch (const std::exception& e) {
-        std::cerr << "WARNING: Magnum gripper init threw exception: " << e.what() << std::endl;
+        std::cerr << "WARNING: Gecko gripper init threw exception: " << e.what() << std::endl;
     }
     if (!gripper_initialized) {
-        std::cerr << "WARNING: Magnum gripper not initialized. Trigger/bumper commands will be ignored." << std::endl;
+        std::cerr << "WARNING: Gecko gripper not initialized. Trigger/bumper commands will be ignored." << std::endl;
     }
 
 
