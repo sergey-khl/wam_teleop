@@ -55,9 +55,9 @@ template <size_t DOF> int wam_main(int argc, char **argv, ProductManager &pm, sy
     jp_type SYNC_POS; // the position each WAM should move to before linking
     if (DOF == 7) {
         SYNC_POS[0] = 0.0;
-        SYNC_POS[1] = -1.70;
+        SYNC_POS[1] = -1.57;
         SYNC_POS[2] = 0.0;
-        SYNC_POS[3] = 2.97;
+        SYNC_POS[3] = 2.0;
         SYNC_POS[4] = 0.0;
         SYNC_POS[5] = 0.0;
         SYNC_POS[6] = 0.0;
@@ -81,6 +81,18 @@ template <size_t DOF> int wam_main(int argc, char **argv, ProductManager &pm, sy
         send_port = std::atoi(argv[3]);
     }
 
+    MagnumGripper gripper;
+    bool gripper_initialized = false;
+    try {
+        gripper_initialized = gripper.initialize();
+    } catch (const std::exception& e) {
+        std::cerr << "WARNING: Magnum gripper init threw exception: " << e.what() << std::endl;
+    }
+    if (!gripper_initialized) {
+        std::cerr << "WARNING: Magnum gripper not initialized. Trigger/bumper commands will be ignored." << std::endl;
+    }
+
+
     ros::init(argc, argv, "follower");
     BackgroundStatePublisher<DOF> state_publisher(pm.getExecutionManager(), wam);
 
@@ -103,7 +115,7 @@ template <size_t DOF> int wam_main(int argc, char **argv, ProductManager &pm, sy
     systems::Constant<ja_type> zeroAcceleration(ja);
     pm.getExecutionManager()->startManaging(zeroAcceleration);
 
-    Follower<DOF> follower(pm.getExecutionManager(), remoteHost, rec_port, send_port);
+    Follower<DOF> follower(pm.getExecutionManager(), &gripper, remoteHost, rec_port, send_port);
 
     jt_type maxRate; // Nm · s-1 per joint
     maxRate << 50, 50, 50, 50;
@@ -140,7 +152,8 @@ template <size_t DOF> int wam_main(int argc, char **argv, ProductManager &pm, sy
     systems::connect(wam.jvOutput, followerDynamics.jvInputDynamics);
     // systems::connect(zeroAcceleration.output, followerDynamics.jaInputDynamics);
 
-    systems::connect(follower.wamJPOutput, customjtSum.getInput(0));
+    // BEAR
+    // systems::connect(follower.wamJPOutput, customjtSum.getInput(0));
     systems::connect(wam.gravity.output, customjtSum.getInput(1));
     systems::connect(wam.supervisoryController.output, customjtSum.getInput(2));
 
@@ -179,7 +192,7 @@ template <size_t DOF> int wam_main(int argc, char **argv, ProductManager &pm, sy
                 waitForEnter();
                 follower.tryLink();
                 wam.trackReferenceSignal(follower.theirJPOutput);
-                systems::connect(follower.wamJPOutput, wam.input);
+                // systems::connect(follower.wamJPOutput, wam.input); BEAR
                 // connect(follower.wamJPOutput, wamJPOutputRamp.input); // one of the problem with the joint limiter is that it adds delay in applying external torque to the robot.
                 // connect(wamJPOutputRamp.output, wam.input);
                 // systems::forceConnect(wam.jtSum.output, externalTorque.wamTorqueSumIn);
@@ -261,6 +274,8 @@ template <size_t DOF> int wam_main(int argc, char **argv, ProductManager &pm, sy
             break;
         }
     }
+
+    gripper.shutdown();
 
 
     pm.getSafetyModule()->waitForMode(SafetyModule::IDLE);

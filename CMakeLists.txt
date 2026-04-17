@@ -35,10 +35,13 @@ include_directories(${BARRETT_INCLUDE_DIRS} ${catkin_INCLUDE_DIRS})
 link_directories(${BARRETT_LIBRARY_DIRS})
 add_definitions(${BARRETT_DEFINITIONS})
 
+## Gripper 
+find_package(gripper REQUIRED)
+
 find_package(Boost REQUIRED COMPONENTS system thread)
 
 if (BUILD_LEADER) 
-   find_package(haptic_wrist REQUIRED)
+   find_package(haptic_wrist 2.0 REQUIRED)
    add_executable(leader src/leader.cpp src/lib/udp_handler.cpp)
    target_link_libraries(leader ${BARRETT_LIBRARIES} ${catkin_LIBRARIES} haptic_wrist Boost::system Boost::thread)
    target_compile_definitions(leader PRIVATE BUILD_LEADER)
@@ -46,21 +49,21 @@ if (BUILD_LEADER)
 endif()
 
 add_executable(follower src/follower.cpp src/lib/udp_handler.cpp)
-target_link_libraries(follower ${BARRETT_LIBRARIES} ${catkin_LIBRARIES} Boost::system Boost::thread)
+target_link_libraries(follower ${BARRETT_LIBRARIES} ${catkin_LIBRARIES} gripper::gripper Boost::system Boost::thread)
 add_dependencies(follower ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 
-add_executable(follower_ext src/follower_ext.cpp src/lib/udp_handler.cpp)
-target_link_libraries(follower_ext ${BARRETT_LIBRARIES} ${catkin_LIBRARIES} Boost::system Boost::thread)
-add_dependencies(follower_ext ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
-
-add_executable(leader_nowrist src/leader_nowrist.cpp src/lib/udp_handler.cpp)
-target_link_libraries(leader_nowrist ${BARRETT_LIBRARIES} ${catkin_LIBRARIES} Boost::system Boost::thread)
-add_dependencies(leader_nowrist ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
-
-add_executable(leader_nowrist_data src/leader_nowrist_data.cpp src/lib/udp_handler.cpp)
-target_link_libraries(leader_nowrist_data ${BARRETT_LIBRARIES} ${catkin_LIBRARIES} Boost::system Boost::thread)
-add_dependencies(leader_nowrist_data ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
-
-add_executable(leader_nowrist_data_ext src/leader_nowrist_data_ext.cpp src/lib/udp_handler.cpp)
-target_link_libraries(leader_nowrist_data_ext ${BARRETT_LIBRARIES} ${catkin_LIBRARIES} Boost::system Boost::thread)
-add_dependencies(leader_nowrist_data_ext ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+# add_executable(follower_ext src/follower_ext.cpp src/lib/udp_handler.cpp)
+# target_link_libraries(follower_ext ${BARRETT_LIBRARIES} ${catkin_LIBRARIES} Boost::system Boost::thread)
+# add_dependencies(follower_ext ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+#
+# add_executable(leader_nowrist src/leader_nowrist.cpp src/lib/udp_handler.cpp)
+# target_link_libraries(leader_nowrist ${BARRETT_LIBRARIES} ${catkin_LIBRARIES} Boost::system Boost::thread)
+# add_dependencies(leader_nowrist ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+#
+# add_executable(leader_nowrist_data src/leader_nowrist_data.cpp src/lib/udp_handler.cpp)
+# target_link_libraries(leader_nowrist_data ${BARRETT_LIBRARIES} ${catkin_LIBRARIES} Boost::system Boost::thread)
+# add_dependencies(leader_nowrist_data ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+#
+# add_executable(leader_nowrist_data_ext src/leader_nowrist_data_ext.cpp src/lib/udp_handler.cpp)
+# target_link_libraries(leader_nowrist_data_ext ${BARRETT_LIBRARIES} ${catkin_LIBRARIES} Boost::system Boost::thread)
+# add_dependencies(leader_nowrist_data_ext ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})

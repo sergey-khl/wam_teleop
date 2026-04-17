@@ -52,7 +52,9 @@ void UDPHandler<DOF>::receiveLoop() {
     jp_type received_jp;
     jv_type received_jv;
     jt_type received_extTorque;
-    char buffer[sizeof(double) * DOF * 3];
+    jt_type received_measTorque;
+    double received_gripper;
+    char buffer[sizeof(double) * DOF * 4 + sizeof(double)];
 
     while (!stop_threads) {
         boost::system::error_code ec;
@@ -64,22 +66,26 @@ void UDPHandler<DOF>::receiveLoop() {
         std::memcpy(received_jp.data(), buffer, sizeof(double) * DOF);
         std::memcpy(received_jv.data(), buffer + sizeof(double) * DOF, sizeof(double) * DOF);
         std::memcpy(received_extTorque.data(), buffer + 2*(sizeof(double) * DOF), sizeof(double) * DOF);
+        std::memcpy(received_measTorque.data(), buffer + 3*(sizeof(double) * DOF), sizeof(double) * DOF);
+        std::memcpy(&received_gripper, buffer + 4*(sizeof(double) * DOF), sizeof(double));
 
         {
             std::lock_guard<std::mutex> lock(state_mutex);
-            latest_received = ReceivedData{received_jp, received_jv, received_extTorque, std::chrono::steady_clock::now()};
+            latest_received = ReceivedData{received_jp, received_jv, received_extTorque, received_measTorque, received_gripper, std::chrono::steady_clock::now()};
         }
     }
     recv_socket.close();
 }
 
 template <size_t DOF>
-void UDPHandler<DOF>::send(const jp_type& jp, const jv_type& jv, const jt_type& extTorque) {
+void UDPHandler<DOF>::send(const jp_type& jp, const jv_type& jv, const jt_type& extTorque, const jt_type& measTorque, const double& gripper) {
     {
         std::lock_guard<std::mutex> lock(send_mutex);
         pending_send_jp = jp;
         pending_send_jv = jv;
         pending_send_extTorque = extTorque;
+        pending_send_measTorque = measTorque;
+        pending_send_gripper = gripper;
         new_data_available = true;
     }
     send_condition.notify_one();
@@ -100,12 +106,16 @@ void UDPHandler<DOF>::sendLoop() {
         jp_type data_to_send_jp = pending_send_jp;
         jp_type data_to_send_jv = pending_send_jv;
         jt_type data_to_send_extTorque = pending_send_extTorque;
+        jt_type data_to_send_measTorque = pending_send_measTorque;
+        double data_to_send_gripper = pending_send_gripper;
         lock.unlock();
 
-        char buffer[sizeof(double) * DOF * 3];
+        char buffer[sizeof(double) * DOF * 4 + sizeof(double)];
         std::memcpy(buffer, data_to_send_jp.data(), sizeof(double) * DOF);
         std::memcpy(buffer + sizeof(double) * DOF, data_to_send_jv.data(), sizeof(double) * DOF);
         std::memcpy(buffer + 2*(sizeof(double) * DOF), data_to_send_extTorque.data(), sizeof(double) * DOF);
+        std::memcpy(buffer + 3*(sizeof(double) * DOF), data_to_send_measTorque.data(), sizeof(double) * DOF);
+        std::memcpy(buffer + 4*(sizeof(double) * DOF), &data_to_send_gripper, sizeof(double));
 
         boost::system::error_code ec;
         send_socket.send_to(boost::asio::buffer(buffer, sizeof(buffer)), remote_endpoint, 0, ec);

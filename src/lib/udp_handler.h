@@ -19,6 +19,8 @@ public:
         jp_type jp;
         jv_type jv;
         jt_type extTorque;
+        jt_type measTorque;
+        double gripper;
         std::chrono::steady_clock::time_point timestamp;
     };
 
@@ -27,7 +29,7 @@ public:
 
     void stop();
     boost::optional<ReceivedData> getLatestReceived();
-    void send(const jp_type& jp, const jv_type& jv, const jt_type& extTorque);
+    void send(const jp_type& jp, const jv_type& jv, const jt_type& extTorque, const jt_type& measTorque, const double& gripper);
 
 private:
     std::string remote_host;
@@ -45,6 +47,8 @@ private:
     jp_type pending_send_jp;
     jv_type pending_send_jv;
     jt_type pending_send_extTorque;
+    jt_type pending_send_measTorque;
+    double pending_send_gripper;
     boost::optional<ReceivedData> latest_received;
     bool new_data_available = false;
 

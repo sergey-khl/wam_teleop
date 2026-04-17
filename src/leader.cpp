@@ -58,9 +58,9 @@ int wam_main(int argc, char **argv, ProductManager &pm, systems::Wam<DOF> &wam) 
     jp_type SYNC_POS; // the position each WAM should move to before linking
     if (DOF == 4) {
         SYNC_POS[0] = 0.0;
-        SYNC_POS[1] = -1.95;
+        SYNC_POS[1] = -1.57;
         SYNC_POS[2] = 0.0;
-        SYNC_POS[3] = 2.97;
+        SYNC_POS[3] = 2.0;
     } else {
         printf("Error: 4 DOF supported\n");
         return false;
@@ -150,7 +150,8 @@ int wam_main(int argc, char **argv, ProductManager &pm, systems::Wam<DOF> &wam) 
     systems::connect(wam.jvOutput, leaderDynamics.jvInputDynamics);
     // systems::connect(zeroAcceleration.output, leaderDynamics.jaInputDynamics);
 
-    systems::connect(leader.wamJPOutput, customjtSum.getInput(0));
+    // BEAR
+    // systems::connect(leader.wamJPOutput, customjtSum.getInput(0));
     systems::connect(wam.gravity.output, customjtSum.getInput(1));
     systems::connect(wam.supervisoryController.output, customjtSum.getInput(2));
 
@@ -189,7 +190,9 @@ int wam_main(int argc, char **argv, ProductManager &pm, systems::Wam<DOF> &wam) 
             } else {
                 // Sync both arm and wrist before link
                 wam.moveTo(SYNC_POS, true);
-                hw.setTarget({0.0, 0.0, 0.0});          // ==== NEW: wrist sync ====
+                haptic_wrist::jp_type wrist_sync; 
+                wrist_sync.setZero();
+                hw.jointMoveTo(wrist_sync);
 
                 printf("Press [Enter] to link with the other WAM.");
                 waitForEnter();
@@ -197,7 +200,7 @@ int wam_main(int argc, char **argv, ProductManager &pm, systems::Wam<DOF> &wam) 
 
                 // Track peer’s arm joints (Leader publishes them)
                 wam.trackReferenceSignal(leader.theirJPOutput);
-                connect(leader.wamJPOutput, wam.input);
+                // connect(leader.wamJPOutput, wam.input); // BEAR
 
                 btsleep(0.1); // wait an execution cycle or two
                 if (leader.isLinked()) {
