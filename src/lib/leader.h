@@ -68,6 +68,8 @@ class Leader : public barrett::systems::System {
         kd << 8.3, 8, 3.3, 0.8;
         cf << 0.375, 0.4, 0.2, 0.1;
 
+        last_op_time = std::chrono::steady_clock::now();
+
         if (em != NULL) {
             em->startManaging(*this);
         }
@@ -116,6 +118,9 @@ class Leader : public barrett::systems::System {
 
     const float alpha = 0.35f;
 
+    int loop_counter = 0;
+    std::chrono::time_point<std::chrono::steady_clock> last_op_time;
+
     // Wrist state
     haptic_wrist::jp_type wristJP;      // local wrist pos
     haptic_wrist::jv_type wristJV;      // local wrist vel
@@ -130,6 +135,10 @@ class Leader : public barrett::systems::System {
     using ReceivedData = typename UDPHandler<DOF + 3>::ReceivedData;
 
     virtual void operate() {
+        auto now_op = std::chrono::steady_clock::now();
+        double loop_dt = std::chrono::duration<double, std::milli>(now_op - last_op_time).count();
+        last_op_time = now_op;
+
         // Optional scaling (like your second file)
         double j5_scale = 1.0;
         double j7_scale = 1.0;
@@ -165,7 +174,10 @@ class Leader : public barrett::systems::System {
         // Receive (non-blocking)
         boost::optional<ReceivedData> received_data = udp_handler.getLatestReceived();
         auto now = std::chrono::steady_clock::now();
+        double udp_rx_age = 0.0;
         if (received_data && (now - received_data->timestamp <= TIMEOUT_DURATION)) {
+            udp_rx_age = std::chrono::duration<double, std::milli>(now - received_data->timestamp).count();
+
             // Split received arm & wrist
             theirJp        = received_data->jp.template head<DOF>();
             // theirWristJp   = received_data->jp.template tail<3>(); BEAR, problem since wrist is 2 dof now
@@ -235,7 +247,16 @@ class Leader : public barrett::systems::System {
         // BEAR
         sendMeasTorqueMsg << control, 0.0, 0.0, 0.0;
 
+        auto send_start = std::chrono::steady_clock::now();
         udp_handler.send(sendJpMsg, sendJvMsg, sendExtTorqueMsg, sendMeasTorqueMsg, static_cast<double>(desired_gripper_vel.load()));
+        auto send_end = std::chrono::steady_clock::now();
+        double send_dt = std::chrono::duration<double, std::milli>(send_end - send_start).count();
+
+        if (++loop_counter % 500 == 0) {
+            std::cout << "[LEADER] Loop dt: " << loop_dt 
+                      << " ms | UDP Rx Age: " << udp_rx_age 
+                      << " ms | UDP Send latency: " << send_dt << " ms\n";
+        }
     }
 
     // Peer (arm) state & internal

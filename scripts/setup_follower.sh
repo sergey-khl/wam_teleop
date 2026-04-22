@@ -2,4 +2,4 @@
 
 PACKAGE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
-export BARRETT_CONFIG_FILE="$PACKAGE_DIR/config/follower-snake-hand-horizontal/follower.conf"
+export BARRETT_CONFIG_FILE="$PACKAGE_DIR/config/follower-gecko-hand-horizontal/follower.conf"
