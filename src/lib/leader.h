@@ -8,6 +8,7 @@
 #include <atomic>
 #include <thread>
 #include <chrono>
+#include <iomanip>
 
 #include "udp_handler.h"
 #include <barrett/detail/ca_macro.h>
@@ -28,8 +29,8 @@ class Leader : public barrett::systems::System {
     Input<jt_type> wamDynIn;
 
     // Outputs (same as your first file)
-    // Output<jt_type> wamJPOutput;      // control torque command for the WAM arm (DOF)
-    Output<jp_type> wamJPOutput;      // control torque command for the WAM arm (DOF)
+    Output<jt_type> wamJPOutput;      // control torque command for the WAM arm (DOF)
+    // Output<jp_type> wamJPOutput;      // control torque command for the WAM arm (DOF)
     Output<jp_type> theirJPOutput;    // peer arm JP (DOF) for logging/monitoring
 
     enum class State { INIT, LINKED, UNLINKED };
@@ -50,8 +51,8 @@ class Leader : public barrett::systems::System {
         , extTorqueIn(this)
         , wamGravIn(this)
         , wamDynIn(this)
-        // , wamJPOutput(this, &jtOutputValue)
-        , wamJPOutput(this, &jpOutputValue)
+        , wamJPOutput(this, &jtOutputValue)
+        // , wamJPOutput(this, &jpOutputValue)
         , theirJPOutput(this, &theirJPOutputValue)
         , udp_handler(remoteHost, send_port, rec_port)
         , hw(hw)
@@ -92,8 +93,8 @@ class Leader : public barrett::systems::System {
     void unlink() { BARRETT_SCOPED_LOCK(this->getEmMutex()); state = State::UNLINKED; }
 
   protected:
-    typename Output<jp_type>::Value* jpOutputValue;
-    // typename Output<jt_type>::Value* jtOutputValue;
+    // typename Output<jp_type>::Value* jpOutputValue;
+    typename Output<jt_type>::Value* jtOutputValue;
     typename Output<jp_type>::Value* theirJPOutputValue;
 
     // Local copies
@@ -139,6 +140,10 @@ class Leader : public barrett::systems::System {
         double loop_dt = std::chrono::duration<double, std::milli>(now_op - last_op_time).count();
         last_op_time = now_op;
 
+        double dt_sec = loop_dt / 1000.0;
+        if (dt_sec < 0.0) dt_sec = 0.0;
+        if (dt_sec > 0.1) dt_sec = 0.1;
+
         // Optional scaling (like your second file)
         double j5_scale = 1.0;
         double j7_scale = 1.0;
@@ -159,17 +164,6 @@ class Leader : public barrett::systems::System {
         haptic_wrist::jp_type wristJP = hw->getPosition();
         haptic_wrist::jp_type wristJV = hw->getVelocity();
 
-        // Pack outgoing messages (arm + wrist)
-        sendJpMsg << wamJP, wristJP, 0;
-        sendJvMsg << wamJV, wristJV, joy_x.load();
-
-        // Only arm external torque is meaningful here; pad wrist torques with zeros
-        // BEAR
-        sendExtTorqueMsg << extTorque, 0.0, 0.0, 0.0;
-
-        // Example scaling of J5 and J7 (index 4 and 6 in the concatenated vector)
-        sendJpMsg(4) = j5_scale * sendJpMsg(4);
-        sendJpMsg(6) = j7_scale * sendJpMsg(6);
 
         // Receive (non-blocking)
         boost::optional<ReceivedData> received_data = udp_handler.getLatestReceived();
@@ -180,18 +174,34 @@ class Leader : public barrett::systems::System {
 
             // Split received arm & wrist
             theirJp        = received_data->jp.template head<DOF>();
-            // theirWristJp   = received_data->jp.template tail<3>(); BEAR, problem since wrist is 2 dof now
             theirJv        = received_data->jv.template head<DOF>();
             theirExtTorque = received_data->extTorque.template head<DOF>();
             remote_gripper_torque.store(static_cast<double>(received_data->gripper));
 
             theirWristJp = hw->getPosition();
-            if (theirWristJp.size() > 0) {
-                theirWristJp[0] = received_data->jp(DOF + 0) / j5_scale;
-            }
-            if (theirWristJp.size() > 1) {
-                theirWristJp[1] = received_data->jp(DOF + 1);
-            }
+
+            // if (theirWristJp.size() > 0) {
+            //     theirWristJp[0] = received_data->jp(DOF + 0) / j5_scale;
+            // }
+            // if (theirWristJp.size() > 1) {
+            //     theirWristJp[1] = received_data->jp(DOF + 1);
+            // }
+
+            remote_j7_pos = received_data->jp(6);
+
+            // mirror and offset j1, j4, j5 and j6 
+            theirJp(0) = -theirJp(0) - 1.57;
+            theirJp(3) = -theirJp(3);
+            theirJp(4) = -theirJp(4) - 1.57;
+            theirJp(5) *= -1;
+            theirJv(0) *= -1;
+            theirJv(3) *= -1;
+            theirJv(4) *= -1;
+            theirJv(5) *= -1;
+            theirExtTorque(0) *= -1;
+            theirExtTorque(3) *= -1;
+            theirExtTorque(4) *= -1;
+            theirExtTorque(5) *= -1;
 
             // BEAR
             // // Undo scaling on wrist channels
@@ -199,8 +209,7 @@ class Leader : public barrett::systems::System {
             // theirWristJp(2) = theirWristJp(2) / j7_scale; // J7
 
             // Publish peer arm JP (as before)
-            // BEAR
-            // theirJPOutputValue->setData(&theirJp);
+            theirJPOutputValue->setData(&theirJp);
         } else {
             if (state == State::LINKED) {
                 std::cout << "lost link" << std::endl;
@@ -208,22 +217,35 @@ class Leader : public barrett::systems::System {
             }
         }
 
+        updateJ7Command(dt_sec);
+
+        // Pack outgoing messages (arm + wrist)
+        sendJpMsg << wamJP, wristJP, j7_command_pos;
+        sendJvMsg << wamJV, wristJV, j7_command_vel;
+
+        // Only arm external torque is meaningful here; pad wrist torques with zeros
+        sendExtTorqueMsg << extTorque, 0.0, 0.0, 0.0;
+
+        // Example scaling of J5 and J7 (index 4 and 6 in the concatenated vector)
+        sendJpMsg(4) = j5_scale * sendJpMsg(4);
+        sendJpMsg(6) = j7_scale * sendJpMsg(6);
+
         // State machine
         switch (state) {
             case State::INIT:
                 // Hold wrist (don’t move) and zero arm torque
                 hw->setTarget(wristJP);
-                jpOutputValue->setData(&wamJP);
+                // jpOutputValue->setData(&wamJP);
                 control.setZero();
-                // jtOutputValue->setData(&control);
+                jtOutputValue->setData(&control);
                 break;
 
             case State::LINKED:
-                hw->setTarget(wristJP);
-                jpOutputValue->setData(&wamJP);
+                // hw->setTarget(wristJP);
+                // jpOutputValue->setData(&wamJP);
 
                 // // Drive wrist to peer wrist pose
-                // hw->setTarget(theirWristJp);
+                hw->setTarget(theirWristJp);
 
                 // Your arm control law (kept intact)
                 control = compute_control(
@@ -231,16 +253,16 @@ class Leader : public barrett::systems::System {
                     wamJP,   wamJV,   extTorque,
                     wamGrav, wamDyn
                 );
-                // jtOutputValue->setData(&control);
+                jtOutputValue->setData(&control);
                 break;
 
             case State::UNLINKED:
-                hw->setTarget(wristJP);
-                jpOutputValue->setData(&wamJP);
-                // // Release to local wrist pose and zero arm torque
                 // hw->setTarget(wristJP);
+                // jpOutputValue->setData(&wamJP);
+                // // Release to local wrist pose and zero arm torque
+                hw->setTarget(wristJP);
                 control.setZero();
-                // jtOutputValue->setData(&control);
+                jtOutputValue->setData(&control);
                 break;
         }
 
@@ -253,9 +275,18 @@ class Leader : public barrett::systems::System {
         double send_dt = std::chrono::duration<double, std::milli>(send_end - send_start).count();
 
         if (++loop_counter % 500 == 0) {
-            std::cout << "[LEADER] Loop dt: " << loop_dt 
-                      << " ms | UDP Rx Age: " << udp_rx_age 
-                      << " ms | UDP Send latency: " << send_dt << " ms\n";
+        //     std::cout << "[LEADER] Loop dt: " << loop_dt 
+        //               << " ms | UDP Rx Age: " << udp_rx_age 
+        //               << " ms | UDP Send latency: " << send_dt << " ms\n";
+               
+            std::cout << std::fixed << std::setprecision(3);
+            std::cout << "  -> TX JP:      [" << sendJpMsg.transpose() << "]\n";
+            std::cout << "  -> TX JV:      [" << sendJvMsg.transpose() << "]\n";
+            std::cout << "  -> TX ExtTrq:  [" << sendExtTorqueMsg.transpose() << "]\n";
+            std::cout << "  -> TX MeasTrq: [" << sendMeasTorqueMsg.transpose() << "]\n";
+            std::cout << "  -> TX GrpVel:  " << desired_gripper_vel.load() << "\n";
+            std::cout << "  -> Their wrist:  " << theirWristJp.transpose() << "\n";
+            std::cout << "  -> My wrist:  " << wristJP.transpose() << "\n\n";
         }
     }
 
@@ -318,6 +349,17 @@ class Leader : public barrett::systems::System {
     const std::chrono::milliseconds TIMEOUT_DURATION = std::chrono::milliseconds(20);
     State state;
 
+    static constexpr size_t J7_INDEX = 6;
+    const double j7_joy_deadband = 0.05;
+    const double j7_max_velocity_rad_s = 1.0;
+    bool j7_initialized = false;
+    bool j7_joystick_active = false;
+    double j7_command_pos = 0.0;
+    double j7_command_vel = 0.0;
+    double remote_j7_pos = 0.0;
+    std::chrono::steady_clock::time_point j7_last_update;
+
+
     // Gains you had
     Eigen::Matrix<double, DOF, 1> kp;
     Eigen::Matrix<double, DOF, 1> kd;
@@ -342,4 +384,33 @@ class Leader : public barrett::systems::System {
         // Default: u4 as you had
         return u1;
     };
+
+    void updateJ7Command(double dt) {
+        if (state == State::INIT) {
+            j7_initialized = false;
+            j7_command_pos = 0.0;
+            j7_command_vel = 0.0;
+            return;
+        }
+
+        if (!j7_initialized) {
+            j7_command_pos = remote_j7_pos; // Initialize to the follower's current J7
+            j7_initialized = true;
+        }
+
+        double joy_cmd = joy_x.load();
+        bool active = std::abs(joy_cmd) > j7_joy_deadband;
+
+        if (active) {
+            j7_command_vel = j7_max_velocity_rad_s * joy_cmd;
+            j7_command_pos += j7_command_vel * dt;
+            j7_joystick_active = true;
+        } else {
+            j7_command_vel = 0.0;
+
+            j7_command_pos = remote_j7_pos; 
+            
+            j7_joystick_active = false;
+        }
+    }
 };

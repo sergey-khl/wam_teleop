@@ -150,8 +150,7 @@ int wam_main(int argc, char **argv, ProductManager &pm, systems::Wam<DOF> &wam) 
     systems::connect(wam.jvOutput, leaderDynamics.jvInputDynamics);
     // systems::connect(zeroAcceleration.output, leaderDynamics.jaInputDynamics);
 
-    // BEAR
-    // systems::connect(leader.wamJPOutput, customjtSum.getInput(0));
+    systems::connect(leader.wamJPOutput, customjtSum.getInput(0));
     systems::connect(wam.gravity.output, customjtSum.getInput(1));
     systems::connect(wam.supervisoryController.output, customjtSum.getInput(2));
 
@@ -200,7 +199,7 @@ int wam_main(int argc, char **argv, ProductManager &pm, systems::Wam<DOF> &wam) 
 
                 // Track peer’s arm joints (Leader publishes them)
                 wam.trackReferenceSignal(leader.theirJPOutput);
-                // connect(leader.wamJPOutput, wam.input); // BEAR
+                connect(leader.wamJPOutput, wam.input);
 
                 btsleep(0.1); // wait an execution cycle or two
                 if (leader.isLinked()) {

@@ -54,11 +54,11 @@ template <size_t DOF> int wam_main(int argc, char **argv, ProductManager &pm, sy
 
     jp_type SYNC_POS; // the position each WAM should move to before linking
     if (DOF == 7) {
-        SYNC_POS[0] = 0.0;
+        SYNC_POS[0] = -1.57;
         SYNC_POS[1] = -1.57;
         SYNC_POS[2] = 0.0;
         SYNC_POS[3] = 2.0;
-        SYNC_POS[4] = 0.0;
+        SYNC_POS[4] = -1.57;
         SYNC_POS[5] = 0.0;
         SYNC_POS[6] = 0.0;
 
@@ -152,8 +152,7 @@ template <size_t DOF> int wam_main(int argc, char **argv, ProductManager &pm, sy
     systems::connect(wam.jvOutput, followerDynamics.jvInputDynamics);
     // systems::connect(zeroAcceleration.output, followerDynamics.jaInputDynamics);
 
-    // BEAR
-    // systems::connect(follower.wamJPOutput, customjtSum.getInput(0));
+    systems::connect(follower.wamJPOutput, customjtSum.getInput(0));
     systems::connect(wam.gravity.output, customjtSum.getInput(1));
     systems::connect(wam.supervisoryController.output, customjtSum.getInput(2));
 
@@ -192,7 +191,7 @@ template <size_t DOF> int wam_main(int argc, char **argv, ProductManager &pm, sy
                 waitForEnter();
                 follower.tryLink();
                 wam.trackReferenceSignal(follower.theirJPOutput);
-                // systems::connect(follower.wamJPOutput, wam.input); BEAR
+                systems::connect(follower.wamJPOutput, wam.input);
                 // connect(follower.wamJPOutput, wamJPOutputRamp.input); // one of the problem with the joint limiter is that it adds delay in applying external torque to the robot.
                 // connect(wamJPOutputRamp.output, wam.input);
                 // systems::forceConnect(wam.jtSum.output, externalTorque.wamTorqueSumIn);
