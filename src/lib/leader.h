@@ -178,32 +178,25 @@ class Leader : public barrett::systems::System {
             theirExtTorque = received_data->extTorque.template head<DOF>();
             remote_gripper_torque.store(static_cast<double>(received_data->gripper));
 
-            theirWristJp = hw->getPosition();
+            // theirWristJp = hw->getPosition();
 
-            // if (theirWristJp.size() > 0) {
-            //     theirWristJp[0] = received_data->jp(DOF + 0) / j5_scale;
-            // }
-            // if (theirWristJp.size() > 1) {
-            //     theirWristJp[1] = received_data->jp(DOF + 1);
-            // }
+            // get and mirror follower wrist
+            if (theirWristJp.size() > 0) {
+                theirWristJp[0] = received_data->jp(DOF + 0) / j5_scale;
+                theirWristJp[0] = -theirWristJp[0] - 1.57;
+            }
+            if (theirWristJp.size() > 1) {
+                theirWristJp[1] = received_data->jp(DOF + 1);
+                theirWristJp[1] *= -1;
+            }
 
             remote_j7_pos = received_data->jp(6);
 
             // mirror and offset j1, j4, j5 and j6 
             theirJp(0) = -theirJp(0) - 1.57;
-            theirJp(4) = -theirJp(4) - 1.57;
-            theirJp(5) *= -1;
             theirJv(0) *= -1;
-            theirJv(4) *= -1;
-            theirJv(5) *= -1;
             theirExtTorque(0) *= -1;
-            theirExtTorque(4) *= -1;
-            theirExtTorque(5) *= -1;
 
-            // BEAR
-            // // Undo scaling on wrist channels
-            // theirWristJp(0) = theirWristJp(0) / j5_scale; // J5
-            // theirWristJp(2) = theirWristJp(2) / j7_scale; // J7
 
             // Publish peer arm JP (as before)
             theirJPOutputValue->setData(&theirJp);
@@ -232,14 +225,11 @@ class Leader : public barrett::systems::System {
             case State::INIT:
                 // Hold wrist (don’t move) and zero arm torque
                 hw->setTarget(wristJP);
-                // jpOutputValue->setData(&wamJP);
                 control.setZero();
                 jtOutputValue->setData(&control);
                 break;
 
             case State::LINKED:
-                // hw->setTarget(wristJP);
-                // jpOutputValue->setData(&wamJP);
 
                 // // Drive wrist to peer wrist pose
                 hw->setTarget(theirWristJp);
@@ -254,8 +244,6 @@ class Leader : public barrett::systems::System {
                 break;
 
             case State::UNLINKED:
-                // hw->setTarget(wristJP);
-                // jpOutputValue->setData(&wamJP);
                 // // Release to local wrist pose and zero arm torque
                 hw->setTarget(wristJP);
                 control.setZero();
@@ -276,7 +264,7 @@ class Leader : public barrett::systems::System {
         //               << " ms | UDP Rx Age: " << udp_rx_age 
         //               << " ms | UDP Send latency: " << send_dt << " ms\n";
                
-            std::cout << std::fixed << std::setprecision(3);
+            // std::cout << std::fixed << std::setprecision(3);
             // std::cout << "  -> TX JP:      [" << sendJpMsg.transpose() << "]\n";
             // std::cout << "  -> TX JV:      [" << sendJvMsg.transpose() << "]\n";
             // std::cout << "  -> TX ExtTrq:  [" << sendExtTorqueMsg.transpose() << "]\n";
