@@ -28,6 +28,7 @@
 #include "lib/background_state_publisher.h"
 #include "lib/follower_dynamics.h"
 #include "lib/dynamic_external_torque.h"
+#include "lib/follower_vertical_dynamics.h"
 
 using namespace barrett;
 using detail::waitForEnter;
@@ -100,15 +101,21 @@ template <size_t DOF> int wam_main(int argc, char **argv, ProductManager &pm, sy
     pm.getExecutionManager()->startManaging(customjtSum);
 
     FollowerDynamics<DOF> followerDynamics(pm.getExecutionManager());
-
+    FollowerDynamics<DOF> horizontalGravity(pm.getExecutionManager());
     ExternalTorque<DOF> externalTorque(pm.getExecutionManager());
 
     DynamicExternalTorque<DOF> dynamicExternalTorque(pm.getExecutionManager());
+    FollowerVerticalDynamics<DOF> followerVerticalDynamics(pm.getExecutionManager());
     
     barrett::systems::FirstOrderFilter<jt_type> extFilter;
     jt_type omega_p(180.0);
     extFilter.setLowPass(omega_p);
     pm.getExecutionManager()->startManaging(extFilter);
+
+    jv_type jv;
+    jv.setConstant(0.0);
+    systems::Constant<jv_type> zeroVelocity(jv);
+    pm.getExecutionManager()->startManaging(zeroVelocity);
 
     ja_type ja;
     ja.setConstant(0.0);
@@ -143,6 +150,14 @@ template <size_t DOF> int wam_main(int argc, char **argv, ProductManager &pm, sy
     systems::connect(jaWAM.output, jaFilter.input);
     systems::connect(jaFilter.output, followerDynamics.jaInputDynamics);
 
+    systems::connect(wam.jpOutput, horizontalGravity.jpInputDynamics);
+    systems::connect(zeroVelocity.output, horizontalGravity.jvInputDynamics);
+    systems::connect(zeroAcceleration.output, horizontalGravity.jaInputDynamics);
+
+    systems::connect(followerDynamics.dynamicsFeedFWD, followerVerticalDynamics.followerDynamicsIn);
+    systems::connect(horizontalGravity.dynamicsFeedFWD, followerVerticalDynamics.horizontalGravityIn);
+    systems::connect(wam.gravity.output, followerVerticalDynamics.gravityIn);
+
     systems::connect(wam.jpOutput, follower.wamJPIn);
     systems::connect(wam.jvOutput, follower.wamJVIn);
     // systems::connect(extFilter.output, follower.extTorqueIn);
@@ -157,14 +172,16 @@ template <size_t DOF> int wam_main(int argc, char **argv, ProductManager &pm, sy
     systems::connect(wam.supervisoryController.output, customjtSum.getInput(2));
 
     systems::connect(customjtSum.output, dynamicExternalTorque.wamTorqueSumIn);
-    systems::connect(followerDynamics.dynamicsFeedFWD, dynamicExternalTorque.wamDynamicsIn);
+    systems::connect(followerVerticalDynamics.followerVerticalDynamicsOut, dynamicExternalTorque.wamDynamicsIn);
+    // systems::connect(followerDynamics.dynamicsFeedFWD, dynamicExternalTorque.wamDynamicsIn);
 
     systems::connect(wam.gravity.output, follower.wamGravIn);
-    systems::connect(followerDynamics.dynamicsFeedFWD, follower.wamDynIn);
+    systems::connect(followerVerticalDynamics.followerVerticalDynamicsOut, follower.wamDynIn);
+    // systems::connect(followerDynamics.dynamicsFeedFWD, follower.wamDynIn);
 
     systems::connect(dynamicExternalTorque.wamExternalTorqueOut, extFilter.input);
 
-    // systems::connect(extFilter.output, printdynamicextTorque.input);
+    systems::connect(extFilter.output, printdynamicextTorque.input);
     // systems::connect(dynamicExternalTorque.wamExternalTorqueOut, printdynamicextTorque.input);
     // systems::connect(wam.supervisoryController.output, printSC.input);
     // systems::connect(extFilter.output, printcustomjtSum.input);

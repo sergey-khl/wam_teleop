@@ -145,15 +145,15 @@ class Follower : public barrett::systems::System {
 
             // mirror and offset j1, j4, j5 and j6 
             theirJp(0) = -theirJp(0) - 1.57;
-            theirJp(3) = -theirJp(3);
+            // theirJp(3) = -theirJp(3);
             theirJp(4) = -theirJp(4) - 1.57;
             theirJp(5) *= -1;
             theirJv(0) *= -1;
-            theirJv(3) *= -1;
+            // theirJv(3) *= -1;
             theirJv(4) *= -1;
             theirJv(5) *= -1;
             theirExtTorque(0) *= -1;
-            theirExtTorque(3) *= -1;
+            // theirExtTorque(3) *= -1;
             theirExtTorque(4) *= -1;
             theirExtTorque(5) *= -1;
 
@@ -193,12 +193,13 @@ class Follower : public barrett::systems::System {
         //     std::cout << "[FOLLOWER] Loop dt: " << loop_dt 
         //               << " ms | UDP Rx Age: " << udp_rx_age 
         //               << " ms | UDP Send latency: " << send_dt << " ms\n";
-            std::cout << std::fixed << std::setprecision(3);
-            std::cout << "  -> TX JP:      [" << sendJpMsg.transpose() << "]\n";
-            std::cout << "  -> TX JV:      [" << sendJvMsg.transpose() << "]\n";
-            std::cout << "  -> TX ExtTrq:  [" << sendExtTorqueMsg.transpose() << "]\n";
-            std::cout << "  -> TX MeasTrq: [" << control.transpose() << "]\n";
-            std::cout << "  -> TX GrpTrq:  " << current_gripper_torque.load() << "\n\n";
+
+            // std::cout << std::fixed << std::setprecision(3);
+            // std::cout << "  -> TX JP:      [" << sendJpMsg.transpose() << "]\n";
+            // std::cout << "  -> TX JV:      [" << sendJvMsg.transpose() << "]\n";
+            // std::cout << "  -> TX ExtTrq:  [" << sendExtTorqueMsg.transpose() << "]\n";
+            // std::cout << "  -> TX MeasTrq: [" << control.transpose() << "]\n";
+            // std::cout << "  -> TX GrpTrq:  " << current_gripper_torque.load() << "\n\n";
         }
     }
 
