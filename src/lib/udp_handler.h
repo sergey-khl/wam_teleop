@@ -8,6 +8,12 @@
 #include <boost/optional.hpp>
 #include <chrono>
 
+enum class OperationMode {
+    TELEOP,     // Bidirectional communication with teleop
+    RECORD,     // Bidirectional with leader + follower data saving. see https://github.com/ColeDewis/openpi-wam/tree/main
+    INFERENCE   // mix inference and leader signal. also record both leader + follower
+};
+
 template <size_t DOF>
 class UDPHandler {
 public:
@@ -24,7 +30,9 @@ public:
         std::chrono::steady_clock::time_point timestamp;
     };
 
-    UDPHandler(const std::string& remote_host, int send_port, int recv_port);
+    UDPHandler(const std::string& teleop_host, int teleop_send, int teleop_recv,
+               OperationMode mode = OperationMode::TELEOP,
+               const std::string& inference_host = "127.0.0.1", int inference_send = 6000, int inference_recv = 6001);
     ~UDPHandler();
 
     void stop();
@@ -35,6 +43,7 @@ private:
     std::string remote_host;
     int send_port, recv_port;
     std::atomic<bool> stop_threads;
+    std::vector<boost::asio::ip::udp::endpoint> send_endpoints;
 
     boost::asio::io_context io_context;
     boost::asio::ip::udp::socket send_socket;

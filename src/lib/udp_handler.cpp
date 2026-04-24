@@ -3,14 +3,18 @@
 #include <boost/system/error_code.hpp>
 #include <cstring>
 
+// TODO: inference recv can just pass to current teleop_recv for now. change later
 template <size_t DOF>
-UDPHandler<DOF>::UDPHandler(const std::string& remote_host, int send_port, int recv_port)
-    : remote_host(remote_host)
-    , send_port(send_port)
-    , recv_port(recv_port)
-    , stop_threads(false)
+UDPHandler<DOF>::UDPHandler(const std::string& teleop_host, int teleop_send, int teleop_recv, OperationMode mode, const std::string& inference_host, int inference_send, int inference_recv)
+    : stop_threads(false)
     , send_socket(io_context, boost::asio::ip::udp::v4())
-    , recv_socket(io_context, boost::asio::ip::udp::endpoint(boost::asio::ip::udp::v4(), recv_port)) {
+    , recv_socket(io_context, boost::asio::ip::udp::endpoint(boost::asio::ip::udp::v4(), teleop_recv)) {
+
+    send_endpoints.push_back(boost::asio::ip::udp::endpoint(boost::asio::ip::make_address(teleop_host), teleop_send));
+
+    if (mode == OperationMode::RECORD || mode == OperationMode::INFERENCE) {
+        send_endpoints.push_back(boost::asio::ip::udp::endpoint(boost::asio::ip::make_address(inference_host), inference_send));
+    }
 
     recv_thread = std::thread(&UDPHandler::receiveLoop, this);
     send_thread = std::thread(&UDPHandler::sendLoop, this);

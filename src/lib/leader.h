@@ -35,12 +35,12 @@ class Leader : public barrett::systems::System {
 
     enum class State { INIT, LINKED, UNLINKED };
 
-    explicit Leader(barrett::systems::ExecutionManager* em,
-                    haptic_wrist::HapticWrist* hw,                 // NEW: wrist device
-                    const std::string& remoteHost,
-                    int rec_port = 5555,
-                    int send_port = 5554,
-                    const std::string& sysName = "Leader")
+    // we dont actually do inference on the leader but we still record data from it
+    explicit Leader(barrett::systems::ExecutionManager* em, haptic_wrist::HapticWrist* hw, 
+                      const std::string& teleopHost, int teleop_recv = 5555, int teleop_send = 5554, 
+                      OperationMode mode = OperationMode::TELEOP,
+                      const std::string& inference_host = "127.0.0.1", int inference_send = 6666, int inference_recv = 6667,
+                      const std::string& sysName = "Leader")
         : System(sysName)
         , theirJp(0.0)
         , theirJv(0.0)
@@ -54,7 +54,7 @@ class Leader : public barrett::systems::System {
         , wamJPOutput(this, &jtOutputValue)
         // , wamJPOutput(this, &jpOutputValue)
         , theirJPOutput(this, &theirJPOutputValue)
-        , udp_handler(remoteHost, send_port, rec_port)
+        , udp_handler(teleopHost, teleop_send, teleop_recv, mode, inference_host, inference_send, inference_recv)
         , hw(hw)
         , joy_x(0.0f)
         , trigger(0.0f)

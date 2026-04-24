@@ -34,8 +34,11 @@ class Follower : public barrett::systems::System {
 
     enum class State { INIT, LINKED, UNLINKED };
 
-    explicit Follower(barrett::systems::ExecutionManager* em,  GeckoGripper* gripper, const std::string& remoteHost, int rec_port = 5554,
-                      int send_port = 5555, const std::string& sysName = "Follower")
+    explicit Follower(barrett::systems::ExecutionManager* em, GeckoGripper* gripper, 
+                      const std::string& teleopHost, int teleop_recv = 5554, int teleop_send = 5555, 
+                      OperationMode mode = OperationMode::TELEOP,
+                      const std::string& inference_host = "127.0.0.1", int inference_send = 6666, int inference_recv = 6667,
+                      const std::string& sysName = "Follower")
         : System(sysName)
         , theirJp(0.0)
         , theirJv(0.0)
@@ -49,7 +52,7 @@ class Follower : public barrett::systems::System {
         , wamJPOutput(this, &jtOutputValue)
         // , wamJPOutput(this, &jpOutputValue)
         , theirJPOutput(this, &theirJPOutputValue)
-        , udp_handler(remoteHost, send_port, rec_port)
+        , udp_handler(teleopHost, teleop_send, teleop_recv, mode, inference_host, inference_send, inference_recv)
         , gripper(gripper)
         , target_gripper_vel(0.0f)
         , current_gripper_torque(0.0f)
