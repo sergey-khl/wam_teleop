@@ -179,7 +179,7 @@ int wam_main(int argc, char **argv, ProductManager &pm, systems::Wam<DOF> &wam) 
     // Optional prints (leave commented to avoid loop jitter)
     // systems::connect(dynamicExternalTorque.wamExternalTorqueOut, printdynamicextTorque.input);
     // systems::connect(extFilter.output, printextTorque.input);
-    systems::connect(dynamicExtFilter.output, printextTorque.input);
+    // systems::connect(dynamicExtFilter.output, printextTorque.input);
     // systems::connect(wam.supervisoryController.output, printSC.input);
     // systems::connect(leaderDynamics.dynamicsFeedFWD, printdynamicoutput.input);
 

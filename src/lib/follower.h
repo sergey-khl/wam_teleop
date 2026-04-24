@@ -143,17 +143,14 @@ class Follower : public barrett::systems::System {
             theirExtTorque = received_data->extTorque;
             target_gripper_vel.store(static_cast<double>(received_data->gripper));
 
-            // mirror and offset j1, j4, j5 and j6 
+            // mirror and offset j1, j5 and j6 
             theirJp(0) = -theirJp(0) - 1.57;
-            // theirJp(3) = -theirJp(3);
             theirJp(4) = -theirJp(4) - 1.57;
             theirJp(5) *= -1;
             theirJv(0) *= -1;
-            // theirJv(3) *= -1;
             theirJv(4) *= -1;
             theirJv(5) *= -1;
             theirExtTorque(0) *= -1;
-            // theirExtTorque(3) *= -1;
             theirExtTorque(4) *= -1;
             theirExtTorque(5) *= -1;
 
@@ -200,6 +197,7 @@ class Follower : public barrett::systems::System {
             // std::cout << "  -> TX ExtTrq:  [" << sendExtTorqueMsg.transpose() << "]\n";
             // std::cout << "  -> TX MeasTrq: [" << control.transpose() << "]\n";
             // std::cout << "  -> TX GrpTrq:  " << current_gripper_torque.load() << "\n\n";
+            // std::cout << "  -> ref:  " << theirExtTorque.transpose() << "\n\n";
         }
     }
 
@@ -250,12 +248,12 @@ class Follower : public barrett::systems::System {
 
         jt_type u3 = -0.5 * ref_extTorque; // PF-PF with ref external torque feedback
 
-        jt_type u4 = -0.5 * ref_extTorque + cur_dyn - cur_grav; // PF-PF with ref external torque feedback and dynamic compensation (Lawrence's perfect transparency architecture);
+        jt_type u4 = -0.1 * ref_extTorque + cur_dyn - cur_grav; // PF-PF with ref external torque feedback and dynamic compensation (Lawrence's perfect transparency architecture);
 
 
         jt_type u5 = -0.5 * ref_extTorque -0.15 * (ref_extTorque + cur_extTorque); // PF-PF with ref external torque and cur external torque feedback
 
-        jt_type u6 = -0.5 * ref_extTorque -0.15 * (ref_extTorque + cur_extTorque) + cur_dyn - cur_grav; // it has the best performance
+        jt_type u6 = -0.1 * ref_extTorque -0.03 * (ref_extTorque + cur_extTorque) + cur_dyn - cur_grav; // it has the best performance
 
 
         // cases that the leader side has differnt controller that the follower
@@ -271,7 +269,7 @@ class Follower : public barrett::systems::System {
         jt_type u10 = -0.5 * ref_extTorque;
 
         // jt_type u = u2;
-        jt_type u = u1;
+        jt_type u = u6;
 
         for (size_t i = 4; i < 7; ++i) {
             u[i] = 0.0;

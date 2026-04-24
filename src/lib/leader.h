@@ -191,15 +191,12 @@ class Leader : public barrett::systems::System {
 
             // mirror and offset j1, j4, j5 and j6 
             theirJp(0) = -theirJp(0) - 1.57;
-            // theirJp(3) = -theirJp(3);
             theirJp(4) = -theirJp(4) - 1.57;
             theirJp(5) *= -1;
             theirJv(0) *= -1;
-            // theirJv(3) *= -1;
             theirJv(4) *= -1;
             theirJv(5) *= -1;
             theirExtTorque(0) *= -1;
-            // theirExtTorque(3) *= -1;
             theirExtTorque(4) *= -1;
             theirExtTorque(5) *= -1;
 
@@ -279,7 +276,7 @@ class Leader : public barrett::systems::System {
         //               << " ms | UDP Rx Age: " << udp_rx_age 
         //               << " ms | UDP Send latency: " << send_dt << " ms\n";
                
-            // std::cout << std::fixed << std::setprecision(3);
+            std::cout << std::fixed << std::setprecision(3);
             // std::cout << "  -> TX JP:      [" << sendJpMsg.transpose() << "]\n";
             // std::cout << "  -> TX JV:      [" << sendJvMsg.transpose() << "]\n";
             // std::cout << "  -> TX ExtTrq:  [" << sendExtTorqueMsg.transpose() << "]\n";
@@ -287,6 +284,8 @@ class Leader : public barrett::systems::System {
             // std::cout << "  -> TX GrpVel:  " << desired_gripper_vel.load() << "\n";
             // std::cout << "  -> Their wrist:  " << theirWristJp.transpose() << "\n";
             // std::cout << "  -> My wrist:  " << wristJP.transpose() << "\n\n";
+            // std::cout << "  -> leader ext:  " << extTorque.transpose() << "\n";
+            // std::cout << "  -> ref:  " << theirExtTorque.transpose() << "\n\n";
         }
     }
 
@@ -373,16 +372,17 @@ class Leader : public barrett::systems::System {
         jt_type u1 = 0.0 * cur_extTorque;                        // zero FF (P-P + g-comp only if you add it)
         jt_type u2 = cur_dyn - cur_grav;                          // P-P with dynamic comp (your comment)
         jt_type u3 = -0.5 * ref_extTorque;                        // PF-PF (ref ext torque FF)
-        jt_type u4 = -0.5 * ref_extTorque + cur_dyn - cur_grav;   // PF-PF + dyn comp (Lawrence ideal)
+        jt_type u4 = -0.1 * ref_extTorque + cur_dyn - cur_grav;   // PF-PF + dyn comp (Lawrence ideal)
         jt_type u5 = -0.5 * ref_extTorque - 0.15 * (ref_extTorque + cur_extTorque);
-        jt_type u6 = -0.5 * ref_extTorque - 0.15 * (ref_extTorque + cur_extTorque) + cur_dyn - cur_grav;
+        jt_type u6 = -0.1 * ref_extTorque - 0.03 * (ref_extTorque + cur_extTorque) + cur_dyn - cur_grav;
 
         // Follower-different cases (kept for completeness)
         jt_type u7 = -0.5 * cur_extTorque;
         jt_type u8 = -0.25 * (ref_extTorque + cur_extTorque);
 
         // Default: u4 as you had
-        return u1;
+        // return u1;
+        return u6;
     };
 
     void updateJ7Command(double dt) {
