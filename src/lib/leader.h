@@ -194,8 +194,11 @@ class Leader : public barrett::systems::System {
 
             // mirror and offset j1, j4, j5 and j6 
             theirJp(0) = -theirJp(0) - 1.57;
+            theirJp(2) *= -1;
             theirJv(0) *= -1;
+            theirJv(2) *= -1;
             theirExtTorque(0) *= -1;
+            theirExtTorque(2) *= -1;
 
 
             // Publish peer arm JP (as before)
