@@ -15,6 +15,8 @@
 #include <barrett/systems/abstract/single_io.h>
 #include <barrett/thread/abstract/mutex.h>
 #include <barrett/units.h>
+#include "teleop_config_loader.h"
+#include "utils.h"
 
 using namespace gripper::gecko;
 
@@ -29,16 +31,13 @@ class Follower : public barrett::systems::System {
     Input<jt_type> wamGravIn;
     Input<jt_type> wamDynIn;
     Output<jt_type> wamJPOutput;
-    // Output<jp_type> wamJPOutput;
     Output<jp_type> theirJPOutput;
 
     enum class State { INIT, LINKED, UNLINKED };
 
     explicit Follower(barrett::systems::ExecutionManager* em, GeckoGripper* gripper, 
-                      const std::string& teleopHost, int teleop_recv = 5554, int teleop_send = 5555, 
-                      OperationMode mode = OperationMode::TELEOP,
-                      const std::string& inference_host = "127.0.0.1", int inference_send = 6666, int inference_recv = 6667,
-                      const std::string& sysName = "Follower")
+                  const TeleopConfig& config,
+                  const std::string& sysName = "Follower")
         : System(sysName)
         , theirJp(0.0)
         , theirJv(0.0)
@@ -50,18 +49,20 @@ class Follower : public barrett::systems::System {
         , wamGravIn(this)
         , wamDynIn(this)
         , wamJPOutput(this, &jtOutputValue)
-        // , wamJPOutput(this, &jpOutputValue)
         , theirJPOutput(this, &theirJPOutputValue)
-        , udp_handler(teleopHost, teleop_send, teleop_recv, mode, inference_host, inference_send, inference_recv)
+        , udp_handler(config.network.leader_host, config.network.teleop_recv, config.network.teleop_send, 
+                      config.network.mode, config.network.inference_host, config.network.inference_send, config.network.inference_recv)
         , gripper(gripper)
         , target_gripper_vel(0.0f)
         , current_gripper_torque(0.0f)
         , io_running(false)
         , state(State::INIT) {
 
-        kp << 750, 1000, 400, 200, 10, 10, 2.5;
-        kd << 8.3, 8, 3.3, 0.8, 0.5, 0.5, 0.05;
-        cf << 0.375, 0.4, 0.2, 0.1, 0.01, 0.01, 0.01;
+        for (size_t i = 0; i < DOF; i++) {
+            kp[i] = config.follower.gains.kp[i];
+            kd[i] = config.follower.gains.kd[i];
+            cf[i] = config.follower.gains.cf[i];
+        }
 
         last_op_time = std::chrono::steady_clock::now();
 
@@ -95,7 +96,6 @@ class Follower : public barrett::systems::System {
     }
 
   protected:
-    // typename Output<jp_type>::Value* jpOutputValue;
     typename Output<jt_type>::Value* jtOutputValue;
     typename Output<jp_type>::Value* theirJPOutputValue;
     jp_type wamJP;
@@ -107,7 +107,8 @@ class Follower : public barrett::systems::System {
     Eigen::Matrix<double, DOF, 1> sendJvMsg;
     Eigen::Matrix<double, DOF, 1> sendExtTorqueMsg;
 
-
+    TeleopConfig config;
+    
     int loop_counter = 0;
     std::chrono::time_point<std::chrono::steady_clock> last_op_time;
 
@@ -135,7 +136,7 @@ class Follower : public barrett::systems::System {
         sendJvMsg << wamJV;
         sendExtTorqueMsg << extTorque;
 
-        boost::optional<ReceivedData> received_data = udp_handler.getLatestReceived();
+        boost::optional<ReceivedData> received_data = udp_handler.getLatestTeleopReceived();
         auto now = std::chrono::steady_clock::now();
         double udp_rx_age = 0.0;
         if (received_data && (now - received_data->timestamp <= TIMEOUT_DURATION)) {
@@ -146,19 +147,12 @@ class Follower : public barrett::systems::System {
             theirExtTorque = received_data->extTorque;
             target_gripper_vel.store(static_cast<double>(received_data->gripper));
 
-            // mirror and offset j1, j5 and j6 
-            theirJp(0) = -theirJp(0) - 1.57;
-            theirJp(2) *= -1;
-            theirJp(4) = -theirJp(4) - 1.57;
-            theirJp(5) *= -1;
-            theirJv(0) *= -1;
-            theirJv(2) *= -1;
-            theirJv(4) *= -1;
-            theirJv(5) *= -1;
-            theirExtTorque(0) *= -1;
-            theirExtTorque(2) *= -1;
-            theirExtTorque(4) *= -1;
-            theirExtTorque(5) *= -1;
+            // mirror and offset some of the wam joints
+            for (size_t i = 0; i < DOF; i++) {
+                theirJp[i] = theirJp[i] * config.sync_mapping.scales[i] + config.sync_mapping.offsets[i];
+                theirJv[i] = theirJv[i] * config.sync_mapping.scales[i];
+                theirExtTorque[i] = theirExtTorque[i] * config.sync_mapping.scales[i];
+            }
 
             theirJPOutputValue->setData(&theirJp);
         } else {
@@ -274,7 +268,6 @@ class Follower : public barrett::systems::System {
 
         jt_type u10 = -0.5 * ref_extTorque;
 
-        // jt_type u = u2;
         jt_type u = u6;
 
         for (size_t i = 4; i < 7; ++i) {

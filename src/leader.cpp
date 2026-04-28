@@ -22,7 +22,6 @@
 #include <barrett/systems.h>
 #include <barrett/units.h>
 
-#define BARRETT_SMF_VALIDATE_ARGS
 #include <barrett/standard_main_function.h>
 
 // ==== CHANGED: use wrist-capable Leader and wrist headers ====
@@ -36,43 +35,26 @@
 using namespace barrett;
 using detail::waitForEnter;
 
-void printUsage(const std::string& programName, const std::string& remoteHost, int recPort, int sendPort) {
-    std::cout << "Usage: " << programName << " [remoteHost] [recPort] [sendPort]" << std::endl;
-    std::cout << "       Defaults: remoteHost=" << remoteHost << ", recPort=" << recPort << ", sendPort=" << sendPort
-              << std::endl;
-    std::cout << "       -h or --help: Display this help message." << std::endl;
-}
-
-bool validate_args(int argc, char** argv) {
-    if ((argc == 2 && (std::string(argv[1]) == "-h" || std::string(argv[1]) == "--help")) || (argc > 4)) {
-        printUsage(argv[0], "127.0.0.1", 5555, 5554);
-        return 0;
-    }
-    return true;
-}
-
 template <size_t DOF>
 int wam_main(int argc, char **argv, ProductManager &pm, systems::Wam<DOF> &wam) {
     BARRETT_UNITS_TEMPLATE_TYPEDEFS(DOF);
 
+    const std::string config_dir = get_config_directory();
+    if (config_dir.empty()) {
+        throw std::runtime_error("No valid configuration directory found.");
+    }
+
+    const TeleopConfig config = load_teleop_config(config_dir);
+
     jp_type SYNC_POS; // the position each WAM should move to before linking
     if (DOF == 4) {
-        SYNC_POS[0] = 0.0;
-        SYNC_POS[1] = -1.57;
-        SYNC_POS[2] = 0.0;
-        SYNC_POS[3] = 2.0;
+        for (int i = 0; i < 4; ++i) {
+            SYNC_POS[i] = config.leader.sync_pos[i];
+        }
     } else {
         printf("Error: 4 DOF supported\n");
         return false;
     }
-
-    std::string remoteHost = "127.0.0.1";
-    int rec_port = 5555;
-    int send_port = 5554;
-
-    if (argc >= 2) remoteHost = std::string(argv[1]);
-    if (argc >= 3) rec_port   = std::atoi(argv[2]);
-    if (argc >= 4) send_port  = std::atoi(argv[3]);
 
     // ==== CHANGED: node name to reflect wrist leader ====
     ros::init(argc, argv, "leader");
@@ -113,7 +95,7 @@ int wam_main(int argc, char **argv, ProductManager &pm, systems::Wam<DOF> &wam) 
     pm.getExecutionManager()->startManaging(zeroAcceleration);
 
     // ==== CHANGED: instantiate wrist-capable Leader ====
-    Leader<DOF> leader(pm.getExecutionManager(), &hw, remoteHost, rec_port, send_port);
+    Leader<DOF> leader(pm.getExecutionManager(), &hw, config);
 
     jt_type maxRate; // Nm·s^-1 per joint
     maxRate << 50, 50, 50, 50;

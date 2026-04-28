@@ -14,6 +14,7 @@ find_package(catkin REQUIRED COMPONENTS
    sensor_msgs
    message_generation
 )
+find_package(yaml-cpp REQUIRED)
 
 add_message_files(
    FILES
@@ -28,6 +29,14 @@ catkin_package(
    CATKIN_DEPENDS roscpp std_msgs sensor_msgs message_runtime
 )
 
+install(DIRECTORY ${CMAKE_SOURCE_DIR}/config/
+  DESTINATION /etc/teleop_config
+  FILES_MATCHING PATTERN "*.yaml"
+  PERMISSIONS
+    OWNER_READ OWNER_WRITE OWNER_EXECUTE
+    GROUP_READ GROUP_WRITE GROUP_EXECUTE
+    WORLD_READ WORLD_WRITE WORLD_EXECUTE
+)
 
 ## libbarrett
 find_package(Barrett REQUIRED)
@@ -42,14 +51,14 @@ find_package(Boost REQUIRED COMPONENTS system thread)
 
 if (BUILD_LEADER) 
    find_package(haptic_wrist 2.0 REQUIRED)
-   add_executable(leader src/leader.cpp src/lib/udp_handler.cpp)
-   target_link_libraries(leader ${BARRETT_LIBRARIES} ${catkin_LIBRARIES} haptic_wrist Boost::system Boost::thread)
+   add_executable(leader src/leader.cpp src/lib/udp_handler.cpp src/lib/utils.cpp)
+   target_link_libraries(leader ${BARRETT_LIBRARIES} ${catkin_LIBRARIES} haptic_wrist Boost::system Boost::thread yaml-cpp)
    target_compile_definitions(leader PRIVATE BUILD_LEADER)
    add_dependencies(leader ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 endif()
 
-add_executable(follower src/follower.cpp src/lib/udp_handler.cpp)
-target_link_libraries(follower ${BARRETT_LIBRARIES} ${catkin_LIBRARIES} gripper::gripper Boost::system Boost::thread)
+add_executable(follower src/follower.cpp src/lib/udp_handler.cpp src/lib/utils.cpp)
+target_link_libraries(follower ${BARRETT_LIBRARIES} ${catkin_LIBRARIES} gripper::gripper Boost::system Boost::thread yaml-cpp)
 add_dependencies(follower ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 
 # add_executable(follower_ext src/follower_ext.cpp src/lib/udp_handler.cpp)

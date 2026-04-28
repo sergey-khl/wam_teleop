@@ -15,6 +15,8 @@
 #include <barrett/systems/abstract/single_io.h>
 #include <barrett/thread/abstract/mutex.h>
 #include <barrett/units.h>
+#include "teleop_config_loader.h"
+#include "utils.h"
 
 template <size_t DOF>
 class Leader : public barrett::systems::System {
@@ -30,17 +32,14 @@ class Leader : public barrett::systems::System {
 
     // Outputs (same as your first file)
     Output<jt_type> wamJPOutput;      // control torque command for the WAM arm (DOF)
-    // Output<jp_type> wamJPOutput;      // control torque command for the WAM arm (DOF)
     Output<jp_type> theirJPOutput;    // peer arm JP (DOF) for logging/monitoring
 
     enum class State { INIT, LINKED, UNLINKED };
 
     // we dont actually do inference on the leader but we still record data from it
     explicit Leader(barrett::systems::ExecutionManager* em, haptic_wrist::HapticWrist* hw, 
-                      const std::string& teleopHost, int teleop_recv = 5555, int teleop_send = 5554, 
-                      OperationMode mode = OperationMode::TELEOP,
-                      const std::string& inference_host = "127.0.0.1", int inference_send = 6666, int inference_recv = 6667,
-                      const std::string& sysName = "Leader")
+                const TeleopConfig& cfg,
+                const std::string& sysName = "Leader")
         : System(sysName)
         , theirJp(0.0)
         , theirJv(0.0)
@@ -52,9 +51,9 @@ class Leader : public barrett::systems::System {
         , wamGravIn(this)
         , wamDynIn(this)
         , wamJPOutput(this, &jtOutputValue)
-        // , wamJPOutput(this, &jpOutputValue)
         , theirJPOutput(this, &theirJPOutputValue)
-        , udp_handler(teleopHost, teleop_send, teleop_recv, mode, inference_host, inference_send, inference_recv)
+        , udp_handler(cfg.network.follower_host, cfg.network.teleop_send, cfg.network.teleop_recv, 
+                      cfg.network.mode, cfg.network.inference_host, cfg.network.inference_send, cfg.network.inference_recv)
         , hw(hw)
         , joy_x(0.0f)
         , trigger(0.0f)
@@ -64,10 +63,20 @@ class Leader : public barrett::systems::System {
         , io_running(false)
         , state(State::INIT) {
 
-        // Keep your original gains
-        kp << 750, 1000, 400, 200;
-        kd << 8.3, 8, 3.3, 0.8;
-        cf << 0.375, 0.4, 0.2, 0.1;
+        for (size_t i = 0; i < DOF; i++) {
+            kp[i] = config.leader.gains.kp[i];
+            kd[i] = config.leader.gains.kd[i];
+            cf[i] = config.leader.gains.cf[i];
+        }
+
+        trigger_rest_pos = config.leader.haptics.trigger_rest_pos;
+        target_velocity  = config.leader.haptics.target_velocity;
+        torque_scaling   = config.leader.haptics.torque_scaling;
+        minStiffness     = config.leader.haptics.minStiffness;
+        maxStiffness     = config.leader.haptics.maxStiffness;
+        alpha            = config.leader.haptics.alpha;
+        j7_joy_deadband            = config.leader.haptics.j7_joy_deadband;
+        j7_max_velocity_rad_s            = config.leader.haptics.j7_max_velocity_rad_s;
 
         last_op_time = std::chrono::steady_clock::now();
 
@@ -93,9 +102,10 @@ class Leader : public barrett::systems::System {
     void unlink() { BARRETT_SCOPED_LOCK(this->getEmMutex()); state = State::UNLINKED; }
 
   protected:
-    // typename Output<jp_type>::Value* jpOutputValue;
     typename Output<jt_type>::Value* jtOutputValue;
     typename Output<jp_type>::Value* theirJPOutputValue;
+
+    TeleopConfig config;
 
     // Local copies
     jp_type wamJP;
@@ -111,13 +121,12 @@ class Leader : public barrett::systems::System {
     std::atomic<float> remote_gripper_torque;
 
 
-    const double trigger_rest_pos = 0.25;
-    float target_velocity = 0.3;
-    const float torque_scaling = 1.5;
-    const float minStiffness = 0.15;
-    const float maxStiffness = 1.0;
-
-    const float alpha = 0.35f;
+    double trigger_rest_pos;
+    float target_velocity;
+    float torque_scaling;
+    float minStiffness;
+    float maxStiffness;
+    float alpha;
 
     int loop_counter = 0;
     std::chrono::time_point<std::chrono::steady_clock> last_op_time;
@@ -144,10 +153,6 @@ class Leader : public barrett::systems::System {
         if (dt_sec < 0.0) dt_sec = 0.0;
         if (dt_sec > 0.1) dt_sec = 0.1;
 
-        // Optional scaling (like your second file)
-        double j5_scale = 1.0;
-        double j7_scale = 1.0;
-
         // Read WAM inputs
         wamJP  = wamJPIn.getValue();
         wamJV  = wamJVIn.getValue();
@@ -166,7 +171,7 @@ class Leader : public barrett::systems::System {
 
 
         // Receive (non-blocking)
-        boost::optional<ReceivedData> received_data = udp_handler.getLatestReceived();
+        boost::optional<ReceivedData> received_data = udp_handler.getLatestTeleopReceived();
         auto now = std::chrono::steady_clock::now();
         double udp_rx_age = 0.0;
         if (received_data && (now - received_data->timestamp <= TIMEOUT_DURATION)) {
@@ -181,25 +186,18 @@ class Leader : public barrett::systems::System {
             // theirWristJp = hw->getPosition();
 
             // get and mirror follower wrist
-            if (theirWristJp.size() > 0) {
-                theirWristJp[0] = received_data->jp(DOF + 0) / j5_scale;
-                theirWristJp[0] = -theirWristJp[0] - 1.57;
-            }
-            if (theirWristJp.size() > 1) {
-                theirWristJp[1] = received_data->jp(DOF + 1);
-                theirWristJp[1] *= -1;
+            for (size_t i = 0; i < 2; i++) {
+                theirWristJp[i] = received_data->jp(DOF + i) * config.sync_mapping.scales[DOF + i] + config.sync_mapping.offsets[DOF + i];
             }
 
             remote_j7_pos = received_data->jp(6);
 
-            // mirror and offset j1, j4, j5 and j6 
-            theirJp(0) = -theirJp(0) - 1.57;
-            theirJp(2) *= -1;
-            theirJv(0) *= -1;
-            theirJv(2) *= -1;
-            theirExtTorque(0) *= -1;
-            theirExtTorque(2) *= -1;
-
+            // mirror and offset some of the wam joints
+            for (size_t i = 0; i < DOF; i++) {
+                theirJp[i] = theirJp[i] * config.sync_mapping.scales[i] + config.sync_mapping.offsets[i];
+                theirJv[i] = theirJv[i] * config.sync_mapping.scales[i];
+                theirExtTorque[i] = theirExtTorque[i] * config.sync_mapping.scales[i];
+            }
 
             // Publish peer arm JP (as before)
             theirJPOutputValue->setData(&theirJp);
@@ -220,8 +218,8 @@ class Leader : public barrett::systems::System {
         sendExtTorqueMsg << extTorque, 0.0, 0.0, 0.0;
 
         // Example scaling of J5 and J7 (index 4 and 6 in the concatenated vector)
-        sendJpMsg(4) = j5_scale * sendJpMsg(4);
-        sendJpMsg(6) = j7_scale * sendJpMsg(6);
+        sendJpMsg(4) = sendJpMsg(4);
+        sendJpMsg(6) = sendJpMsg(6);
 
         // State machine
         switch (state) {
@@ -339,9 +337,9 @@ class Leader : public barrett::systems::System {
     const std::chrono::milliseconds TIMEOUT_DURATION = std::chrono::milliseconds(20);
     State state;
 
+    double j7_joy_deadband;
+    double j7_max_velocity_rad_s;
     static constexpr size_t J7_INDEX = 6;
-    const double j7_joy_deadband = 0.05;
-    const double j7_max_velocity_rad_s = 1.0;
     bool j7_initialized = false;
     bool j7_joystick_active = false;
     double j7_command_pos = 0.0;
@@ -372,7 +370,6 @@ class Leader : public barrett::systems::System {
         jt_type u8 = -0.25 * (ref_extTorque + cur_extTorque);
 
         // Default: u4 as you had
-        // return u1;
         return u6;
     };
 

@@ -7,16 +7,24 @@
 template <size_t DOF>
 UDPHandler<DOF>::UDPHandler(const std::string& teleop_host, int teleop_send, int teleop_recv, OperationMode mode, const std::string& inference_host, int inference_send, int inference_recv)
     : stop_threads(false)
+    , op_mode(mode)
     , send_socket(io_context, boost::asio::ip::udp::v4())
-    , recv_socket(io_context, boost::asio::ip::udp::endpoint(boost::asio::ip::udp::v4(), teleop_recv)) {
+    , teleop_recv_socket(io_context, boost::asio::ip::udp::endpoint(boost::asio::ip::udp::v4(), teleop_recv))
+    , inference_recv_socket(io_context) {
 
+    // Always add teleop to our broadcast list
     send_endpoints.push_back(boost::asio::ip::udp::endpoint(boost::asio::ip::make_address(teleop_host), teleop_send));
 
     if (mode == OperationMode::RECORD || mode == OperationMode::INFERENCE) {
         send_endpoints.push_back(boost::asio::ip::udp::endpoint(boost::asio::ip::make_address(inference_host), inference_send));
     }
 
-    recv_thread = std::thread(&UDPHandler::receiveLoop, this);
+    teleop_recv_thread = std::thread(&UDPHandler::receiveLoop, this, std::ref(teleop_recv_socket), std::ref(latest_teleop_received));
+    
+    if (mode == OperationMode::RECORD || mode == OperationMode::INFERENCE) {
+        inference_recv_thread = std::thread(&UDPHandler::receiveLoop, this, std::ref(inference_recv_socket), std::ref(latest_inference_received));
+    }
+
     send_thread = std::thread(&UDPHandler::sendLoop, this);
 }
 
@@ -31,27 +39,39 @@ void UDPHandler<DOF>::stop() {
     io_context.stop();
     send_condition.notify_all();
     try {
-        recv_socket.cancel();
-        recv_socket.shutdown(boost::asio::ip::udp::socket::shutdown_both);
-        recv_socket.close();
+        if (teleop_recv_socket.is_open()) {
+            teleop_recv_socket.cancel();
+            teleop_recv_socket.shutdown(boost::asio::ip::udp::socket::shutdown_both);
+            teleop_recv_socket.close();
+        }
+        if (inference_recv_socket.is_open()) {
+            inference_recv_socket.cancel();
+            inference_recv_socket.shutdown(boost::asio::ip::udp::socket::shutdown_both);
+            inference_recv_socket.close();
+        }
     } catch (...) {
         // Ignore any exceptions during socket cleanup
     }
 
-    if (recv_thread.joinable())
-        recv_thread.join();
-    if (send_thread.joinable())
-        send_thread.join();
+    if (teleop_recv_thread.joinable()) teleop_recv_thread.join();
+    if (inference_recv_thread.joinable()) inference_recv_thread.join();
+    if (send_thread.joinable()) send_thread.join();
 }
 
 template <size_t DOF>
-boost::optional<typename UDPHandler<DOF>::ReceivedData> UDPHandler<DOF>::getLatestReceived() {
+boost::optional<typename UDPHandler<DOF>::ReceivedData> UDPHandler<DOF>::getLatestTeleopReceived() {
     std::lock_guard<std::mutex> lock(state_mutex);
-    return latest_received;
+    return latest_teleop_received;
 }
 
 template <size_t DOF>
-void UDPHandler<DOF>::receiveLoop() {
+boost::optional<typename UDPHandler<DOF>::ReceivedData> UDPHandler<DOF>::getLatestInferenceReceived() {
+    std::lock_guard<std::mutex> lock(state_mutex);
+    return latest_inference_received;
+}
+
+template <size_t DOF>
+void UDPHandler<DOF>::receiveLoop(boost::asio::ip::udp::socket& recv_socket, boost::optional<ReceivedData>& latest_received) {
     boost::asio::ip::udp::endpoint sender_endpoint;
     jp_type received_jp;
     jv_type received_jv;
@@ -97,8 +117,6 @@ void UDPHandler<DOF>::send(const jp_type& jp, const jv_type& jv, const jt_type& 
 
 template <size_t DOF>
 void UDPHandler<DOF>::sendLoop() {
-    boost::asio::ip::udp::endpoint remote_endpoint(boost::asio::ip::make_address(remote_host), send_port);
-
     while (!stop_threads) {
         std::unique_lock<std::mutex> lock(send_mutex);
         send_condition.wait(lock, [this] { return new_data_available || stop_threads; });
@@ -122,7 +140,9 @@ void UDPHandler<DOF>::sendLoop() {
         std::memcpy(buffer + 4*(sizeof(double) * DOF), &data_to_send_gripper, sizeof(double));
 
         boost::system::error_code ec;
-        send_socket.send_to(boost::asio::buffer(buffer, sizeof(buffer)), remote_endpoint, 0, ec);
+        for (const auto& endpoint : send_endpoints) {
+            send_socket.send_to(boost::asio::buffer(buffer, sizeof(buffer)), endpoint, 0, ec);
+        }
     }
     send_socket.close();
 }

@@ -36,19 +36,23 @@ public:
     ~UDPHandler();
 
     void stop();
-    boost::optional<ReceivedData> getLatestReceived();
+    boost::optional<ReceivedData> getLatestTeleopReceived();
+    boost::optional<ReceivedData> getLatestInferenceReceived();
     void send(const jp_type& jp, const jv_type& jv, const jt_type& extTorque, const jt_type& measTorque, const double& gripper);
 
 private:
-    std::string remote_host;
-    int send_port, recv_port;
+    OperationMode op_mode;
     std::atomic<bool> stop_threads;
     std::vector<boost::asio::ip::udp::endpoint> send_endpoints;
 
     boost::asio::io_context io_context;
     boost::asio::ip::udp::socket send_socket;
-    boost::asio::ip::udp::socket recv_socket;
-    std::thread recv_thread, send_thread;
+    boost::asio::ip::udp::socket teleop_recv_socket;
+    boost::asio::ip::udp::socket inference_recv_socket;
+
+    std::thread teleop_recv_thread;
+    std::thread inference_recv_thread;
+    std::thread send_thread;
 
     std::mutex state_mutex, send_mutex;
     std::condition_variable send_condition;
@@ -58,9 +62,11 @@ private:
     jt_type pending_send_extTorque;
     jt_type pending_send_measTorque;
     double pending_send_gripper;
-    boost::optional<ReceivedData> latest_received;
+
+    boost::optional<ReceivedData> latest_teleop_received;
+    boost::optional<ReceivedData> latest_inference_received;
     bool new_data_available = false;
 
-    void receiveLoop();
+    void receiveLoop(boost::asio::ip::udp::socket& recv_socket, boost::optional<ReceivedData>& latest_received);
     void sendLoop();
 };

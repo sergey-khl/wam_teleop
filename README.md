@@ -1,5 +1,5 @@
 # Note
-This version of code is for horizontal configuration of the WAM teleop setup.
+This version of code is for vertical configuration of the WAM teleop setup. IGNORE the rest of the branches for now.
 
 # Wam Teleop
 This package enables teleoperation between the 4DOF leader with the haptic wrist and the 7DOF follower. While this is a ros package, communication between WAMs does not use ros, and instead uses UDP. Ros is only used to publish the state of arm for easier data collection, and is not intended to receive any incoming messages or services to control the arm. 
@@ -18,51 +18,45 @@ option(BUILD_LEADER "Build leader executable" OFF)
 ```
 To build the leader node, the haptic_wrist library is required as a dependency, build and install instructions can be found [here](https://github.com/dmiller12/libhaptic_wrist).
 
+OR, to make your life easy, see [wam-ros-docker](https://github.com/ualberta-robotics/wam-ros-docker) where you only need to run ```source build_all.sh``` or ```source build_ws.sh``` if you already built the gripper and wrist.
+
 ## Run Instructions
 
 `config/` contains the Barrett configuration files for the leader and follower. 
 You can set the correct config file by using `source scripts/setup_leader.sh` and `source scripts/setup_follower.sh`. These will set the env variable `BARRETT_CONFIG_FILE` to the correct path. 
 You may need to modify the bus port in `config/leader.conf` and `config/follower.conf` depending on the can interface. Note that these environment variables only persist for the current terminal session.
 
-Each node has the same command line options:
+to run each node:
 ```bash
-rosrun wam_teleop leader [remoteHost] [recPort] [sendPort]
-rosrun wam_teleop follower [remoteHost] [recPort] [sendPort]
+rosrun wam_teleop leader
+rosrun wam_teleop follower
 ```
-Use `-h` or `--help` to see options description.
+see teleop_config.yaml to change ports, hosts, gains and more!
 
-### Example
-
-Source workspace in each terminal in `amir\catkin_ws`
+In your host computer, run 
 ```bash
-source devel/setup.bash
+source scripts\can_init_pciefd.sh
 ```
-
-
-In first terminl, source CAN in a terminal in `amir\catkin_ws\src\wam_teleop`
+or,
 ```bash
-source scripts\pci_can_init.sh
+source scripts\can_init_usb.sh
 ```
-if you are doing this with the pci card or if you are using usb:
-```bash
-source scripts\usb_can_init.sh
-```
+or, edit to your needs depending on how you communicate with the wam's.
+
 NOTE: you might have to tweak the can# based on the order you plugged stuff into the computer.
-
 
 In a separate terminal session, start the master node with: `roscore`.
 
-In a separate terminal session, start the leader in `amir\catkin_ws\src\wam_teleop`:
+In a separate terminal session, start the leader in `wam_ws\src\wam_teleop`:
 ```bash
 source scripts/setup_leader.sh
-rosrun wam_teleop leader_nowrist 127.0.0.1 5555 5554
+rosrun wam_teleop leader
 ```
-In another separate terminal session, start the follower in `amir\catkin_ws\src\wam_teleop`:
+In another separate terminal session, start the follower in `wam_ws\src\wam_teleop`:
 ```bash
 source scripts/setup_follower.sh
-rosrun wam_teleop follower 127.0.0.1 5554 5555
+rosrun wam_teleop follower
 ```
-Note the matching recPort and sendPort between leader and follower, that is, the leader receives on 5555 and the follower sends on 5555 and vice versa.
 
 Once both nodes have started:
 
