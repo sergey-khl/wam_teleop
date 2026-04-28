@@ -54,7 +54,7 @@ class Leader : public barrett::systems::System {
         , wamJPOutput(this, &jtOutputValue)
         , theirJPOutput(this, &theirJPOutputValue)
         , udp_handler(config.network.follower_host, config.network.teleop_send, config.network.teleop_recv, 
-                      config.network.mode, config.network.inference_host, config.network.inference_send, config.network.inference_recv)
+                      config.network.mode, config.network.inference_host, config.network.leader_inference_send, config.network.inference_recv)
         , hw(hw)
         , joy_x(0.0f)
         , trigger(0.0f)

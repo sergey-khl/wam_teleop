@@ -52,7 +52,7 @@ class Follower : public barrett::systems::System {
         , wamJPOutput(this, &jtOutputValue)
         , theirJPOutput(this, &theirJPOutputValue)
         , udp_handler(config.network.leader_host, config.network.teleop_recv, config.network.teleop_send, 
-                      config.network.mode, config.network.inference_host, config.network.inference_send, config.network.inference_recv)
+                      config.network.mode, config.network.inference_host, config.network.follower_inference_send, config.network.inference_recv)
         , gripper(gripper)
         , target_gripper_vel(0.0f)
         , current_gripper_torque(0.0f)

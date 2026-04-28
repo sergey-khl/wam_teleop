@@ -5,8 +5,9 @@ network:
   teleop_send: 5555
   teleop_recv: 5554
   inference_host: "127.0.0.1"
-  inference_send: 6000
-  inference_recv: 6001
+  leader_inference_send: 6555
+  follower_inference_send: 6554
+  inference_recv: 6666
   mode: 1  # 0: TELEOP, 1: RECORD, 2: INFERENCE
 
 sync_mapping:

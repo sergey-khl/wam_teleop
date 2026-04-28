@@ -12,7 +12,8 @@ struct NetworkConfig {
     int teleop_send;
     int teleop_recv;
     std::string inference_host;
-    int inference_send;
+    int leader_inference_send;
+    int follower_inference_send;
     int inference_recv;
     OperationMode mode;
 };
@@ -52,7 +53,8 @@ template<> struct convert<NetworkConfig> {
         c.teleop_send = node["teleop_send"].as<int>();
         c.teleop_recv = node["teleop_recv"].as<int>();
         c.inference_host = node["inference_host"].as<std::string>();
-        c.inference_send = node["inference_send"].as<int>();
+        c.leader_inference_send = node["leader_inference_send"].as<int>();
+        c.follower_inference_send = node["follower_inference_send"].as<int>();
         c.inference_recv = node["inference_recv"].as<int>();
         c.mode = static_cast<OperationMode>(node["mode"].as<int>());
         return true;
