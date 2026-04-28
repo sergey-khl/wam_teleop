@@ -396,8 +396,6 @@ class Leader : public barrett::systems::System {
         } else {
             j7_command_vel = 0.0;
 
-            j7_command_pos = remote_j7_pos; 
-            
             j7_joystick_active = false;
         }
     }
