@@ -39,6 +39,7 @@ class Follower : public barrett::systems::System {
                   const TeleopConfig& config,
                   const std::string& sysName = "Follower")
         : System(sysName)
+        , config(config)
         , theirJp(0.0)
         , theirJv(0.0)
         , theirExtTorque(0.0)

@@ -7,7 +7,7 @@ network:
   inference_host: "127.0.0.1"
   inference_send: 6000
   inference_recv: 6001
-  mode: 0  # 0: TELEOP, 1: RECORD, 2: INFERENCE
+  mode: 1  # 0: TELEOP, 1: RECORD, 2: INFERENCE
 
 sync_mapping:
   scales:  [-1.0, 1.0, -1.0, 1.0, -1.0, -1.0, 1.0]

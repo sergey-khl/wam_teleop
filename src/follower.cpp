@@ -35,7 +35,7 @@ using detail::waitForEnter;
 template <size_t DOF> int wam_main(int argc, char **argv, ProductManager &pm, systems::Wam<DOF> &wam) {
     BARRETT_UNITS_TEMPLATE_TYPEDEFS(DOF);
 
-    const std::string config_dir = get_config_directory();
+    const std::string config_dir = get_teleop_config_directory();
     if (config_dir.empty()) {
         throw std::runtime_error("No valid configuration directory found.");
     }

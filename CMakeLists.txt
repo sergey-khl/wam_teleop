@@ -8,13 +8,19 @@ if (NOT CMAKE_BUILD_TYPE)
    set(CMAKE_BUILD_TYPE "RelWithDebInfo")
 endif()
 
+include(FetchContent)
 find_package(catkin REQUIRED COMPONENTS
    roscpp
    std_msgs
    sensor_msgs
    message_generation
 )
-find_package(yaml-cpp REQUIRED)
+FetchContent_Declare(
+  yaml-cpp
+  GIT_REPOSITORY https://github.com/jbeder/yaml-cpp.git
+  GIT_TAG "0.8.0"
+)
+FetchContent_MakeAvailable(yaml-cpp)
 
 add_message_files(
    FILES
@@ -29,9 +35,9 @@ catkin_package(
    CATKIN_DEPENDS roscpp std_msgs sensor_msgs message_runtime
 )
 
-install(DIRECTORY ${CMAKE_SOURCE_DIR}/config/
-  DESTINATION /etc/teleop_config
-  FILES_MATCHING PATTERN "*.yaml"
+install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/config/
+  DESTINATION /etc/teleop
+  FILES_MATCHING PATTERN "teleop_config.yaml"
   PERMISSIONS
     OWNER_READ OWNER_WRITE OWNER_EXECUTE
     GROUP_READ GROUP_WRITE GROUP_EXECUTE
@@ -50,15 +56,19 @@ find_package(gripper REQUIRED)
 find_package(Boost REQUIRED COMPONENTS system thread)
 
 if (BUILD_LEADER) 
-   find_package(haptic_wrist 2.0 REQUIRED)
-   add_executable(leader src/leader.cpp src/lib/udp_handler.cpp src/lib/utils.cpp)
-   target_link_libraries(leader ${BARRETT_LIBRARIES} ${catkin_LIBRARIES} haptic_wrist Boost::system Boost::thread yaml-cpp)
-   target_compile_definitions(leader PRIVATE BUILD_LEADER)
-   add_dependencies(leader ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+    find_package(haptic_wrist 2.0 REQUIRED)
+    add_executable(leader src/leader.cpp src/lib/udp_handler.cpp src/lib/utils.cpp)
+    target_link_libraries(leader ${BARRETT_LIBRARIES} ${catkin_LIBRARIES} haptic_wrist Boost::system Boost::thread yaml-cpp)
+    target_compile_definitions(leader PRIVATE BUILD_LEADER)
+    target_compile_options(leader PRIVATE -fsanitize=address -g) 
+    target_link_options(leader PRIVATE -fsanitize=address)
+    add_dependencies(leader ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 endif()
 
 add_executable(follower src/follower.cpp src/lib/udp_handler.cpp src/lib/utils.cpp)
 target_link_libraries(follower ${BARRETT_LIBRARIES} ${catkin_LIBRARIES} gripper::gripper Boost::system Boost::thread yaml-cpp)
+target_compile_options(follower PRIVATE -fsanitize=address -g) 
+target_link_options(follower PRIVATE -fsanitize=address)
 add_dependencies(follower ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 
 # add_executable(follower_ext src/follower_ext.cpp src/lib/udp_handler.cpp)

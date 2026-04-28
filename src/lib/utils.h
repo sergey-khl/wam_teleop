@@ -3,4 +3,4 @@
 #include <cstdlib>
 #include <iostream>
 
-std::string get_config_directory();
+std::string get_teleop_config_directory();

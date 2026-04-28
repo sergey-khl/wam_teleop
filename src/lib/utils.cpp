@@ -2,7 +2,7 @@
 
 namespace fs = boost::filesystem;
 
-std::string get_config_directory() {
+std::string get_teleop_config_directory() {
     // First, check the environment variable TELEOP_CONFIG_DIR
     const char* config_dir_env = std::getenv("TELEOP_CONFIG_DIR");
     if (config_dir_env) {

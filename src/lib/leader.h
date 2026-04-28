@@ -38,9 +38,10 @@ class Leader : public barrett::systems::System {
 
     // we dont actually do inference on the leader but we still record data from it
     explicit Leader(barrett::systems::ExecutionManager* em, haptic_wrist::HapticWrist* hw, 
-                const TeleopConfig& cfg,
+                const TeleopConfig& config,
                 const std::string& sysName = "Leader")
         : System(sysName)
+        , config(config)
         , theirJp(0.0)
         , theirJv(0.0)
         , theirExtTorque(0.0)
@@ -52,8 +53,8 @@ class Leader : public barrett::systems::System {
         , wamDynIn(this)
         , wamJPOutput(this, &jtOutputValue)
         , theirJPOutput(this, &theirJPOutputValue)
-        , udp_handler(cfg.network.follower_host, cfg.network.teleop_send, cfg.network.teleop_recv, 
-                      cfg.network.mode, cfg.network.inference_host, cfg.network.inference_send, cfg.network.inference_recv)
+        , udp_handler(config.network.follower_host, config.network.teleop_send, config.network.teleop_recv, 
+                      config.network.mode, config.network.inference_host, config.network.inference_send, config.network.inference_recv)
         , hw(hw)
         , joy_x(0.0f)
         , trigger(0.0f)

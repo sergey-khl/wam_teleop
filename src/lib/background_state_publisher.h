@@ -120,7 +120,8 @@ template <size_t WAM_DOF> class BackgroundStatePublisher {
                 haptic_wrist::jp_type hw_jp = hw->getPosition();
                 haptic_wrist::jv_type hw_jv = hw->getVelocity();
                 haptic_wrist::jt_type hw_jt = hw->getTorque();
-                for (size_t i = 0; i < 3; i++) {
+                // NOTE: j7 is ignored here cus its a little weird with the joystick
+                for (size_t i = 0; i < 2; i++) {
                     joint_state.position[WAM_DOF + i] = hw_jp[i];
                     joint_state.velocity[WAM_DOF + i] = hw_jv[i];
                     joint_state.effort[WAM_DOF + i] = hw_jt[i];
