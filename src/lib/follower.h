@@ -138,10 +138,11 @@ class Follower : public barrett::systems::System {
         sendExtTorqueMsg << extTorque;
 
         boost::optional<ReceivedData> received_data = udp_handler.getLatestTeleopReceived();
-        auto now = std::chrono::steady_clock::now();
+        uint64_t now_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::high_resolution_clock::now().time_since_epoch()).count();
+        uint64_t timeout_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(TIMEOUT_DURATION).count();
         double udp_rx_age = 0.0;
-        if (received_data && (now - received_data->timestamp <= TIMEOUT_DURATION)) {
-            udp_rx_age = std::chrono::duration<double, std::milli>(now - received_data->timestamp).count();
+        if (received_data && (now_ns >= received_data->timestamp) && (now_ns - received_data->timestamp <= timeout_ns)) {
+            udp_rx_age = static_cast<double>(now_ns - received_data->timestamp) / 1000000.0;
 
             theirJp = received_data->jp;
             theirJv = received_data->jv;

@@ -78,7 +78,9 @@ void UDPHandler<DOF>::receiveLoop(boost::asio::ip::udp::socket& recv_socket, boo
     jt_type received_extTorque;
     jt_type received_measTorque;
     double received_gripper;
-    char buffer[sizeof(double) * DOF * 4 + sizeof(double)];
+    uint64_t received_timestamp;
+
+    char buffer[sizeof(double) * DOF * 4 + sizeof(double) + sizeof(uint64_t)];
 
     while (!stop_threads) {
         boost::system::error_code ec;
@@ -87,15 +89,17 @@ void UDPHandler<DOF>::receiveLoop(boost::asio::ip::udp::socket& recv_socket, boo
         if (ec == boost::asio::error::operation_aborted || len != sizeof(buffer))
             continue;
 
+
         std::memcpy(received_jp.data(), buffer, sizeof(double) * DOF);
         std::memcpy(received_jv.data(), buffer + sizeof(double) * DOF, sizeof(double) * DOF);
         std::memcpy(received_extTorque.data(), buffer + 2*(sizeof(double) * DOF), sizeof(double) * DOF);
         std::memcpy(received_measTorque.data(), buffer + 3*(sizeof(double) * DOF), sizeof(double) * DOF);
         std::memcpy(&received_gripper, buffer + 4*(sizeof(double) * DOF), sizeof(double));
+        std::memcpy(&received_timestamp, buffer + 4*(sizeof(double) * DOF) + sizeof(double), sizeof(uint64_t));
 
         {
             std::lock_guard<std::mutex> lock(state_mutex);
-            latest_received = ReceivedData{received_jp, received_jv, received_extTorque, received_measTorque, received_gripper, std::chrono::steady_clock::now()};
+            latest_received = ReceivedData{received_jp, received_jv, received_extTorque, received_measTorque, received_gripper, received_timestamp};
         }
     }
     recv_socket.close();
@@ -132,12 +136,16 @@ void UDPHandler<DOF>::sendLoop() {
         double data_to_send_gripper = pending_send_gripper;
         lock.unlock();
 
-        char buffer[sizeof(double) * DOF * 4 + sizeof(double)];
+        auto now = std::chrono::high_resolution_clock::now().time_since_epoch();
+        uint64_t current_time_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(now).count();
+
+        char buffer[sizeof(double) * DOF * 4 + sizeof(double) + sizeof(uint64_t)];
         std::memcpy(buffer, data_to_send_jp.data(), sizeof(double) * DOF);
         std::memcpy(buffer + sizeof(double) * DOF, data_to_send_jv.data(), sizeof(double) * DOF);
         std::memcpy(buffer + 2*(sizeof(double) * DOF), data_to_send_extTorque.data(), sizeof(double) * DOF);
         std::memcpy(buffer + 3*(sizeof(double) * DOF), data_to_send_measTorque.data(), sizeof(double) * DOF);
         std::memcpy(buffer + 4*(sizeof(double) * DOF), &data_to_send_gripper, sizeof(double));
+        std::memcpy(buffer + 4*(sizeof(double) * DOF) + sizeof(double), &current_time_ns, sizeof(uint64_t));
 
         boost::system::error_code ec;
         for (const auto& endpoint : send_endpoints) {

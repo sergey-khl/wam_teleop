@@ -27,7 +27,7 @@ public:
         jt_type extTorque;
         jt_type measTorque;
         double gripper;
-        std::chrono::steady_clock::time_point timestamp;
+        uint64_t timestamp;
     };
 
     UDPHandler(const std::string& teleop_host, int teleop_send, int teleop_recv,
