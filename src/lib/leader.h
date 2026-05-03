@@ -56,9 +56,9 @@ class Leader : public barrett::systems::System {
         , udp_handler(config.network.follower_host, config.network.teleop_send, config.network.teleop_recv, 
                       config.network.mode, config.network.inference_host, config.network.leader_inference_send, config.network.inference_recv)
         , hw(hw)
-        , joy_x(0.0f)
-        , trigger(0.0f)
-        , bumper_pressed(false)
+        , trigger_pos(0.0f)
+        , trigger_vel(0.0f)
+        , trigger_torque(0.0f)
         , desired_gripper_vel(0.0f)
         , remote_gripper_torque(0.0f)
         , io_running(false)
@@ -70,14 +70,10 @@ class Leader : public barrett::systems::System {
             cf[i] = config.leader.gains.cf[i];
         }
 
-        trigger_rest_pos = config.leader.haptics.trigger_rest_pos;
-        target_velocity  = config.leader.haptics.target_velocity;
         torque_scaling   = config.leader.haptics.torque_scaling;
         minStiffness     = config.leader.haptics.minStiffness;
         maxStiffness     = config.leader.haptics.maxStiffness;
         alpha            = config.leader.haptics.alpha;
-        j7_joy_deadband            = config.leader.haptics.j7_joy_deadband;
-        j7_max_velocity_rad_s            = config.leader.haptics.j7_max_velocity_rad_s;
 
         last_op_time = std::chrono::steady_clock::now();
 
@@ -115,15 +111,13 @@ class Leader : public barrett::systems::System {
     jt_type wamGrav;
     jt_type wamDyn;
 
-    std::atomic<float> joy_x;
-    std::atomic<float> trigger;
-    std::atomic<bool> bumper_pressed;
+    std::atomic<float> trigger_pos;
+    std::atomic<float> trigger_vel;
+    std::atomic<float> trigger_torque;
     std::atomic<float> desired_gripper_vel;
     std::atomic<float> remote_gripper_torque;
 
 
-    double trigger_rest_pos;
-    float target_velocity;
     float torque_scaling;
     float minStiffness;
     float maxStiffness;
@@ -185,14 +179,10 @@ class Leader : public barrett::systems::System {
             theirExtTorque = received_data->extTorque.template head<DOF>();
             remote_gripper_torque.store(static_cast<double>(received_data->gripper));
 
-            // theirWristJp = hw->getPosition();
-
             // get and mirror follower wrist
-            for (size_t i = 0; i < 2; i++) {
+            for (size_t i = 0; i < 3; i++) {
                 theirWristJp[i] = received_data->jp(DOF + i) * config.sync_mapping.scales[DOF + i] + config.sync_mapping.offsets[DOF + i];
             }
-
-            remote_j7_pos = received_data->jp(6);
 
             // mirror and offset some of the wam joints
             for (size_t i = 0; i < DOF; i++) {
@@ -210,11 +200,9 @@ class Leader : public barrett::systems::System {
             }
         }
 
-        updateJ7Command(dt_sec);
-
         // Pack outgoing messages (arm + wrist)
-        sendJpMsg << wamJP, wristJP, j7_command_pos;
-        sendJvMsg << wamJV, wristJV, j7_command_vel;
+        sendJpMsg << wamJP, wristJP;
+        sendJvMsg << wamJV, wristJV;
 
         // Only arm external torque is meaningful here; pad wrist torques with zeros
         sendExtTorqueMsg << extTorque, 0.0, 0.0, 0.0;
@@ -293,19 +281,13 @@ class Leader : public barrett::systems::System {
         while (io_running.load()) {
             if (boost::optional<haptic_wrist::handle_type> opt_handle = hw->getHandle()) {
                 haptic_wrist::handle_type handle = *opt_handle;
-                joy_x.store(static_cast<float>(handle[0]));
-                trigger.store(static_cast<float>(handle[3]));
-                bumper_pressed.store(static_cast<int>(handle[2]) == 1);
+                trigger_pos.store(static_cast<float>(handle[0]));
+                trigger_vel.store(static_cast<float>(handle[3]));
+                trigger_torque.store(static_cast<float>(handle[2]));
             }
 
-            const float local_trigger = trigger.load();
-            const bool local_bumper_pressed = bumper_pressed.load();
-            float vel_command = 0.0f;
-            if (local_trigger > trigger_rest_pos) {
-                vel_command = target_velocity * local_trigger;
-            } else if (local_bumper_pressed) {
-                vel_command = -target_velocity;
-            }
+            // TODO: changme
+            float vel_command = 0 * trigger_pos.load();
             desired_gripper_vel.store(vel_command);
 
             float remote_torque = remote_gripper_torque.load();
@@ -339,17 +321,6 @@ class Leader : public barrett::systems::System {
     const std::chrono::milliseconds TIMEOUT_DURATION = std::chrono::milliseconds(20);
     State state;
 
-    double j7_joy_deadband;
-    double j7_max_velocity_rad_s;
-    static constexpr size_t J7_INDEX = 6;
-    bool j7_initialized = false;
-    bool j7_joystick_active = false;
-    double j7_command_pos = 0.0;
-    double j7_command_vel = 0.0;
-    double remote_j7_pos = 0.0;
-    std::chrono::steady_clock::time_point j7_last_update;
-
-
     // Gains you had
     Eigen::Matrix<double, DOF, 1> kp;
     Eigen::Matrix<double, DOF, 1> kd;
@@ -372,33 +343,6 @@ class Leader : public barrett::systems::System {
         jt_type u8 = -0.25 * (ref_extTorque + cur_extTorque);
 
         // Default: u4 as you had
-        return u6;
+        return u1;
     };
-
-    void updateJ7Command(double dt) {
-        if (state == State::INIT) {
-            j7_initialized = false;
-            j7_command_pos = 0.0;
-            j7_command_vel = 0.0;
-            return;
-        }
-
-        if (!j7_initialized) {
-            j7_command_pos = remote_j7_pos; // Initialize to the follower's current J7
-            j7_initialized = true;
-        }
-
-        double joy_cmd = joy_x.load();
-        bool active = std::abs(joy_cmd) > j7_joy_deadband;
-
-        if (active) {
-            j7_command_vel = j7_max_velocity_rad_s * joy_cmd;
-            j7_command_pos += j7_command_vel * dt;
-            j7_joystick_active = true;
-        } else {
-            j7_command_vel = 0.0;
-
-            j7_joystick_active = false;
-        }
-    }
 };

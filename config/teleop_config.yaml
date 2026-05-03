@@ -21,14 +21,10 @@ leader:
     kd: [8.3, 8.0, 3.3, 0.8]
     cf: [0.375, 0.4, 0.2, 0.1]
   haptics:
-    trigger_rest_pos: 0.25
-    target_velocity: 0.3
     torque_scaling: 1.5
     minStiffness: 0.15
     maxStiffness: 1.0
     alpha: 0.35
-    j7_joy_deadband: 0.05
-    j7_max_velocity_rad_s: 1.0
 
 follower:
   sync_pos: [-1.57, -1.57, 0.0, 2.0, -1.57, 0.0, 0.0] 

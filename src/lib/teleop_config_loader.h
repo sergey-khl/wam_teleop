@@ -23,10 +23,10 @@ struct TeleopGains {
 };
 
 struct HapticsConfig {
-    double trigger_rest_pos, target_velocity, torque_scaling;
+    double torque_scaling;
     double minStiffness, maxStiffness, alpha;
-    double j7_joy_deadband, j7_max_velocity_rad_s;
 };
+
 
 struct SyncMapping {
     std::vector<double> scales, offsets;
@@ -73,14 +73,10 @@ template<> struct convert<TeleopGains> {
 template<> struct convert<HapticsConfig> {
     static bool decode(const Node& node, HapticsConfig& c) {
         if (!node) return true; // Follower might not have this
-        c.trigger_rest_pos = node["trigger_rest_pos"].as<double>();
-        c.target_velocity = node["target_velocity"].as<double>();
         c.torque_scaling = node["torque_scaling"].as<double>();
         c.minStiffness = node["minStiffness"].as<double>();
         c.maxStiffness = node["maxStiffness"].as<double>();
         c.alpha = node["alpha"].as<double>();
-        c.j7_joy_deadband = node["j7_joy_deadband"].as<double>();
-        c.j7_max_velocity_rad_s = node["j7_max_velocity_rad_s"].as<double>();
         return true;
     }
 };
