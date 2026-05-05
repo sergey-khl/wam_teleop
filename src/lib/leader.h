@@ -59,7 +59,7 @@ class Leader : public barrett::systems::System {
         , trigger_pos(0.0f)
         , trigger_vel(0.0f)
         , trigger_torque(0.0f)
-        , desired_gripper_vel(0.0f)
+        , desired_gripper_pos(0.0f)
         , remote_gripper_torque(0.0f)
         , io_running(false)
         , state(State::INIT) {
@@ -114,7 +114,7 @@ class Leader : public barrett::systems::System {
     std::atomic<float> trigger_pos;
     std::atomic<float> trigger_vel;
     std::atomic<float> trigger_torque;
-    std::atomic<float> desired_gripper_vel;
+    std::atomic<float> desired_gripper_pos;
     std::atomic<float> remote_gripper_torque;
 
 
@@ -242,11 +242,10 @@ class Leader : public barrett::systems::System {
                 break;
         }
 
-        // BEAR
         sendMeasTorqueMsg << control, 0.0, 0.0, 0.0;
 
         auto send_start = std::chrono::steady_clock::now();
-        udp_handler.send(sendJpMsg, sendJvMsg, sendExtTorqueMsg, sendMeasTorqueMsg, static_cast<double>(desired_gripper_vel.load()));
+        udp_handler.send(sendJpMsg, sendJvMsg, sendExtTorqueMsg, sendMeasTorqueMsg, static_cast<double>(desired_gripper_pos.load()));
         auto send_end = std::chrono::steady_clock::now();
         double send_dt = std::chrono::duration<double, std::milli>(send_end - send_start).count();
 
@@ -281,14 +280,15 @@ class Leader : public barrett::systems::System {
         while (io_running.load()) {
             if (boost::optional<haptic_wrist::handle_type> opt_handle = hw->getHandle()) {
                 haptic_wrist::handle_type handle = *opt_handle;
-                trigger_pos.store(static_cast<float>(handle[0]));
-                trigger_vel.store(static_cast<float>(handle[3]));
+                trigger_pos.store(static_cast<float>(handle[0])); // see haptic_wrist_impl.cpp for trigger range, TOOD: add to config
+                trigger_vel.store(static_cast<float>(handle[1]));
                 trigger_torque.store(static_cast<float>(handle[2]));
             }
 
-            // TODO: changme
-            float vel_command = 0 * trigger_pos.load();
-            desired_gripper_vel.store(vel_command);
+            // send between 0 (open) and 1 (closed)
+            float local_trigger_pos = trigger_pos.load();
+            float pos_command = local_trigger_pos; // assumes that the trigger fully extended is 0 and closed is 1
+            desired_gripper_pos.store(pos_command);
 
             float remote_torque = remote_gripper_torque.load();
 
