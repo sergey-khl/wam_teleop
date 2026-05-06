@@ -54,7 +54,7 @@ class Follower : public barrett::systems::System {
         , udp_handler(config.network.leader_host, config.network.teleop_recv, config.network.teleop_send, 
                       config.network.mode, config.network.inference_host, config.network.follower_inference_send, config.network.inference_recv)
         , gripper(gripper)
-        , target_gripper_vel(0.0f)
+        , target_gripper_pos(0.0f)
         , current_gripper_torque(0.0f)
         , io_running(false)
         , state(State::INIT) {
@@ -66,6 +66,9 @@ class Follower : public barrett::systems::System {
         }
 
         last_op_time = std::chrono::steady_clock::now();
+
+        gripper_max_pos = gripper->getGripperClosePos();
+        gripper_min_pos = gripper->getGripperOpenPos();
 
         if (em != NULL) {
             em->startManaging(*this);
@@ -113,6 +116,9 @@ class Follower : public barrett::systems::System {
     int loop_counter = 0;
     std::chrono::time_point<std::chrono::steady_clock> last_op_time;
 
+    float gripper_max_pos;
+    float gripper_min_pos; // assumes 0 is the open pos of the gripper
+
     using ReceivedData = typename UDPHandler<DOF>::ReceivedData;
 
     virtual void operate() {
@@ -147,7 +153,7 @@ class Follower : public barrett::systems::System {
             theirJp = received_data->jp;
             theirJv = received_data->jv;
             theirExtTorque = received_data->extTorque;
-            target_gripper_vel.store(static_cast<double>(received_data->gripper));
+            target_gripper_pos.store(static_cast<double>(received_data->gripper));
 
             // mirror and offset some of the wam joints
             for (size_t i = 0; i < DOF; i++) {
@@ -210,7 +216,15 @@ class Follower : public barrett::systems::System {
 
     void pollGripper() {
         while (io_running.load()) {
-            gripper->setVelocity(target_gripper_vel.load());
+            double new_gripper_pos = gripper_max_pos;
+            float local_gripper_pos = target_gripper_pos.load();
+            if (isLinked()) {
+                new_gripper_pos = std::max(gripper_min_pos, std::min(local_gripper_pos, gripper_max_pos));
+            }
+            std::cout << "new gripper pos " << new_gripper_pos << std::endl;
+            std::cout << "target gripper pos " << local_gripper_pos << std::endl;
+            gripper->setPosition(new_gripper_pos);
+            // gripper->setVelocity(0.0f);
             gripper->controlLoopCallback();
             
             GripperState gripper_state = gripper->getLatestState();
@@ -235,7 +249,7 @@ class Follower : public barrett::systems::System {
     GeckoGripper* gripper;
     std::thread io_thread;
     std::atomic<bool> io_running;
-    std::atomic<float> target_gripper_vel;
+    std::atomic<float> target_gripper_pos;
     std::atomic<float> current_gripper_torque;
 
     jt_type compute_control(const jp_type& ref_pos, const jv_type& ref_vel, const jt_type& ref_extTorque,
