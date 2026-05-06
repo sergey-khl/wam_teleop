@@ -11,8 +11,8 @@ network:
   mode: 1  # 0: TELEOP, 1: RECORD, 2: INFERENCE
 
 sync_mapping:
-  scales:  [-1.0, -1.0, -1.0, -1.0, -1.0, -1.0, 1.0]
-  offsets: [-1.57, -3.14,  0.0,  4.0, -1.57, 0, 0]
+  scales:  [-1.0, 1.0, -1.0, 1.0, -1.0, -1.0, 1.0]
+  offsets: [-1.57, 0.0,  0.0,  0.0, -1.57, 0, 0]
 
 leader:
   sync_pos: [0.0, -1.57, 0.0, 2.0] 
