@@ -282,7 +282,7 @@ class Leader : public barrett::systems::System {
             if (boost::optional<haptic_wrist::handle_type> opt_handle = hw->getHandle()) {
                 haptic_wrist::handle_type handle = *opt_handle;
                 trigger_pos.store(static_cast<float>(handle[0]));
-                trigger_vel.store(static_cast<float>(handle[3]));
+                trigger_vel.store(static_cast<float>(handle[1]));
                 trigger_torque.store(static_cast<float>(handle[2]));
             }
 
