@@ -287,7 +287,7 @@ class Leader : public barrett::systems::System {
 
             // send between 0 (open) and 1 (closed)
             float local_trigger_pos = trigger_pos.load();
-            float pos_command = local_trigger_pos * 0.16; // assumes that the trigger fully extended is 0 and closed is 1
+            float pos_command = local_trigger_pos / 0.88 - 1; // assumes that the trigger fully extended is -1 and closed is 0
             desired_gripper_pos.store(pos_command);
 
             float remote_torque = remote_gripper_torque.load();
@@ -303,7 +303,7 @@ class Leader : public barrett::systems::System {
                 std::cout << "haptics " << raw_haptics << std::endl;
                 hw->setTriggerHaptics(static_cast<uint8_t>(raw_haptics));
             } else {
-                hw->setTriggerHaptics(25);
+                hw->setTriggerHaptics(15);
             }
 
             std::this_thread::sleep_for(std::chrono::milliseconds(2));
