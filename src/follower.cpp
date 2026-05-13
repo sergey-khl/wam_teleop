@@ -11,6 +11,7 @@
 
 #include "lib/external_torque.h"
 #include <iostream>
+#include <memory>
 #include <string>
 
 #include <boost/thread.hpp>
@@ -28,6 +29,7 @@
 #include "lib/follower_dynamics.h"
 #include "lib/dynamic_external_torque.h"
 #include "lib/follower_vertical_dynamics.h"
+#include "lib/teleop_gripper.h"
 
 using namespace barrett;
 using detail::waitForEnter;
@@ -53,15 +55,21 @@ template <size_t DOF> int wam_main(int argc, char **argv, ProductManager &pm, sy
         return false;
     }
 
-    GeckoGripper gripper;
+    std::unique_ptr<TeleopGripper> gripper = createTeleopGripper(config.gripper);
     bool gripper_initialized = false;
-    try {
-        gripper_initialized = gripper.initialize();
-    } catch (const std::exception& e) {
-        std::cerr << "WARNING: Gecko gripper init threw exception: " << e.what() << std::endl;
+    if (gripper) {
+        try {
+            gripper_initialized = gripper->initialize();
+        } catch (const std::exception& e) {
+            std::cerr << "WARNING: " << config.gripper.type << " gripper init threw exception: " << e.what()
+                      << std::endl;
+        }
+    } else {
+        std::cerr << "WARNING: Gripper control disabled by teleop config." << std::endl;
     }
-    if (!gripper_initialized) {
-        std::cerr << "WARNING: Gecko gripper not initialized. Trigger/bumper commands will be ignored." << std::endl;
+    if (gripper && !gripper_initialized) {
+        std::cerr << "WARNING: " << config.gripper.type
+                  << " gripper not initialized. Trigger/bumper commands will be ignored." << std::endl;
     }
 
 
@@ -93,7 +101,7 @@ template <size_t DOF> int wam_main(int argc, char **argv, ProductManager &pm, sy
     systems::Constant<ja_type> zeroAcceleration(ja);
     pm.getExecutionManager()->startManaging(zeroAcceleration);
 
-    Follower<DOF> follower(pm.getExecutionManager(), &gripper, config);
+    Follower<DOF> follower(pm.getExecutionManager(), gripper_initialized ? gripper.get() : nullptr, config);
 
     jt_type maxRate; // Nm · s-1 per joint
     maxRate << 50, 50, 50, 50;
@@ -262,7 +270,10 @@ template <size_t DOF> int wam_main(int argc, char **argv, ProductManager &pm, sy
         }
     }
 
-    gripper.shutdown();
+    follower.stopGripperControl();
+    if (gripper) {
+        gripper->shutdown();
+    }
 
 
     pm.getSafetyModule()->waitForMode(SafetyModule::IDLE);

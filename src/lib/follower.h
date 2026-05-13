@@ -6,7 +6,6 @@
 #include <atomic>
 #include <thread>
 #include <chrono>
-#include "gripper/gecko/gecko_gripper.h"
 #include <iomanip>
 
 
@@ -16,9 +15,9 @@
 #include <barrett/thread/abstract/mutex.h>
 #include <barrett/units.h>
 #include "teleop_config_loader.h"
+#include "gripper_command.h"
+#include "teleop_gripper.h"
 #include "utils.h"
-
-using namespace gripper::gecko;
 
 template <size_t DOF>
 class Follower : public barrett::systems::System {
@@ -35,7 +34,7 @@ class Follower : public barrett::systems::System {
 
     enum class State { INIT, LINKED, UNLINKED };
 
-    explicit Follower(barrett::systems::ExecutionManager* em, GeckoGripper* gripper, 
+    explicit Follower(barrett::systems::ExecutionManager* em, TeleopGripper* gripper,
                   const TeleopConfig& config,
                   const std::string& sysName = "Follower")
         : System(sysName)
@@ -54,7 +53,7 @@ class Follower : public barrett::systems::System {
         , udp_handler(config.network.leader_host, config.network.teleop_recv, config.network.teleop_send, 
                       config.network.mode, config.network.inference_host, config.network.follower_inference_send, config.network.inference_recv)
         , gripper(gripper)
-        , target_gripper_vel(0.0f)
+        , target_gripper_command(gripper_command::encode(GripperCommand{}))
         , current_gripper_torque(0.0f)
         , io_running(false)
         , state(State::INIT) {
@@ -75,10 +74,7 @@ class Follower : public barrett::systems::System {
     }
 
     virtual ~Follower() {
-        io_running.store(false);
-        if (io_thread.joinable()) {
-            io_thread.join();
-        }
+        stopGripperControl();
         this->mandatoryCleanUp();
     }
 
@@ -94,6 +90,13 @@ class Follower : public barrett::systems::System {
     void unlink() {
         BARRETT_SCOPED_LOCK(this->getEmMutex());
         state = State::UNLINKED;
+    }
+
+    void stopGripperControl() {
+        io_running.store(false);
+        if (io_thread.joinable()) {
+            io_thread.join();
+        }
     }
 
   protected:
@@ -147,7 +150,7 @@ class Follower : public barrett::systems::System {
             theirJp = received_data->jp;
             theirJv = received_data->jv;
             theirExtTorque = received_data->extTorque;
-            target_gripper_vel.store(static_cast<double>(received_data->gripper));
+            target_gripper_command.store(received_data->gripper);
 
             // mirror and offset some of the wam joints
             for (size_t i = 0; i < DOF; i++) {
@@ -209,16 +212,25 @@ class Follower : public barrett::systems::System {
     jt_type control;
 
     void pollGripper() {
+        bool current_spread_half_open = false;
         while (io_running.load()) {
-            gripper->setVelocity(target_gripper_vel.load());
-            gripper->controlLoopCallback();
-            
-            GripperState gripper_state = gripper->getLatestState();
-            current_gripper_torque.store(gripper_state.torque);
+            if (gripper) {
+                const GripperCommand command = gripper_command::decode(target_gripper_command.load());
+                if (command.spread_half_open != current_spread_half_open) {
+                    gripper->setVelocity(0.0);
+                    gripper->setSpread(command.spread_half_open ? 0.5 : 0.0);
+                    current_spread_half_open = command.spread_half_open;
+                    std::cout << "gripper spread=" << (current_spread_half_open ? "50%" : "0%") << std::endl;
+                }
+                gripper->setVelocity(command.velocity, command.fingers12Only());
+                current_gripper_torque.store(static_cast<float>(gripper->feedback()));
+            }
             
             std::this_thread::sleep_for(std::chrono::milliseconds(2));
         }
-        gripper->setVelocity(0.0f);
+        if (gripper) {
+            gripper->setVelocity(0.0);
+        }
     }
 
   private:
@@ -232,10 +244,10 @@ class Follower : public barrett::systems::System {
     Eigen::Matrix<double, DOF, 1> kd;
     Eigen::Matrix<double, DOF, 1> cf;
 
-    GeckoGripper* gripper;
+    TeleopGripper* gripper;
     std::thread io_thread;
     std::atomic<bool> io_running;
-    std::atomic<float> target_gripper_vel;
+    std::atomic<double> target_gripper_command;
     std::atomic<float> current_gripper_torque;
 
     jt_type compute_control(const jp_type& ref_pos, const jv_type& ref_vel, const jt_type& ref_extTorque,

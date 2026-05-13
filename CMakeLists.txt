@@ -63,6 +63,12 @@ if (BUILD_LEADER)
     target_compile_options(leader PRIVATE -fsanitize=address -g) 
     target_link_options(leader PRIVATE -fsanitize=address)
     add_dependencies(leader ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+
+    add_executable(trigger_gripper_demo src/trigger_gripper_demo.cpp src/lib/utils.cpp)
+    target_link_libraries(trigger_gripper_demo ${BARRETT_LIBRARIES} ${catkin_LIBRARIES} haptic_wrist gripper::gripper Boost::system Boost::thread yaml-cpp)
+    target_compile_options(trigger_gripper_demo PRIVATE -fsanitize=address -g)
+    target_link_options(trigger_gripper_demo PRIVATE -fsanitize=address)
+    add_dependencies(trigger_gripper_demo ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 endif()
 
 add_executable(follower src/follower.cpp src/lib/udp_handler.cpp src/lib/utils.cpp)

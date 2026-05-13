@@ -33,6 +33,19 @@ rosrun wam_teleop follower
 ```
 see teleop_config.yaml to change ports, hosts, gains and more!
 
+The follower gripper backend is selected in `teleop_config.yaml`. Use `gripper.type: gecko` for the old Moteus Gecko gripper, or `gripper.type: barrett` with `gripper.port: can0` for a BH8-280/BH8-282 on the WAM CAN bus. The leader trigger sends positive finger velocity to close the grasp; the bumper sends negative velocity to open it.
+
+To test only the haptic wrist trigger and the configured gripper, run:
+```bash
+rosrun wam_teleop trigger_gripper_demo
+```
+This demo smooths the trigger velocity command using the `gripper.velocity_filter_alpha`,
+`gripper.velocity_deadband`, and `gripper.velocity_slew_rate` settings. Double-click bumper/R1
+to toggle Barrett spread between 0% and 50%; in 50% spread mode, trigger control drives
+only fingers 1 and 2.
+For the BH8 hand, `gripper.finger_velocity_scale` maps the old Gecko-sized trigger command into
+Barrett finger radians/sec.
+
 In your host computer, run 
 ```bash
 source scripts\can_init_pciefd.sh

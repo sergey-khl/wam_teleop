@@ -16,6 +16,7 @@
 #include <barrett/thread/abstract/mutex.h>
 #include <barrett/units.h>
 #include "teleop_config_loader.h"
+#include "gripper_command.h"
 #include "utils.h"
 
 template <size_t DOF>
@@ -59,7 +60,7 @@ class Leader : public barrett::systems::System {
         , joy_x(0.0f)
         , trigger(0.0f)
         , bumper_pressed(false)
-        , desired_gripper_vel(0.0f)
+        , desired_gripper_command(gripper_command::encode(GripperCommand{}))
         , remote_gripper_torque(0.0f)
         , io_running(false)
         , state(State::INIT) {
@@ -78,6 +79,10 @@ class Leader : public barrett::systems::System {
         alpha            = config.leader.haptics.alpha;
         j7_joy_deadband            = config.leader.haptics.j7_joy_deadband;
         j7_max_velocity_rad_s            = config.leader.haptics.j7_max_velocity_rad_s;
+        velocity_filter_alpha = config.gripper.velocity_filter_alpha;
+        velocity_deadband = config.gripper.velocity_deadband;
+        velocity_slew_rate = config.gripper.velocity_slew_rate;
+        bumper_double_click_ms = config.gripper.bumper_double_click_ms;
 
         last_op_time = std::chrono::steady_clock::now();
 
@@ -118,7 +123,7 @@ class Leader : public barrett::systems::System {
     std::atomic<float> joy_x;
     std::atomic<float> trigger;
     std::atomic<bool> bumper_pressed;
-    std::atomic<float> desired_gripper_vel;
+    std::atomic<double> desired_gripper_command;
     std::atomic<float> remote_gripper_torque;
 
 
@@ -128,6 +133,10 @@ class Leader : public barrett::systems::System {
     float minStiffness;
     float maxStiffness;
     float alpha;
+    double velocity_filter_alpha;
+    double velocity_deadband;
+    double velocity_slew_rate;
+    int bumper_double_click_ms;
 
     int loop_counter = 0;
     std::chrono::time_point<std::chrono::steady_clock> last_op_time;
@@ -258,7 +267,7 @@ class Leader : public barrett::systems::System {
         sendMeasTorqueMsg << control, 0.0, 0.0, 0.0;
 
         auto send_start = std::chrono::steady_clock::now();
-        udp_handler.send(sendJpMsg, sendJvMsg, sendExtTorqueMsg, sendMeasTorqueMsg, static_cast<double>(desired_gripper_vel.load()));
+        udp_handler.send(sendJpMsg, sendJvMsg, sendExtTorqueMsg, sendMeasTorqueMsg, desired_gripper_command.load());
         auto send_end = std::chrono::steady_clock::now();
         double send_dt = std::chrono::duration<double, std::milli>(send_end - send_start).count();
 
@@ -272,7 +281,7 @@ class Leader : public barrett::systems::System {
             // std::cout << "  -> TX JV:      [" << sendJvMsg.transpose() << "]\n";
             // std::cout << "  -> TX ExtTrq:  [" << sendExtTorqueMsg.transpose() << "]\n";
             // std::cout << "  -> TX MeasTrq: [" << sendMeasTorqueMsg.transpose() << "]\n";
-            // std::cout << "  -> TX GrpVel:  " << desired_gripper_vel.load() << "\n";
+            // std::cout << "  -> TX GrpCmd:  " << desired_gripper_command.load() << "\n";
             // std::cout << "  -> Their wrist:  " << theirWristJp.transpose() << "\n";
             // std::cout << "  -> My wrist:  " << wristJP.transpose() << "\n\n";
             // std::cout << "  -> leader ext:  " << extTorque.transpose() << "\n";
@@ -290,23 +299,67 @@ class Leader : public barrett::systems::System {
 
     void pollHandle() {
         float local_smoothed_torque = 0.0f;
+        auto last_update = std::chrono::steady_clock::now();
+        auto last_bumper_click = std::chrono::steady_clock::time_point::min();
+        const auto double_click_window = std::chrono::milliseconds(bumper_double_click_ms);
+        bool previous_bumper_pressed = false;
+        bool ignore_bumper_until_release = false;
+        bool spread_half_open = false;
+        double filtered_velocity = 0.0;
+        double commanded_velocity = 0.0;
+
         while (io_running.load()) {
             if (boost::optional<haptic_wrist::handle_type> opt_handle = hw->getHandle()) {
                 haptic_wrist::handle_type handle = *opt_handle;
                 joy_x.store(static_cast<float>(handle[0]));
                 trigger.store(static_cast<float>(handle[3]));
-                bumper_pressed.store(static_cast<int>(handle[2]) == 1);
+                bumper_pressed.store(handle[2] > 0.5);
             }
 
             const float local_trigger = trigger.load();
             const bool local_bumper_pressed = bumper_pressed.load();
-            float vel_command = 0.0f;
+            const auto now = std::chrono::steady_clock::now();
+
+            if (local_bumper_pressed && !previous_bumper_pressed) {
+                if (last_bumper_click != std::chrono::steady_clock::time_point::min()
+                    && now - last_bumper_click <= double_click_window) {
+                    spread_half_open = !spread_half_open;
+                    filtered_velocity = 0.0;
+                    commanded_velocity = 0.0;
+                    ignore_bumper_until_release = true;
+                    last_bumper_click = std::chrono::steady_clock::time_point::min();
+                    std::cout << "gripper spread=" << (spread_half_open ? "50%" : "0%") << std::endl;
+                } else {
+                    last_bumper_click = now;
+                }
+            }
+            if (!local_bumper_pressed) {
+                ignore_bumper_until_release = false;
+            }
+            previous_bumper_pressed = local_bumper_pressed;
+
+            double vel_command = 0.0;
             if (local_trigger > trigger_rest_pos) {
                 vel_command = target_velocity * local_trigger;
-            } else if (local_bumper_pressed) {
+            } else if (local_bumper_pressed && !ignore_bumper_until_release) {
                 vel_command = -target_velocity;
             }
-            desired_gripper_vel.store(vel_command);
+            if (std::abs(vel_command) < velocity_deadband) {
+                vel_command = 0.0;
+            }
+
+            const double filter_alpha = gripper_command::clamp(velocity_filter_alpha, 0.0, 1.0);
+            filtered_velocity = filter_alpha * vel_command + (1.0 - filter_alpha) * filtered_velocity;
+
+            const double dt = std::chrono::duration<double>(now - last_update).count();
+            last_update = now;
+            const double max_delta = std::max(0.0, velocity_slew_rate) * dt;
+            commanded_velocity = gripper_command::moveToward(commanded_velocity, filtered_velocity, max_delta);
+            if (std::abs(commanded_velocity) < velocity_deadband) {
+                commanded_velocity = 0.0;
+            }
+
+            desired_gripper_command.store(gripper_command::encode(GripperCommand{commanded_velocity, spread_half_open}));
 
             float remote_torque = remote_gripper_torque.load();
 

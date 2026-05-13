@@ -32,6 +32,18 @@ struct SyncMapping {
     std::vector<double> scales, offsets;
 };
 
+struct GripperConfig {
+    std::string type = "gecko";
+    std::string port = "can0";
+    bool force_init = false;
+    double finger_velocity_scale = 1.0;
+    double spread_velocity = 0.0;
+    double velocity_filter_alpha = 0.18;
+    double velocity_deadband = 0.02;
+    double velocity_slew_rate = 1.5;
+    int bumper_double_click_ms = 350;
+};
+
 struct RobotTeleopConfig {
     std::vector<double> sync_pos;
     TeleopGains gains;
@@ -41,6 +53,7 @@ struct RobotTeleopConfig {
 struct TeleopConfig {
     NetworkConfig network;
     SyncMapping sync_mapping;
+    GripperConfig gripper;
     RobotTeleopConfig leader, follower;
 };
 
@@ -93,6 +106,22 @@ template<> struct convert<SyncMapping> {
     }
 };
 
+template<> struct convert<GripperConfig> {
+    static bool decode(const Node& node, GripperConfig& c) {
+        if (!node) return true;
+        if (node["type"]) c.type = node["type"].as<std::string>();
+        if (node["port"]) c.port = node["port"].as<std::string>();
+        if (node["force_init"]) c.force_init = node["force_init"].as<bool>();
+        if (node["finger_velocity_scale"]) c.finger_velocity_scale = node["finger_velocity_scale"].as<double>();
+        if (node["spread_velocity"]) c.spread_velocity = node["spread_velocity"].as<double>();
+        if (node["velocity_filter_alpha"]) c.velocity_filter_alpha = node["velocity_filter_alpha"].as<double>();
+        if (node["velocity_deadband"]) c.velocity_deadband = node["velocity_deadband"].as<double>();
+        if (node["velocity_slew_rate"]) c.velocity_slew_rate = node["velocity_slew_rate"].as<double>();
+        if (node["bumper_double_click_ms"]) c.bumper_double_click_ms = node["bumper_double_click_ms"].as<int>();
+        return true;
+    }
+};
+
 template<> struct convert<RobotTeleopConfig> {
     static bool decode(const Node& node, RobotTeleopConfig& c) {
         c.sync_pos = node["sync_pos"].as<std::vector<double>>();
@@ -108,6 +137,9 @@ template<> struct convert<TeleopConfig> {
     static bool decode(const Node& node, TeleopConfig& c) {
         c.network = node["network"].as<NetworkConfig>();
         c.sync_mapping = node["sync_mapping"].as<SyncMapping>();
+        if (node["gripper"]) {
+            c.gripper = node["gripper"].as<GripperConfig>();
+        }
         c.leader = node["leader"].as<RobotTeleopConfig>();
         c.follower = node["follower"].as<RobotTeleopConfig>();
         return true;
