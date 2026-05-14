@@ -223,15 +223,15 @@ class Follower : public barrett::systems::System {
             }
             std::cout << "new gripper pos " << new_gripper_pos << std::endl;
             std::cout << "target gripper pos " << local_gripper_pos << std::endl;
-            gripper->setPosition(new_gripper_pos);
-            gripper->controlLoopCallback();
-            
-            GripperState gripper_state = gripper->getLatestState();
-            current_gripper_torque.store(gripper_state.torque);
+            // gripper->setPosition(new_gripper_pos);
+            // gripper->controlLoopCallback();
+            //
+            // GripperState gripper_state = gripper->getLatestState();
+            // current_gripper_torque.store(gripper_state.torque);
             
             std::this_thread::sleep_for(std::chrono::milliseconds(2));
         }
-        gripper->setVelocity(0.0f);
+        // gripper->setVelocity(0.0f);
     }
 
   private:

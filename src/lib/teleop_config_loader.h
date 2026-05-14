@@ -36,6 +36,7 @@ struct RobotTeleopConfig {
     std::vector<double> sync_pos;
     TeleopGains gains;
     HapticsConfig haptics;
+    bool vertical;
 };
 
 struct TeleopConfig {
@@ -96,6 +97,7 @@ template<> struct convert<RobotTeleopConfig> {
         if (node["haptics"]) {
             c.haptics = node["haptics"].as<HapticsConfig>();
         }
+        c.vertical = node["vertical"].as<bool>();
         return true;
     }
 };

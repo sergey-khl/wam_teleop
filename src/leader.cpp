@@ -71,10 +71,15 @@ int wam_main(int argc, char **argv, ProductManager &pm, systems::Wam<DOF> &wam) 
     pm.getExecutionManager()->startManaging(customjtSum);
 
     LeaderDynamics<DOF> leaderDynamics(pm.getExecutionManager());
-    LeaderDynamics<DOF> horizontalGravity(pm.getExecutionManager());
     ExternalTorque<DOF> externalTorque(pm.getExecutionManager());
     DynamicExternalTorque<DOF> dynamicExternalTorque(pm.getExecutionManager());
-    LeaderVerticalDynamics<DOF> leaderVerticalDynamics(pm.getExecutionManager());
+
+    LeaderDynamics<DOF>* horizontalGravity = nullptr;
+    LeaderVerticalDynamics<DOF>* leaderVerticalDynamics = nullptr;
+    if (config.leader.vertical) {
+        horizontalGravity = new LeaderDynamics<DOF>(pm.getExecutionManager());
+        leaderVerticalDynamics = new LeaderVerticalDynamics<DOF>(pm.getExecutionManager());
+    }
 
     // Filters (unchanged)
     barrett::systems::FirstOrderFilter<jt_type> extFilter;
@@ -123,13 +128,15 @@ int wam_main(int argc, char **argv, ProductManager &pm, systems::Wam<DOF> &wam) 
     systems::connect(jaWAM.output, jaFilter.input);
     systems::connect(jaFilter.output, leaderDynamics.jaInputDynamics);
 
-    systems::connect(wam.jpOutput, horizontalGravity.jpInputDynamics);
-    systems::connect(zeroVelocity.output, horizontalGravity.jvInputDynamics);
-    systems::connect(zeroAcceleration.output, horizontalGravity.jaInputDynamics);
+    if (config.leader.vertical) {
+        systems::connect(wam.jpOutput, horizontalGravity->jpInputDynamics);
+        systems::connect(zeroVelocity.output, horizontalGravity->jvInputDynamics);
+        systems::connect(zeroAcceleration.output, horizontalGravity->jaInputDynamics);
 
-    systems::connect(leaderDynamics.dynamicsFeedFWD, leaderVerticalDynamics.leaderDynamicsIn);
-    systems::connect(horizontalGravity.dynamicsFeedFWD, leaderVerticalDynamics.horizontalGravityIn);
-    systems::connect(wam.gravity.output, leaderVerticalDynamics.gravityIn);
+        systems::connect(leaderDynamics.dynamicsFeedFWD, leaderVerticalDynamics->leaderDynamicsIn);
+        systems::connect(horizontalGravity->dynamicsFeedFWD, leaderVerticalDynamics->horizontalGravityIn);
+        systems::connect(wam.gravity.output, leaderVerticalDynamics->gravityIn);
+    }
 
     systems::connect(wam.jpOutput, leader.wamJPIn);
     systems::connect(wam.jvOutput, leader.wamJVIn);
@@ -149,14 +156,20 @@ int wam_main(int argc, char **argv, ProductManager &pm, systems::Wam<DOF> &wam) 
     // systems::connect(externalTorque.wamExternalTorqueOut, extFilter.input);
 
     systems::connect(customjtSum.output, dynamicExternalTorque.wamTorqueSumIn);
-    systems::connect(leaderVerticalDynamics.leaderVerticalDynamicsOut, dynamicExternalTorque.wamDynamicsIn);
-    // systems::connect(leaderDynamics.dynamicsFeedFWD, dynamicExternalTorque.wamDynamicsIn);
-    // systems::connect(dynamicExternalTorque.wamExternalTorqueOut, dynamicExtFilter.input);
+    if (config.leader.vertical) {
+        systems::connect(leaderVerticalDynamics->leaderVerticalDynamicsOut, dynamicExternalTorque.wamDynamicsIn);
+    } else {
+        systems::connect(leaderDynamics.dynamicsFeedFWD, dynamicExternalTorque.wamDynamicsIn);
+        systems::connect(dynamicExternalTorque.wamExternalTorqueOut, dynamicExtFilter.input);
+    }
 
     systems::connect(wam.gravity.output, leader.wamGravIn);
-    // systems::connect(leaderDynamics.dynamicsFeedFWD, leader.wamDynIn);
-    systems::connect(leaderVerticalDynamics.leaderVerticalDynamicsOut, leader.wamDynIn);
-    systems::connect(dynamicExternalTorque.wamExternalTorqueOut, dynamicExtFilter.input);
+    if (config.leader.vertical) {
+        systems::connect(leaderVerticalDynamics->leaderVerticalDynamicsOut, leader.wamDynIn);
+        systems::connect(dynamicExternalTorque.wamExternalTorqueOut, dynamicExtFilter.input);
+    } else {
+        systems::connect(leaderDynamics.dynamicsFeedFWD, leader.wamDynIn);
+    }
 
     // Optional prints (leave commented to avoid loop jitter)
     // systems::connect(dynamicExternalTorque.wamExternalTorqueOut, printdynamicextTorque.input);

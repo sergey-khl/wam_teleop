@@ -56,7 +56,7 @@ template <size_t DOF> int wam_main(int argc, char **argv, ProductManager &pm, sy
     GeckoGripper gripper;
     bool gripper_initialized = false;
     try {
-        gripper_initialized = gripper.initialize();
+        // gripper_initialized = gripper.initialize();
     } catch (const std::exception& e) {
         std::cerr << "WARNING: Gecko gripper init threw exception: " << e.what() << std::endl;
     }
@@ -72,11 +72,15 @@ template <size_t DOF> int wam_main(int argc, char **argv, ProductManager &pm, sy
     pm.getExecutionManager()->startManaging(customjtSum);
 
     FollowerDynamics<DOF> followerDynamics(pm.getExecutionManager());
-    FollowerDynamics<DOF> horizontalGravity(pm.getExecutionManager());
     ExternalTorque<DOF> externalTorque(pm.getExecutionManager());
-
     DynamicExternalTorque<DOF> dynamicExternalTorque(pm.getExecutionManager());
-    FollowerVerticalDynamics<DOF> followerVerticalDynamics(pm.getExecutionManager());
+
+    FollowerDynamics<DOF>* horizontalGravity = nullptr;
+    FollowerVerticalDynamics<DOF>* followerVerticalDynamics = nullptr;
+    if (config.leader.vertical) {
+        horizontalGravity = new FollowerDynamics<DOF>(pm.getExecutionManager());
+        followerVerticalDynamics = new FollowerVerticalDynamics<DOF>(pm.getExecutionManager());
+    }
     
     barrett::systems::FirstOrderFilter<jt_type> extFilter;
     jt_type omega_p(180.0);
@@ -121,13 +125,15 @@ template <size_t DOF> int wam_main(int argc, char **argv, ProductManager &pm, sy
     systems::connect(jaWAM.output, jaFilter.input);
     systems::connect(jaFilter.output, followerDynamics.jaInputDynamics);
 
-    systems::connect(wam.jpOutput, horizontalGravity.jpInputDynamics);
-    systems::connect(zeroVelocity.output, horizontalGravity.jvInputDynamics);
-    systems::connect(zeroAcceleration.output, horizontalGravity.jaInputDynamics);
+    if (config.follower.vertical) {
+        systems::connect(wam.jpOutput, horizontalGravity->jpInputDynamics);
+        systems::connect(zeroVelocity.output, horizontalGravity->jvInputDynamics);
+        systems::connect(zeroAcceleration.output, horizontalGravity->jaInputDynamics);
 
-    systems::connect(followerDynamics.dynamicsFeedFWD, followerVerticalDynamics.followerDynamicsIn);
-    systems::connect(horizontalGravity.dynamicsFeedFWD, followerVerticalDynamics.horizontalGravityIn);
-    systems::connect(wam.gravity.output, followerVerticalDynamics.gravityIn);
+        systems::connect(followerDynamics.dynamicsFeedFWD, followerVerticalDynamics->followerDynamicsIn);
+        systems::connect(horizontalGravity->dynamicsFeedFWD, followerVerticalDynamics->horizontalGravityIn);
+        systems::connect(wam.gravity.output, followerVerticalDynamics->gravityIn);
+    }
 
     systems::connect(wam.jpOutput, follower.wamJPIn);
     systems::connect(wam.jvOutput, follower.wamJVIn);
@@ -143,12 +149,18 @@ template <size_t DOF> int wam_main(int argc, char **argv, ProductManager &pm, sy
     systems::connect(wam.supervisoryController.output, customjtSum.getInput(2));
 
     systems::connect(customjtSum.output, dynamicExternalTorque.wamTorqueSumIn);
-    systems::connect(followerVerticalDynamics.followerVerticalDynamicsOut, dynamicExternalTorque.wamDynamicsIn);
-    // systems::connect(followerDynamics.dynamicsFeedFWD, dynamicExternalTorque.wamDynamicsIn);
+    if (config.follower.vertical) {
+        systems::connect(followerVerticalDynamics->followerVerticalDynamicsOut, dynamicExternalTorque.wamDynamicsIn);
+    } else {
+        systems::connect(followerDynamics.dynamicsFeedFWD, dynamicExternalTorque.wamDynamicsIn);
+    }
 
     systems::connect(wam.gravity.output, follower.wamGravIn);
-    systems::connect(followerVerticalDynamics.followerVerticalDynamicsOut, follower.wamDynIn);
-    // systems::connect(followerDynamics.dynamicsFeedFWD, follower.wamDynIn);
+    if (config.follower.vertical) {
+        systems::connect(followerVerticalDynamics->followerVerticalDynamicsOut, follower.wamDynIn);
+    } else {
+        systems::connect(followerDynamics.dynamicsFeedFWD, follower.wamDynIn);
+    }
 
     systems::connect(dynamicExternalTorque.wamExternalTorqueOut, extFilter.input);
 
