@@ -61,7 +61,7 @@ int wam_main(int argc, char **argv, ProductManager &pm, systems::Wam<DOF> &wam) 
 
     // ==== NEW: start the haptic wrist device ====
     haptic_wrist::HapticWrist hw;
-    hw.gravityCompensate(true);
+    hw.gravityCompensate(false);
     hw.run();
 
     // ==== CHANGED: pass &hw to state publisher so it can publish wrist states ====
