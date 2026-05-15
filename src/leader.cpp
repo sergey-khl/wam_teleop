@@ -61,7 +61,7 @@ int wam_main(int argc, char **argv, ProductManager &pm, systems::Wam<DOF> &wam) 
 
     // ==== NEW: start the haptic wrist device ====
     haptic_wrist::HapticWrist hw;
-    hw.gravityCompensate(false);
+    hw.gravityCompensate(true);
     hw.run();
 
     // ==== CHANGED: pass &hw to state publisher so it can publish wrist states ====
@@ -197,7 +197,7 @@ int wam_main(int argc, char **argv, ProductManager &pm, systems::Wam<DOF> &wam) 
                 // Sync both arm and wrist before link
                 wam.moveTo(SYNC_POS, true);
                 haptic_wrist::jp_type wrist_sync; 
-                wrist_sync.setZero();
+                wrist_sync << config.leader.sync_pos[DOF], config.leader.sync_pos[DOF + 1], config.leader.sync_pos[DOF + 2];
                 hw.jointMoveTo(wrist_sync);
 
                 printf("Press [Enter] to link with the other WAM.");
