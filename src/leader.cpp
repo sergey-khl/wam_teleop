@@ -65,7 +65,7 @@ int wam_main(int argc, char **argv, ProductManager &pm, systems::Wam<DOF> &wam) 
     hw.run();
 
     // ==== CHANGED: pass &hw to state publisher so it can publish wrist states ====
-    BackgroundStatePublisher<DOF> state_publisher(pm.getExecutionManager(), wam, &hw);
+    // BackgroundStatePublisher<DOF> state_publisher(pm.getExecutionManager(), wam, &hw);
 
     barrett::systems::Summer<jt_type, 3> customjtSum;
     pm.getExecutionManager()->startManaging(customjtSum);

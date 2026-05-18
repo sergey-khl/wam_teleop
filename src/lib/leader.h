@@ -215,7 +215,7 @@ class Leader : public barrett::systems::System {
         switch (state) {
             case State::INIT:
                 // Hold wrist (don’t move) and zero arm torque
-                hw->setTarget(wristJP);
+                // hw->setTarget(wristJP);
                 control.setZero();
                 jtOutputValue->setData(&control);
                 break;
@@ -236,7 +236,7 @@ class Leader : public barrett::systems::System {
 
             case State::UNLINKED:
                 // // Release to local wrist pose and zero arm torque
-                hw->setTarget(wristJP);
+                // hw->setTarget(wristJP);
                 control.setZero();
                 jtOutputValue->setData(&control);
                 break;
