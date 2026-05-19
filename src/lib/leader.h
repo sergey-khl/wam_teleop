@@ -180,9 +180,12 @@ class Leader : public barrett::systems::System {
             remote_gripper_torque.store(static_cast<double>(received_data->gripper));
 
             // get and mirror follower wrist
-            for (size_t i = 0; i < 3; i++) {
-                theirWristJp[i] = received_data->jp(DOF + i) * config.sync_mapping.scales[DOF + i] + config.sync_mapping.offsets[DOF + i];
-            }
+            // for (size_t i = 0; i < 1; i++) {
+            //     theirWristJp[i] = received_data->jp(DOF + i) * config.sync_mapping.scales[DOF + i] + config.sync_mapping.offsets[DOF + i];
+            // }
+            theirWristJp[0] = received_data->jp(DOF) * config.sync_mapping.scales[DOF] + config.sync_mapping.offsets[DOF];
+            theirWristJp[1] = 0;
+            theirWristJp[2] = 0;
 
             // mirror and offset some of the wam joints
             for (size_t i = 0; i < DOF; i++) {
@@ -254,14 +257,14 @@ class Leader : public barrett::systems::System {
         //               << " ms | UDP Rx Age: " << udp_rx_age 
         //               << " ms | UDP Send latency: " << send_dt << " ms\n";
                
-            // std::cout << std::fixed << std::setprecision(3);
+            std::cout << std::fixed << std::setprecision(3);
             // std::cout << "  -> TX JP:      [" << sendJpMsg.transpose() << "]\n";
             // std::cout << "  -> TX JV:      [" << sendJvMsg.transpose() << "]\n";
             // std::cout << "  -> TX ExtTrq:  [" << sendExtTorqueMsg.transpose() << "]\n";
             // std::cout << "  -> TX MeasTrq: [" << sendMeasTorqueMsg.transpose() << "]\n";
             // std::cout << "  -> TX GrpVel:  " << desired_gripper_vel.load() << "\n";
-            // std::cout << "  -> Their wrist:  " << theirWristJp.transpose() << "\n";
-            // std::cout << "  -> My wrist:  " << wristJP.transpose() << "\n\n";
+            std::cout << "  -> Their wrist:  " << theirWristJp.transpose() << "\n";
+            std::cout << "  -> My wrist:  " << wristJP.transpose() << "\n\n";
             // std::cout << "  -> leader ext:  " << extTorque.transpose() << "\n";
             // std::cout << "  -> ref:  " << theirExtTorque.transpose() << "\n\n";
         }

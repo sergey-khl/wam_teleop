@@ -221,8 +221,8 @@ class Follower : public barrett::systems::System {
             if (isLinked()) {
                 new_gripper_pos = std::max(gripper_min_pos, std::min(local_gripper_pos, gripper_max_pos));
             }
-            std::cout << "new gripper pos " << new_gripper_pos << std::endl;
-            std::cout << "target gripper pos " << local_gripper_pos << std::endl;
+            // std::cout << "new gripper pos " << new_gripper_pos << std::endl;
+            // std::cout << "target gripper pos " << local_gripper_pos << std::endl;
             // gripper->setPosition(new_gripper_pos);
             // gripper->controlLoopCallback();
             //
