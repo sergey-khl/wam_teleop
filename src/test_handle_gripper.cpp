@@ -19,22 +19,16 @@ int main(int argc, char** argv) {
         return -1;
     }
 
-    const double trigger_rest_pos = 0.25;
-    float target_velocity = 0.3;
-    const float torque_scaling = 1.5;
-    const float minStiffness = 0.1;  // Base spring force for moving through empty air
-    const float maxStiffness = 1.0;  // Max pushback when gripper is stalled/crushing
-    float trigger = 0.0;
-    bool bumper_pressed = false;
+    const float gripper_speed = 0.3f;
 
-    // ema to smooth torque
-    const float alpha = 0.15f; 
-    float smoothed_torque = 0.0f;
-
-
-    float trigger_pos = 0.0f;
-    float trigger_vel = 0.0f;
-    float trigger_torque = 0.0f;
+    double bumper = 0.0;
+    double trigger = 0.0;
+    double btn_x = 0.0;
+    double btn_o = 0.0;
+    double dpad_up = 0.0;
+    double dpad_down = 0.0;
+    double dpad_left = 0.0;
+    double dpad_right = 0.0;
 
     float gripper_max_pos = 0.05;
     float gripper_min_pos = -0.17;
@@ -42,40 +36,37 @@ int main(int argc, char** argv) {
     while (true) {
         if (boost::optional<haptic_wrist::handle_type> opt_handle = hw.getHandle()) {
             haptic_wrist::handle_type handle = *opt_handle;
-            trigger_pos = static_cast<float>(handle[0]); // see haptic_wrist_impl.cpp for trigger range, TOOD: add to config
-            trigger_vel = static_cast<float>(handle[1]);
-            trigger_torque = static_cast<float>(handle[2]);
+
+            bumper      = handle[0];
+            trigger     = handle[1];
+            btn_x       = handle[2];
+            btn_o       = handle[3];
+            dpad_up     = handle[4];
+            dpad_down   = handle[5];
+            dpad_left   = handle[6];
+            dpad_right  = handle[7];
         }
 
-        double new_gripper_pos = gripper_max_pos;
-        float local_gripper_pos = trigger_pos / 0.88 - 1;
-        local_gripper_pos = local_gripper_pos * 0.17;
-
-        new_gripper_pos = std::max(gripper_min_pos, std::min(local_gripper_pos, gripper_max_pos));
-
-        std::cout << "new gripper pos " << new_gripper_pos << std::endl;
-        std::cout << "target gripper pos " << local_gripper_pos << std::endl;
-        gripper.setPosition(new_gripper_pos);
-        gripper.controlLoopCallback();
 
         GripperState state = gripper.getLatestState();
+        float target_velocity = 0.0f;
 
-        smoothed_torque = (alpha * state.torque) + ((1.0f - alpha) * smoothed_torque);
-        
-        std::cout << "\rPos: " << state.position << " | Trq: " << smoothed_torque << "    " << std::endl;
-        if (smoothed_torque > minStiffness) {
-            float dynamicStiffness = smoothed_torque * torque_scaling * (maxStiffness - minStiffness) + minStiffness;
-            float raw_haptics = 255.0f * dynamicStiffness;
-            if (raw_haptics > 255.0f) raw_haptics = 255.0f;
-
-            uint8_t haptics = static_cast<uint8_t>(raw_haptics);
-
-            std::cout << "haptics " << static_cast<int>(haptics) << " stiffness " << dynamicStiffness << " torque " << smoothed_torque << std::endl;
-
-            hw.setTriggerHaptics(haptics);
-        } else {
-            hw.setTriggerHaptics(0); 
+        if (bumper && !trigger) {
+            if (state.position < gripper_max_pos) {
+                target_velocity = -gripper_speed;
+            }
+        } else if (trigger && !bumper) {
+            if (state.position > gripper_min_pos) {
+                target_velocity = gripper_speed;
+            }
         }
+
+        gripper.setVelocity(target_velocity);
+        gripper.controlLoopCallback();
+
+        std::cout << "\rGripper Pos: " << state.position 
+                  << " | Target Vel: " << target_velocity 
+                  << "        " << std::flush;
 
         std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
