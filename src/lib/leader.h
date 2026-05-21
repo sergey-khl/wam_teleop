@@ -56,10 +56,15 @@ class Leader : public barrett::systems::System {
         , udp_handler(config.network.follower_host, config.network.teleop_send, config.network.teleop_recv, 
                       config.network.mode, config.network.inference_host, config.network.leader_inference_send, config.network.inference_recv)
         , hw(hw)
-        , trigger_pos(0.0f)
-        , trigger_vel(0.0f)
-        , trigger_torque(0.0f)
-        , desired_gripper_pos(0.0f)
+    	, bumper(0.0f)
+    	, trigger(0.0f)
+    	, btn_x(0.0f)
+    	, btn_o(0.0f)
+    	, dpad_up(0.0f)
+    	, dpad_down (0.0f)
+    	, dpad_left(0.0f)
+    	, dpad_right(0.0f)
+        , desired_gripper_vel(0.0f)
         , remote_gripper_torque(0.0f)
         , io_running(false)
         , state(State::INIT) {
@@ -105,10 +110,19 @@ class Leader : public barrett::systems::System {
     jt_type wamGrav;
     jt_type wamDyn;
 
-    std::atomic<float> trigger_pos;
-    std::atomic<float> trigger_vel;
-    std::atomic<float> trigger_torque;
-    std::atomic<float> desired_gripper_pos;
+    const float gripper_speed = 0.3f;
+
+    // TODO: these should be bool
+    std::atomic<double> bumper;
+    std::atomic<double> trigger;
+    std::atomic<double> btn_x;
+    std::atomic<double> btn_o;
+    std::atomic<double> dpad_up;
+    std::atomic<double> dpad_down ;
+    std::atomic<double> dpad_left;
+    std::atomic<double> dpad_right;
+
+    std::atomic<float> desired_gripper_vel;
     std::atomic<float> remote_gripper_torque;
 
 
@@ -173,7 +187,7 @@ class Leader : public barrett::systems::System {
             theirExtTorque = received_data->extTorque.template head<DOF>();
             remote_gripper_torque.store(static_cast<double>(received_data->gripper));
 
-            // get and mirror follower wrist
+            // mirror and offset some wrist joints
             // for (size_t i = 0; i < 3; i++) {
             //     theirWristJp[i] = received_data->jp(DOF + i) * config.sync_mapping.scales[DOF + i] + config.sync_mapping.offsets[DOF + i];
             // }
@@ -204,15 +218,9 @@ class Leader : public barrett::systems::System {
         // Only arm external torque is meaningful here; pad wrist torques with zeros
         sendExtTorqueMsg << extTorque, 0.0, 0.0, 0.0;
 
-        // Example scaling of J5 and J7 (index 4 and 6 in the concatenated vector)
-        sendJpMsg(4) = sendJpMsg(4);
-        sendJpMsg(6) = sendJpMsg(6);
-
         // State machine
         switch (state) {
             case State::INIT:
-                // Hold wrist (don’t move) and zero arm torque
-                // hw->setTarget(wristJP);
                 control.setZero();
                 jtOutputValue->setData(&control);
                 break;
@@ -232,8 +240,6 @@ class Leader : public barrett::systems::System {
                 break;
 
             case State::UNLINKED:
-                // // Release to local wrist pose and zero arm torque
-                // hw->setTarget(wristJP);
                 control.setZero();
                 jtOutputValue->setData(&control);
                 break;
@@ -242,7 +248,7 @@ class Leader : public barrett::systems::System {
         sendMeasTorqueMsg << control, 0.0, 0.0, 0.0;
 
         auto send_start = std::chrono::steady_clock::now();
-        udp_handler.send(sendJpMsg, sendJvMsg, sendExtTorqueMsg, sendMeasTorqueMsg, static_cast<double>(desired_gripper_pos.load()));
+        udp_handler.send(sendJpMsg, sendJvMsg, sendExtTorqueMsg, sendMeasTorqueMsg, static_cast<double>(desired_gripper_vel.load()));
         auto send_end = std::chrono::steady_clock::now();
         double send_dt = std::chrono::duration<double, std::milli>(send_end - send_start).count();
 
@@ -277,15 +283,25 @@ class Leader : public barrett::systems::System {
         while (io_running.load()) {
             if (boost::optional<haptic_wrist::handle_type> opt_handle = hw->getHandle()) {
                 haptic_wrist::handle_type handle = *opt_handle;
-                trigger_pos.store(static_cast<float>(handle[0])); // see haptic_wrist_impl.cpp for trigger range, TOOD: add to config
-                trigger_vel.store(static_cast<float>(handle[1]));
-                trigger_torque.store(static_cast<float>(handle[2]));
+                bumper.store(handle[0]);
+                trigger.store(handle[1]);
+                btn_x.store(handle[2]);
+                btn_o.store(handle[3]);
+                dpad_up.store(handle[4]);
+                dpad_down.store(handle[5]);
+                dpad_left.store(handle[6]);
+                dpad_right.store(handle[7]);
             }
 
-            // send between 0 (open) and 1 (closed)
-            float local_trigger_pos = trigger_pos.load();
-            float pos_command = local_trigger_pos / 0.88 - 1; // assumes that the trigger fully extended is -1 and closed is 0
-            desired_gripper_pos.store(pos_command);
+            float target_velocity = 0.0f;
+
+            if (bumper && !trigger) {
+                target_velocity = -gripper_speed;
+            } else if (trigger && !bumper) {
+                target_velocity = gripper_speed;
+            }
+
+            desired_gripper_vel.store(target_velocity);
 
             float remote_torque = remote_gripper_torque.load(); // TODO: do something with this.
 
