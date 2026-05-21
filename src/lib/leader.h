@@ -64,12 +64,6 @@ class Leader : public barrett::systems::System {
         , io_running(false)
         , state(State::INIT) {
 
-        for (size_t i = 0; i < DOF; i++) {
-            kp[i] = config.leader.gains.kp[i];
-            kd[i] = config.leader.gains.kd[i];
-            cf[i] = config.leader.gains.cf[i];
-        }
-
         torque_scaling   = config.leader.haptics.torque_scaling;
         minStiffness     = config.leader.haptics.minStiffness;
         maxStiffness     = config.leader.haptics.maxStiffness;
@@ -180,7 +174,7 @@ class Leader : public barrett::systems::System {
             remote_gripper_torque.store(static_cast<double>(received_data->gripper));
 
             // get and mirror follower wrist
-            // for (size_t i = 0; i < 1; i++) {
+            // for (size_t i = 0; i < 3; i++) {
             //     theirWristJp[i] = received_data->jp(DOF + i) * config.sync_mapping.scales[DOF + i] + config.sync_mapping.offsets[DOF + i];
             // }
             theirWristJp[0] = received_data->jp(DOF) * config.sync_mapping.scales[DOF] + config.sync_mapping.offsets[DOF];

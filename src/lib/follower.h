@@ -59,12 +59,6 @@ class Follower : public barrett::systems::System {
         , io_running(false)
         , state(State::INIT) {
 
-        for (size_t i = 0; i < DOF; i++) {
-            kp[i] = config.follower.gains.kp[i];
-            kd[i] = config.follower.gains.kd[i];
-            cf[i] = config.follower.gains.cf[i];
-        }
-
         last_op_time = std::chrono::steady_clock::now();
 
         gripper_max_pos = gripper->getGripperClosePos();

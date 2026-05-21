@@ -18,10 +18,6 @@ struct NetworkConfig {
     OperationMode mode;
 };
 
-struct TeleopGains {
-    std::vector<double> kp, kd, cf;
-};
-
 struct HapticsConfig {
     double torque_scaling;
     double minStiffness, maxStiffness, alpha;
@@ -34,7 +30,6 @@ struct SyncMapping {
 
 struct RobotTeleopConfig {
     std::vector<double> sync_pos;
-    TeleopGains gains;
     HapticsConfig haptics;
     bool vertical;
 };
@@ -62,15 +57,6 @@ template<> struct convert<NetworkConfig> {
     }
 };
 
-template<> struct convert<TeleopGains> {
-    static bool decode(const Node& node, TeleopGains& c) {
-        c.kp = node["kp"].as<std::vector<double>>();
-        c.kd = node["kd"].as<std::vector<double>>();
-        c.cf = node["cf"].as<std::vector<double>>();
-        return true;
-    }
-};
-
 template<> struct convert<HapticsConfig> {
     static bool decode(const Node& node, HapticsConfig& c) {
         if (!node) return true; // Follower might not have this
@@ -93,7 +79,6 @@ template<> struct convert<SyncMapping> {
 template<> struct convert<RobotTeleopConfig> {
     static bool decode(const Node& node, RobotTeleopConfig& c) {
         c.sync_pos = node["sync_pos"].as<std::vector<double>>();
-        c.gains = node["gains"].as<TeleopGains>();
         if (node["haptics"]) {
             c.haptics = node["haptics"].as<HapticsConfig>();
         }
