@@ -1,37 +1,22 @@
 # Note
-This version of code is for vertical configuration of the WAM teleop setup. IGNORE the rest of the branches for now.
+This version of code is for the end effector wrist [EE wrist](./media/ee_wrist.jpg).
 
 # Wam Teleop
-This package enables teleoperation between the 4DOF leader with the haptic wrist and the 7DOF follower. While this is a ros package, communication between WAMs does not use ros, and instead uses UDP. Ros is only used to publish the state of arm for easier data collection, and is not intended to receive any incoming messages or services to control the arm. 
+This package enables teleoperation between the 4DOF leader with the ee wrist and the 7DOF follower. While this is a ros package, communication between WAMs does not use ros, and instead uses UDP. Ros is only used to publish the state of arm for easier data collection, and is not intended to receive any incoming messages or services to control the arm. 
 
-## Build Instructions
-
-Place this package in `<catkin_ws>/src/`.
-
-By default, this package builds the leader and follower node. If you only wish to build the follower node you can configure this from the command line:
-```bash
-catkin_make --cmake-args -DBUILD_LEADER=OFF 
-```
-or set the option to `OFF` in `CMakeLists.txt`:
-```bash
-option(BUILD_LEADER "Build leader executable" OFF)
-```
-To build the leader node, the haptic_wrist library is required as a dependency, build and install instructions can be found [here](https://github.com/dmiller12/libhaptic_wrist).
-
-OR, to make your life easy, see [wam-ros-docker](https://github.com/ualberta-robotics/wam-ros-docker) where you only need to run ```source build_all.sh``` or ```source build_ws.sh``` if you already built the gripper and wrist.
 
 ## Run Instructions
 
 `config/` contains the Barrett configuration files for the leader and follower. 
-You can set the correct config file by using `source scripts/setup_leader.sh` and `source scripts/setup_follower.sh`. These will set the env variable `BARRETT_CONFIG_FILE` to the correct path. 
-You may need to modify the bus port in `config/leader.conf` and `config/follower.conf` depending on the can interface. Note that these environment variables only persist for the current terminal session.
+You can set the correct config file by using `setup_leader` and `setup_follower` if using [wam-ros-docker](https://github.com/ualberta-robotics/wam-ros-docker) ;)
+These will set the env variable `BARRETT_CONFIG_FILE` to the correct path. You may need to modify the bus port in `config/leader.conf` and `config/follower.conf` depending on the can interface. Note that these environment variables only persist for the current terminal session.
 
 to run each node:
 ```bash
 rosrun wam_teleop leader
 rosrun wam_teleop follower
 ```
-see teleop_config.yaml to change ports, hosts, gains and more!
+see teleop_config.yaml to change ports, hosts and more!
 
 In your host computer, run 
 ```bash
@@ -43,7 +28,7 @@ source scripts\can_init_usb.sh
 ```
 or, edit to your needs depending on how you communicate with the wam's.
 
-NOTE: you might have to tweak the can# based on the order you plugged stuff into the computer.
+NOTE: you might have to tweak the can# based on the order you plugged the can cables into the computer.
 
 In a separate terminal session, start the master node with: `roscore`.
 
