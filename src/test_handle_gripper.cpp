@@ -23,13 +23,6 @@ int main(int argc, char** argv) {
 
     double bumper = 0.0;
     double trigger = 0.0;
-    double btn_x = 0.0;
-    double btn_o = 0.0;
-    double dpad_up = 0.0;
-    double dpad_down = 0.0;
-    double dpad_left = 0.0;
-    double dpad_right = 0.0;
-
     float gripper_max_pos = 0.05;
     float gripper_min_pos = -0.17;
 
@@ -39,12 +32,6 @@ int main(int argc, char** argv) {
 
             bumper      = handle[0];
             trigger     = handle[1];
-            btn_x       = handle[2];
-            btn_o       = handle[3];
-            dpad_up     = handle[4];
-            dpad_down   = handle[5];
-            dpad_left   = handle[6];
-            dpad_right  = handle[7];
         }
 
 

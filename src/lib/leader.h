@@ -58,12 +58,6 @@ class Leader : public barrett::systems::System {
         , hw(hw)
     	, bumper(0.0f)
     	, trigger(0.0f)
-    	, btn_x(0.0f)
-    	, btn_o(0.0f)
-    	, dpad_up(0.0f)
-    	, dpad_down (0.0f)
-    	, dpad_left(0.0f)
-    	, dpad_right(0.0f)
         , desired_gripper_vel(0.0f)
         , remote_gripper_torque(0.0f)
         , io_running(false)
@@ -115,12 +109,6 @@ class Leader : public barrett::systems::System {
     // TODO: these should be bool
     std::atomic<double> bumper;
     std::atomic<double> trigger;
-    std::atomic<double> btn_x;
-    std::atomic<double> btn_o;
-    std::atomic<double> dpad_up;
-    std::atomic<double> dpad_down ;
-    std::atomic<double> dpad_left;
-    std::atomic<double> dpad_right;
 
     std::atomic<float> desired_gripper_vel;
     std::atomic<float> remote_gripper_torque;
@@ -285,12 +273,6 @@ class Leader : public barrett::systems::System {
                 haptic_wrist::handle_type handle = *opt_handle;
                 bumper.store(handle[0]);
                 trigger.store(handle[1]);
-                btn_x.store(handle[2]);
-                btn_o.store(handle[3]);
-                dpad_up.store(handle[4]);
-                dpad_down.store(handle[5]);
-                dpad_left.store(handle[6]);
-                dpad_right.store(handle[7]);
             }
 
             float target_velocity = 0.0f;
