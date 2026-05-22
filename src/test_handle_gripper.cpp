@@ -1,4 +1,4 @@
-#include "haptic_wrist/haptic_wrist.h"
+#include "haptic_wrist/handle.h"
 #include "gripper/gecko/gecko_gripper.h"
 #include <iostream>
 #include <thread>
@@ -7,9 +7,7 @@
 using namespace gripper::gecko;
 
 int main(int argc, char** argv) {
-    haptic_wrist::HapticWrist hw;
-    hw.gravityCompensate(false);
-    hw.run();
+    haptic_wrist::Handle handle;
 
     GeckoGripper gripper;
     std::cout << "starting gripper and handle test" << std::endl;
@@ -27,7 +25,7 @@ int main(int argc, char** argv) {
     float gripper_min_pos = -0.17;
 
     while (true) {
-        if (boost::optional<haptic_wrist::handle_type> opt_handle = hw.getHandle()) {
+        if (boost::optional<haptic_wrist::handle_type> opt_handle = handle.getHandle()) {
             haptic_wrist::handle_type handle = *opt_handle;
 
             bumper      = handle[0];
@@ -59,7 +57,6 @@ int main(int argc, char** argv) {
     }
 
     gripper.shutdown();
-    hw.stop();
     
     return 0;
 }

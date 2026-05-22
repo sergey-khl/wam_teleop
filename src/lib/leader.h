@@ -1,6 +1,7 @@
 #pragma once
 
 #include <haptic_wrist/haptic_wrist.h>
+#include <haptic_wrist/handle.h>
 #include <boost/asio.hpp>
 #include <iostream>
 #include <cmath>
@@ -37,7 +38,7 @@ class Leader : public barrett::systems::System {
     enum class State { INIT, LINKED, UNLINKED };
 
     // we dont actually do inference on the leader but we still record data from it
-    explicit Leader(barrett::systems::ExecutionManager* em, haptic_wrist::HapticWrist* hw, 
+    explicit Leader(barrett::systems::ExecutionManager* em, haptic_wrist::HapticWrist* hw, haptic_wrist::Handle* handle,
                 const TeleopConfig& config,
                 const std::string& sysName = "Leader")
         : System(sysName)
@@ -56,6 +57,7 @@ class Leader : public barrett::systems::System {
         , udp_handler(config.network.follower_host, config.network.teleop_send, config.network.teleop_recv, 
                       config.network.mode, config.network.inference_host, config.network.leader_inference_send, config.network.inference_recv)
         , hw(hw)
+        , handle(handle)
     	, bumper(0.0f)
     	, trigger(0.0f)
         , desired_gripper_vel(0.0f)
@@ -269,7 +271,7 @@ class Leader : public barrett::systems::System {
     void pollHandle() {
         float local_smoothed_torque = 0.0f;
         while (io_running.load()) {
-            if (boost::optional<haptic_wrist::handle_type> opt_handle = hw->getHandle()) {
+            if (boost::optional<haptic_wrist::handle_type> opt_handle = handle->getHandle()) {
                 haptic_wrist::handle_type handle = *opt_handle;
                 bumper.store(handle[0]);
                 trigger.store(handle[1]);
@@ -296,7 +298,8 @@ class Leader : public barrett::systems::System {
   private:
     DISALLOW_COPY_AND_ASSIGN(Leader);
 
-    haptic_wrist::HapticWrist* hw;     // NEW
+    haptic_wrist::HapticWrist* hw;
+    haptic_wrist::Handle* handle;
     std::mutex state_mutex;
     jp_type joint_positions;
     UDPHandler<DOF + 3> udp_handler;

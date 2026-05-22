@@ -24,9 +24,9 @@
 
 #include <barrett/standard_main_function.h>
 
-// ==== CHANGED: use wrist-capable Leader and wrist headers ====
+#include <haptic_wrist/handle.h>
 #include <haptic_wrist/haptic_wrist.h>
-#include "lib/leader.h"                         // was "leader_nowrist.h"
+#include "lib/leader.h"
 #include "lib/background_state_publisher.h"
 #include "lib/leader_dynamics.h"
 #include "lib/dynamic_external_torque.h"
@@ -59,7 +59,8 @@ int wam_main(int argc, char **argv, ProductManager &pm, systems::Wam<DOF> &wam) 
     // ==== CHANGED: node name to reflect wrist leader ====
     ros::init(argc, argv, "leader");
 
-    // ==== NEW: start the haptic wrist device ====
+    haptic_wrist::Handle handle;
+
     haptic_wrist::HapticWrist hw;
     hw.gravityCompensate(false);
     hw.run();
@@ -100,7 +101,7 @@ int wam_main(int argc, char **argv, ProductManager &pm, systems::Wam<DOF> &wam) 
     pm.getExecutionManager()->startManaging(zeroAcceleration);
 
     // ==== CHANGED: instantiate wrist-capable Leader ====
-    Leader<DOF> leader(pm.getExecutionManager(), &hw, config);
+    Leader<DOF> leader(pm.getExecutionManager(), &hw, &handle, config);
 
     jt_type maxRate; // Nm·s^-1 per joint
     maxRate << 50, 50, 50, 50;
