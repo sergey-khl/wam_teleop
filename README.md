@@ -1,5 +1,5 @@
 # Note
-This version of code is for the end effector wrist [EE wrist](./media/ee_wrist.jpg).
+This version of code is for the end effector wrist ![EE wrist](./media/ee_wrist.jpg).
 
 # Wam Teleop
 This package enables teleoperation between the 4DOF leader with the ee wrist and the 7DOF follower. While this is a ros package, communication between WAMs does not use ros, and instead uses UDP. Ros is only used to publish the state of arm for easier data collection, and is not intended to receive any incoming messages or services to control the arm. 
