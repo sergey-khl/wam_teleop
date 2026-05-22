@@ -130,7 +130,7 @@ class Follower : public barrett::systems::System {
             // std::cout << "defined" << std::endl;
         } else {
             // std::cout << "not defined" << std::endl;
-            extTorque << 0.0, 0.0, 0,0, 0.0;
+            extTorque << 0.0, 0.0, 0,0, 0.0, 0.0, 0.0, 0.0;
         }
 
         sendJpMsg << wamJP;

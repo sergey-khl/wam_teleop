@@ -8,7 +8,7 @@
  *  Updated: 2025-11-07  (add haptic wrist support)
  */
 
-// This a version of 4-DOF leader equiped with a haptic wrist.
+// This a version of 7dof-7dof control
 
 #include "lib/external_torque.h"
 #include <iostream>
@@ -25,7 +25,6 @@
 #include <barrett/standard_main_function.h>
 
 #include <haptic_wrist/handle.h>
-#include <haptic_wrist/haptic_wrist.h>
 #include "lib/leader.h"
 #include "lib/background_state_publisher.h"
 #include "lib/leader_dynamics.h"
@@ -47,8 +46,8 @@ int wam_main(int argc, char **argv, ProductManager &pm, systems::Wam<DOF> &wam) 
     const TeleopConfig config = load_teleop_config(config_dir);
 
     jp_type SYNC_POS; // the position each WAM should move to before linking
-    if (DOF == 4) {
-        for (int i = 0; i < 4; ++i) {
+    if (DOF == 7) {
+        for (int i = 0; i < 7; ++i) {
             SYNC_POS[i] = config.leader.sync_pos[i];
         }
     } else {
@@ -60,10 +59,6 @@ int wam_main(int argc, char **argv, ProductManager &pm, systems::Wam<DOF> &wam) 
     ros::init(argc, argv, "leader");
 
     haptic_wrist::Handle handle;
-
-    haptic_wrist::HapticWrist hw;
-    hw.gravityCompensate(false);
-    hw.run();
 
     // ==== CHANGED: pass &hw to state publisher so it can publish wrist states ====
     // BackgroundStatePublisher<DOF> state_publisher(pm.getExecutionManager(), wam, &hw);
@@ -101,7 +96,7 @@ int wam_main(int argc, char **argv, ProductManager &pm, systems::Wam<DOF> &wam) 
     pm.getExecutionManager()->startManaging(zeroAcceleration);
 
     // ==== CHANGED: instantiate wrist-capable Leader ====
-    Leader<DOF> leader(pm.getExecutionManager(), &hw, &handle, config);
+    Leader<DOF> leader(pm.getExecutionManager(), &handle, config);
 
     jt_type maxRate; // Nm·s^-1 per joint
     maxRate << 50, 50, 50, 50;
@@ -197,9 +192,6 @@ int wam_main(int argc, char **argv, ProductManager &pm, systems::Wam<DOF> &wam) 
             } else {
                 // Sync both arm and wrist before link
                 wam.moveTo(SYNC_POS, true);
-                haptic_wrist::jp_type wrist_sync; 
-                wrist_sync << config.leader.sync_pos[DOF], config.leader.sync_pos[DOF + 1], config.leader.sync_pos[DOF + 2];
-                hw.jointMoveTo(wrist_sync);
 
                 printf("Press [Enter] to link with the other WAM.");
                 waitForEnter();
@@ -267,9 +259,6 @@ int wam_main(int argc, char **argv, ProductManager &pm, systems::Wam<DOF> &wam) 
     }
 
     pm.getSafetyModule()->waitForMode(SafetyModule::IDLE);
-
-    // ==== NEW: stop the wrist thread cleanly ====
-    hw.stop();
 
     return 0;
 }

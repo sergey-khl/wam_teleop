@@ -1,6 +1,5 @@
 #pragma once
 
-#include <haptic_wrist/haptic_wrist.h>
 #include <haptic_wrist/handle.h>
 #include <boost/asio.hpp>
 #include <iostream>
@@ -38,7 +37,7 @@ class Leader : public barrett::systems::System {
     enum class State { INIT, LINKED, UNLINKED };
 
     // we dont actually do inference on the leader but we still record data from it
-    explicit Leader(barrett::systems::ExecutionManager* em, haptic_wrist::HapticWrist* hw, haptic_wrist::Handle* handle,
+    explicit Leader(barrett::systems::ExecutionManager* em, haptic_wrist::Handle* handle,
                 const TeleopConfig& config,
                 const std::string& sysName = "Leader")
         : System(sysName)
@@ -56,7 +55,6 @@ class Leader : public barrett::systems::System {
         , theirJPOutput(this, &theirJPOutputValue)
         , udp_handler(config.network.follower_host, config.network.teleop_send, config.network.teleop_recv, 
                       config.network.mode, config.network.inference_host, config.network.leader_inference_send, config.network.inference_recv)
-        , hw(hw)
         , handle(handle)
     	, bumper(0.0f)
     	, trigger(0.0f)
@@ -124,18 +122,13 @@ class Leader : public barrett::systems::System {
     int loop_counter = 0;
     std::chrono::time_point<std::chrono::steady_clock> last_op_time;
 
-    // Wrist state
-    haptic_wrist::jp_type wristJP;      // local wrist pos
-    haptic_wrist::jv_type wristJV;      // local wrist vel
-    haptic_wrist::jp_type theirWristJp; // received wrist pos
+    // Network payloads: arm (DOF)
+    Eigen::Matrix<double, DOF, 1> sendJpMsg;
+    Eigen::Matrix<double, DOF, 1> sendJvMsg;
+    Eigen::Matrix<double, DOF, 1> sendExtTorqueMsg;
+    Eigen::Matrix<double, DOF, 1> sendMeasTorqueMsg;
 
-    // Network payloads: arm (DOF) + wrist (3) = DOF+3
-    Eigen::Matrix<double, DOF + 3, 1> sendJpMsg;
-    Eigen::Matrix<double, DOF + 3, 1> sendJvMsg;
-    Eigen::Matrix<double, DOF + 3, 1> sendExtTorqueMsg;
-    Eigen::Matrix<double, DOF + 3, 1> sendMeasTorqueMsg;
-
-    using ReceivedData = typename UDPHandler<DOF + 3>::ReceivedData;
+    using ReceivedData = typename UDPHandler<DOF>::ReceivedData;
 
     virtual void operate() {
         auto now_op = std::chrono::steady_clock::now();
@@ -158,10 +151,6 @@ class Leader : public barrett::systems::System {
             extTorque.setZero();
         }
 
-        // Read wrist device (if available)
-        haptic_wrist::jp_type wristJP = hw->getPosition();
-        haptic_wrist::jp_type wristJV = hw->getVelocity();
-
 
         // Receive (non-blocking)
         boost::optional<ReceivedData> received_data = udp_handler.getLatestTeleopReceived();
@@ -171,19 +160,11 @@ class Leader : public barrett::systems::System {
         if (received_data && (now_ns >= received_data->timestamp) && (now_ns - received_data->timestamp <= timeout_ns)) {
             udp_rx_age = static_cast<double>(now_ns - received_data->timestamp) / 1000000.0;
 
-            // Split received arm & wrist
             theirJp        = received_data->jp.template head<DOF>();
             theirJv        = received_data->jv.template head<DOF>();
             theirExtTorque = received_data->extTorque.template head<DOF>();
             remote_gripper_torque.store(static_cast<double>(received_data->gripper));
 
-            // mirror and offset some wrist joints
-            // for (size_t i = 0; i < 3; i++) {
-            //     theirWristJp[i] = received_data->jp(DOF + i) * config.sync_mapping.scales[DOF + i] + config.sync_mapping.offsets[DOF + i];
-            // }
-            theirWristJp[0] = received_data->jp(DOF) * config.sync_mapping.scales[DOF] + config.sync_mapping.offsets[DOF];
-            theirWristJp[1] = 0;
-            theirWristJp[2] = 0;
 
             // mirror and offset some of the wam joints
             for (size_t i = 0; i < DOF; i++) {
@@ -201,12 +182,12 @@ class Leader : public barrett::systems::System {
             }
         }
 
-        // Pack outgoing messages (arm + wrist)
-        sendJpMsg << wamJP, wristJP;
-        sendJvMsg << wamJV, wristJV;
+        // Pack outgoing messages
+        sendJpMsg << wamJP;
+        sendJvMsg << wamJV;
 
         // Only arm external torque is meaningful here; pad wrist torques with zeros
-        sendExtTorqueMsg << extTorque, 0.0, 0.0, 0.0;
+        sendExtTorqueMsg << extTorque;
 
         // State machine
         switch (state) {
@@ -216,10 +197,6 @@ class Leader : public barrett::systems::System {
                 break;
 
             case State::LINKED:
-
-                // // Drive wrist to peer wrist pose
-                hw->setTarget(theirWristJp);
-
                 // Your arm control law (kept intact)
                 control = compute_control(
                     theirJp, theirJv, theirExtTorque,
@@ -235,7 +212,7 @@ class Leader : public barrett::systems::System {
                 break;
         }
 
-        sendMeasTorqueMsg << control, 0.0, 0.0, 0.0;
+        sendMeasTorqueMsg << control;
 
         auto send_start = std::chrono::steady_clock::now();
         udp_handler.send(sendJpMsg, sendJvMsg, sendExtTorqueMsg, sendMeasTorqueMsg, static_cast<double>(desired_gripper_vel.load()));
@@ -248,13 +225,13 @@ class Leader : public barrett::systems::System {
         //               << " ms | UDP Send latency: " << send_dt << " ms\n";
                
             std::cout << std::fixed << std::setprecision(3);
-            // std::cout << "  -> TX JP:      [" << sendJpMsg.transpose() << "]\n";
-            // std::cout << "  -> TX JV:      [" << sendJvMsg.transpose() << "]\n";
-            // std::cout << "  -> TX ExtTrq:  [" << sendExtTorqueMsg.transpose() << "]\n";
-            // std::cout << "  -> TX MeasTrq: [" << sendMeasTorqueMsg.transpose() << "]\n";
+            std::cout << "  -> TX JP:      [" << sendJpMsg.transpose() << "]\n";
+            std::cout << "  -> TX JV:      [" << sendJvMsg.transpose() << "]\n";
+            std::cout << "  -> TX ExtTrq:  [" << sendExtTorqueMsg.transpose() << "]\n";
+            std::cout << "  -> TX MeasTrq: [" << sendMeasTorqueMsg.transpose() << "]\n";
             // std::cout << "  -> TX GrpVel:  " << desired_gripper_vel.load() << "\n";
-            std::cout << "  -> Their wrist:  " << theirWristJp.transpose() << "\n";
-            std::cout << "  -> My wrist:  " << wristJP.transpose() << "\n\n";
+            // std::cout << "  -> Their wrist:  " << theirWristJp.transpose() << "\n";
+            // std::cout << "  -> My wrist:  " << wristJP.transpose() << "\n\n";
             // std::cout << "  -> leader ext:  " << extTorque.transpose() << "\n";
             // std::cout << "  -> ref:  " << theirExtTorque.transpose() << "\n\n";
         }
@@ -291,18 +268,15 @@ class Leader : public barrett::systems::System {
 
             std::this_thread::sleep_for(std::chrono::milliseconds(2));
         }
-
-        hw->setTriggerHaptics(0);
     }
 
   private:
     DISALLOW_COPY_AND_ASSIGN(Leader);
 
-    haptic_wrist::HapticWrist* hw;
     haptic_wrist::Handle* handle;
     std::mutex state_mutex;
     jp_type joint_positions;
-    UDPHandler<DOF + 3> udp_handler;
+    UDPHandler<DOF> udp_handler;
     const std::chrono::milliseconds TIMEOUT_DURATION = std::chrono::milliseconds(20);
     State state;
 
