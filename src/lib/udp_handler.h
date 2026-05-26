@@ -8,12 +8,6 @@
 #include <boost/optional.hpp>
 #include <chrono>
 
-enum class OperationMode {
-    TELEOP,     // Bidirectional communication with teleop
-    RECORD,     // Bidirectional with leader + follower data saving. see https://github.com/ColeDewis/openpi-wam/tree/main
-    INFERENCE   // mix inference and leader signal. also record both leader + follower
-};
-
 template <size_t DOF>
 class UDPHandler {
 public:
@@ -31,7 +25,7 @@ public:
     };
 
     UDPHandler(const std::string& teleop_host, int teleop_send, int teleop_recv,
-               OperationMode mode = OperationMode::TELEOP,
+               bool recording,
                const std::string& inference_host = "127.0.0.1", int inference_send = 6000, int inference_recv = 6001);
     ~UDPHandler();
 
@@ -40,8 +34,10 @@ public:
     boost::optional<ReceivedData> getLatestInferenceReceived();
     void send(const jp_type& jp, const jv_type& jv, const jt_type& extTorque, const jt_type& measTorque, const double& gripper);
 
+    void enableInference();
+    void disableInference();
+
 private:
-    OperationMode op_mode;
     std::atomic<bool> stop_threads;
     std::vector<boost::asio::ip::udp::endpoint> send_endpoints;
 
@@ -49,6 +45,13 @@ private:
     boost::asio::ip::udp::socket send_socket;
     boost::asio::ip::udp::socket teleop_recv_socket;
     boost::asio::ip::udp::socket inference_recv_socket;
+
+    bool recording;
+    bool inference_active;
+    std::string inference_host;
+    int inference_send_port;
+    int inference_recv_port;
+    std::mutex inference_socket_mutex;
 
     std::thread teleop_recv_thread;
     std::thread inference_recv_thread;

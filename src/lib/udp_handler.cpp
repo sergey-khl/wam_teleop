@@ -5,9 +5,10 @@
 
 // TODO: inference recv can just pass to current teleop_recv for now. change later
 template <size_t DOF>
-UDPHandler<DOF>::UDPHandler(const std::string& teleop_host, int teleop_send, int teleop_recv, OperationMode mode, const std::string& inference_host, int inference_send, int inference_recv)
+UDPHandler<DOF>::UDPHandler(const std::string& teleop_host, int teleop_send, int teleop_recv, bool recording, const std::string& inference_host, int inference_send, int inference_recv)
     : stop_threads(false)
-    , op_mode(mode)
+    , recording(recording)
+    , inference_active(false)
     , send_socket(io_context, boost::asio::ip::udp::v4())
     , teleop_recv_socket(io_context, boost::asio::ip::udp::endpoint(boost::asio::ip::udp::v4(), teleop_recv))
     , inference_recv_socket(io_context) {
@@ -15,14 +16,10 @@ UDPHandler<DOF>::UDPHandler(const std::string& teleop_host, int teleop_send, int
     // Always add teleop to our broadcast list
     send_endpoints.push_back(boost::asio::ip::udp::endpoint(boost::asio::ip::make_address(teleop_host), teleop_send));
 
-    if (mode == OperationMode::RECORD || mode == OperationMode::INFERENCE) {
-        send_endpoints.push_back(boost::asio::ip::udp::endpoint(boost::asio::ip::make_address(inference_host), inference_send));
-    }
-
     teleop_recv_thread = std::thread(&UDPHandler::receiveLoop, this, std::ref(teleop_recv_socket), std::ref(latest_teleop_received));
-    
-    if (mode == OperationMode::RECORD || mode == OperationMode::INFERENCE) {
-        inference_recv_thread = std::thread(&UDPHandler::receiveLoop, this, std::ref(inference_recv_socket), std::ref(latest_inference_received));
+
+    if (recording) {
+        send_endpoints.push_back(boost::asio::ip::udp::endpoint(boost::asio::ip::make_address(inference_host), inference_send));
     }
 
     send_thread = std::thread(&UDPHandler::sendLoop, this);
@@ -56,6 +53,40 @@ void UDPHandler<DOF>::stop() {
     if (teleop_recv_thread.joinable()) teleop_recv_thread.join();
     if (inference_recv_thread.joinable()) inference_recv_thread.join();
     if (send_thread.joinable()) send_thread.join();
+}
+
+template <size_t DOF>
+void UDPHandler<DOF>::enableInference() {
+    std::lock_guard<std::mutex> lock(inference_socket_mutex);
+    if (inference_active) return;
+
+    inference_recv_socket = boost::asio::ip::udp::socket(io_context, boost::asio::ip::udp::endpoint(boost::asio::ip::udp::v4(), inference_recv_port));
+
+    inference_recv_thread = std::thread(&UDPHandler::receiveLoop, this, std::ref(inference_recv_socket), std::ref(latest_inference_received));
+    inference_active = true;
+}
+
+template <size_t DOF>
+void UDPHandler<DOF>::disableInference() {
+    std::lock_guard<std::mutex> lock(inference_socket_mutex);
+    if (!inference_active) return;
+
+    if (inference_recv_socket.is_open()) {
+        inference_recv_socket.cancel();
+        inference_recv_socket.close();
+    }
+    if (inference_recv_thread.joinable())
+        inference_recv_thread.join();
+
+    // remove inference endpoint from send list
+    auto it = std::remove_if(send_endpoints.begin(), send_endpoints.end(),
+        [&](const auto& ep) {
+            return ep.port() == inference_send_port;
+        });
+    send_endpoints.erase(it, send_endpoints.end());
+
+    latest_inference_received = boost::none;
+    inference_active = false;
 }
 
 template <size_t DOF>

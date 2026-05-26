@@ -8,7 +8,7 @@ network:
   leader_inference_send: 6555
   follower_inference_send: 6554
   inference_recv: 6666
-  mode: 0  # 0: TELEOP, 1: RECORD, 2: INFERENCE
+  recording: False
 
 sync_mapping:
   scales:  [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]

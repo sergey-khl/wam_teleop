@@ -33,7 +33,8 @@ class Follower : public barrett::systems::System {
     Output<jt_type> wamJPOutput;
     Output<jp_type> theirJPOutput;
 
-    enum class State { INIT, LINKED, UNLINKED };
+    std::atomic<bool> linked;
+    std::atomic<bool> inference_enabled;
 
     explicit Follower(barrett::systems::ExecutionManager* em, GeckoGripper* gripper, 
                   const TeleopConfig& config,
@@ -52,12 +53,13 @@ class Follower : public barrett::systems::System {
         , wamJPOutput(this, &jtOutputValue)
         , theirJPOutput(this, &theirJPOutputValue)
         , udp_handler(config.network.leader_host, config.network.teleop_recv, config.network.teleop_send, 
-                      config.network.mode, config.network.inference_host, config.network.follower_inference_send, config.network.inference_recv)
+                      config.network.recording, config.network.inference_host, config.network.follower_inference_send, config.network.inference_recv)
         , gripper(gripper)
         , target_gripper_vel(0.0f)
         , current_gripper_torque(0.0f)
         , io_running(false)
-        , state(State::INIT) {
+        , linked(false)
+        , inference_enabled (false) {
 
         last_op_time = std::chrono::steady_clock::now();
 
@@ -81,16 +83,20 @@ class Follower : public barrett::systems::System {
 
     virtual bool inputsValid() {return true;}
 
-    bool isLinked() const {
-        return state == State::LINKED;
-    }
-    void tryLink() {
+    bool isLinked() const { return linked.load(); }
+    void tryLink()  { BARRETT_SCOPED_LOCK(this->getEmMutex()); linked.store(true); }
+    void unlink()   { BARRETT_SCOPED_LOCK(this->getEmMutex()); linked.store(false); }
+
+    bool isInference() const { return inference_enabled.load(); }
+    void enableInference()  {
         BARRETT_SCOPED_LOCK(this->getEmMutex());
-        state = State::LINKED;
+        udp_handler.enableInference();
+        inference_enabled.store(true);
     }
-    void unlink() {
+    void disableInference() {
         BARRETT_SCOPED_LOCK(this->getEmMutex());
-        state = State::UNLINKED;
+        udp_handler.disableInference();
+        inference_enabled.store(false);
     }
 
   protected:
@@ -137,48 +143,66 @@ class Follower : public barrett::systems::System {
         sendJvMsg << wamJV;
         sendExtTorqueMsg << extTorque;
 
-        boost::optional<ReceivedData> received_data = udp_handler.getLatestTeleopReceived();
-        uint64_t now_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::high_resolution_clock::now().time_since_epoch()).count();
-        uint64_t timeout_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(TIMEOUT_DURATION).count();
-        double udp_rx_age = 0.0;
-        if (received_data && (now_ns >= received_data->timestamp) && (now_ns - received_data->timestamp <= timeout_ns)) {
-            udp_rx_age = static_cast<double>(now_ns - received_data->timestamp) / 1000000.0;
 
-            theirJp = received_data->jp;
-            theirJv = received_data->jv;
-            theirExtTorque = received_data->extTorque;
-            target_gripper_vel.store(static_cast<double>(received_data->gripper));
+        if (isLinked()) {
+            boost::optional<ReceivedData> teleop_data = udp_handler.getLatestTeleopReceived();
+            uint64_t now_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::high_resolution_clock::now().time_since_epoch()).count();
+            uint64_t timeout_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(TIMEOUT_DURATION).count();
+            double udp_rx_age = 0.0;
+            if (teleop_data && (now_ns >= teleop_data->timestamp) && (now_ns - teleop_data->timestamp <= timeout_ns)) {
+                udp_rx_age = static_cast<double>(now_ns - teleop_data->timestamp) / 1000000.0;
 
-            // mirror and offset some of the wam joints
-            for (size_t i = 0; i < DOF; i++) {
-                theirJp[i] = theirJp[i] * config.sync_mapping.scales[i] + config.sync_mapping.offsets[i];
-                theirJv[i] = theirJv[i] * config.sync_mapping.scales[i];
-                theirExtTorque[i] = theirExtTorque[i] * config.sync_mapping.scales[i];
-            }
+                theirJp = teleop_data->jp;
+                theirJv = teleop_data->jv;
+                theirExtTorque = teleop_data->extTorque;
+                target_gripper_vel.store(static_cast<double>(teleop_data->gripper));
 
-            theirJPOutputValue->setData(&theirJp);
-        } else {
-            if (state == State::LINKED) {
+                // mirror and offset some of the wam joints
+                for (size_t i = 0; i < DOF; i++) {
+                    theirJp[i] = theirJp[i] * config.sync_mapping.scales[i] + config.sync_mapping.offsets[i];
+                    theirJv[i] = theirJv[i] * config.sync_mapping.scales[i];
+                    theirExtTorque[i] = theirExtTorque[i] * config.sync_mapping.scales[i];
+                }
+
+                theirJPOutputValue->setData(&theirJp);
+            } else {
                 std::cout << "lost link" << std::endl;
-                state = State::UNLINKED;
+                unlink();
+            }
+        }
+        if (isInference()) {
+            boost::optional<ReceivedData> policy_data = udp_handler.getLatestInferenceReceived();
+            uint64_t now_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::high_resolution_clock::now().time_since_epoch()).count();
+            uint64_t timeout_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(TIMEOUT_DURATION).count();
+            double udp_rx_age = 0.0;
+            if (policy_data && (now_ns >= policy_data->timestamp) && (now_ns - policy_data->timestamp <= timeout_ns)) {
+                udp_rx_age = static_cast<double>(now_ns - policy_data->timestamp) / 1000000.0;
+
+                policyJp = policy_data->jp;
+                policyJv = policy_data->jv;
+                policyExtTorque = policy_data->extTorque;
+                policy_gripper_vel.store(static_cast<double>(policy_data->gripper));
+            } else {
+                std::cout << "lost link" << std::endl;
+                unlink();
             }
         }
 
-        switch (state) {
-            case State::INIT:
-                control.setZero();
-                jtOutputValue->setData(&control);
-                break;
-            case State::LINKED:
-                // // Active teleop. Only the callee can transition to LINKED
-                control = compute_control(theirJp, theirJv, theirExtTorque, wamJP, wamJV, extTorque, wamGrav, wamDyn);
-                jtOutputValue->setData(&control);
-                break;
-            case State::UNLINKED:
-                // // Changed to unlinked with either timeout or callee.
-                control.setZero();
-                jtOutputValue->setData(&control);
-                break;
+
+
+        if (isLinked() && isInference()) { // shared control
+            // TOOD: make this actually work
+            control.setZero();
+            jtOutputValue->setData(&control);
+        } else if (isLinked()) { // teleop only
+            control = compute_teleop_control(theirJp, theirJv, theirExtTorque, wamJP, wamJV, extTorque, wamGrav, wamDyn);
+            jtOutputValue->setData(&control);
+        } else if (isInference()) { // inference only
+            control = compute_policy_control(policyJp, policyJv, policyExtTorque, wamJP, wamJV, extTorque, wamGrav, wamDyn);
+            jtOutputValue->setData(&control);
+        } else {
+            control.setZero();
+            jtOutputValue->setData(&control);
         }
 
         // sendExtTorqueMsg << control;
@@ -206,6 +230,9 @@ class Follower : public barrett::systems::System {
     jp_type theirJp;
     jv_type theirJv;
     jt_type theirExtTorque;
+    jp_type policyJp;
+    jv_type policyJv;
+    jt_type policyExtTorque;
     jt_type control;
 
     void pollGripper() {
@@ -228,7 +255,6 @@ class Follower : public barrett::systems::System {
     jp_type joint_positions;
     UDPHandler<DOF> udp_handler;
     const std::chrono::milliseconds TIMEOUT_DURATION = std::chrono::milliseconds(20);
-    State state;
     Eigen::Matrix<double, DOF, 1> kp;
     Eigen::Matrix<double, DOF, 1> kd;
     Eigen::Matrix<double, DOF, 1> cf;
@@ -237,9 +263,10 @@ class Follower : public barrett::systems::System {
     std::thread io_thread;
     std::atomic<bool> io_running;
     std::atomic<float> target_gripper_vel;
+    std::atomic<float> policy_gripper_vel;
     std::atomic<float> current_gripper_torque;
 
-    jt_type compute_control(const jp_type& ref_pos, const jv_type& ref_vel, const jt_type& ref_extTorque,
+    jt_type compute_teleop_control(const jp_type& ref_pos, const jv_type& ref_vel, const jt_type& ref_extTorque,
                             const jp_type& cur_pos, const jv_type& cur_vel, const jt_type& cur_extTorque,
                             const jt_type& cur_grav, const jt_type& cur_dyn) {
         
@@ -276,6 +303,17 @@ class Follower : public barrett::systems::System {
         for (size_t i = 4; i < 7; ++i) {
             u[i] = 0.0;
         }
+        return u;
+    };
+
+    jt_type compute_policy_control(const jp_type& ref_pos, const jv_type& ref_vel, const jt_type& ref_extTorque,
+                            const jp_type& cur_pos, const jv_type& cur_vel, const jt_type& cur_extTorque,
+                            const jt_type& cur_grav, const jt_type& cur_dyn) {
+        
+        // TODO: make this useful
+        jt_type u1 = 0.0 * ref_pos;
+        jt_type u = u1;
+
         return u;
     };
 };

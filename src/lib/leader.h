@@ -34,7 +34,7 @@ class Leader : public barrett::systems::System {
     Output<jt_type> wamJPOutput;      // control torque command for the WAM arm (DOF)
     Output<jp_type> theirJPOutput;    // peer arm JP (DOF) for logging/monitoring
 
-    enum class State { INIT, LINKED, UNLINKED };
+    std::atomic<bool> linked;
 
     // we dont actually do inference on the leader but we still record data from it
     explicit Leader(barrett::systems::ExecutionManager* em, haptic_wrist::Handle* handle,
@@ -54,14 +54,14 @@ class Leader : public barrett::systems::System {
         , wamJPOutput(this, &jtOutputValue)
         , theirJPOutput(this, &theirJPOutputValue)
         , udp_handler(config.network.follower_host, config.network.teleop_send, config.network.teleop_recv, 
-                      config.network.mode, config.network.inference_host, config.network.leader_inference_send, config.network.inference_recv)
+                      config.network.recording, config.network.inference_host, config.network.leader_inference_send, config.network.inference_recv)
         , handle(handle)
     	, bumper(0.0f)
     	, trigger(0.0f)
         , desired_gripper_vel(0.0f)
         , remote_gripper_torque(0.0f)
         , io_running(false)
-        , state(State::INIT) {
+        , linked(false) {
 
         torque_scaling   = config.leader.haptics.torque_scaling;
         minStiffness     = config.leader.haptics.minStiffness;
@@ -87,9 +87,9 @@ class Leader : public barrett::systems::System {
 
     virtual bool inputsValid() { return true; }
 
-    bool isLinked() const { return state == State::LINKED; }
-    void tryLink() { BARRETT_SCOPED_LOCK(this->getEmMutex()); state = State::LINKED; }
-    void unlink() { BARRETT_SCOPED_LOCK(this->getEmMutex()); state = State::UNLINKED; }
+    bool isLinked() const { return linked.load(); }
+    void tryLink()  { BARRETT_SCOPED_LOCK(this->getEmMutex()); linked.store(true); }
+    void unlink()   { BARRETT_SCOPED_LOCK(this->getEmMutex()); linked.store(false); }
 
   protected:
     typename Output<jt_type>::Value* jtOutputValue;
@@ -176,9 +176,9 @@ class Leader : public barrett::systems::System {
             // Publish peer arm JP (as before)
             theirJPOutputValue->setData(&theirJp);
         } else {
-            if (state == State::LINKED) {
+            if (isLinked()) {
                 std::cout << "lost link" << std::endl;
-                state = State::UNLINKED;
+                unlink();
             }
         }
 
@@ -190,26 +190,16 @@ class Leader : public barrett::systems::System {
         sendExtTorqueMsg << extTorque;
 
         // State machine
-        switch (state) {
-            case State::INIT:
-                control.setZero();
-                jtOutputValue->setData(&control);
-                break;
-
-            case State::LINKED:
-                // Your arm control law (kept intact)
-                control = compute_control(
-                    theirJp, theirJv, theirExtTorque,
-                    wamJP,   wamJV,   extTorque,
-                    wamGrav, wamDyn
-                );
-                jtOutputValue->setData(&control);
-                break;
-
-            case State::UNLINKED:
-                control.setZero();
-                jtOutputValue->setData(&control);
-                break;
+        if (isLinked()) {
+            control = compute_control(
+                theirJp, theirJv, theirExtTorque,
+                wamJP,   wamJV,   extTorque,
+                wamGrav, wamDyn
+            );
+            jtOutputValue->setData(&control);
+        } else {
+            control.setZero();
+            jtOutputValue->setData(&control);
         }
 
         sendMeasTorqueMsg << control;
@@ -248,6 +238,7 @@ class Leader : public barrett::systems::System {
     void pollHandle() {
         float local_smoothed_torque = 0.0f;
         while (io_running.load()) {
+            handle->poll(); // need to poll sony controller
             if (boost::optional<haptic_wrist::handle_type> opt_handle = handle->getHandle()) {
                 haptic_wrist::handle_type handle = *opt_handle;
                 bumper.store(handle[0]);
@@ -278,7 +269,6 @@ class Leader : public barrett::systems::System {
     jp_type joint_positions;
     UDPHandler<DOF> udp_handler;
     const std::chrono::milliseconds TIMEOUT_DURATION = std::chrono::milliseconds(20);
-    State state;
 
     // Gains you had
     Eigen::Matrix<double, DOF, 1> kp;

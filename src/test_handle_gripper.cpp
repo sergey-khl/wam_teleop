@@ -25,6 +25,7 @@ int main(int argc, char** argv) {
     float gripper_min_pos = -0.17;
 
     while (true) {
+        handle.poll();
         if (boost::optional<haptic_wrist::handle_type> opt_handle = handle.getHandle()) {
             haptic_wrist::handle_type handle = *opt_handle;
 

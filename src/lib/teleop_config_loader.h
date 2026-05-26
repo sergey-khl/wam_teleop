@@ -15,7 +15,7 @@ struct NetworkConfig {
     int leader_inference_send;
     int follower_inference_send;
     int inference_recv;
-    OperationMode mode;
+    bool recording;
 };
 
 struct HapticsConfig {
@@ -52,7 +52,7 @@ template<> struct convert<NetworkConfig> {
         c.leader_inference_send = node["leader_inference_send"].as<int>();
         c.follower_inference_send = node["follower_inference_send"].as<int>();
         c.inference_recv = node["inference_recv"].as<int>();
-        c.mode = static_cast<OperationMode>(node["mode"].as<int>());
+        c.recording = node["recording"].as<int>();
         return true;
     }
 };

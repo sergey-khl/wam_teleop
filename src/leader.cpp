@@ -22,6 +22,7 @@
 #include <barrett/systems.h>
 #include <barrett/units.h>
 
+#define BARRETT_SMF_VALIDATE_ARGS
 #include <barrett/standard_main_function.h>
 
 #include <haptic_wrist/handle.h>
@@ -33,6 +34,19 @@
 
 using namespace barrett;
 using detail::waitForEnter;
+
+
+bool validate_args(int argc, char** argv) {
+    const std::string config_dir = get_teleop_config_directory();
+    try {
+        TeleopConfig config = load_teleop_config(config_dir);
+        print_leader_banner(config);
+    } catch (...) {
+        printf("ERROR: could not print leader config... exiting\n.");
+        return false;
+    }
+    return true;
+}
 
 template <size_t DOF>
 int wam_main(int argc, char **argv, ProductManager &pm, systems::Wam<DOF> &wam) {
@@ -51,7 +65,7 @@ int wam_main(int argc, char **argv, ProductManager &pm, systems::Wam<DOF> &wam) 
             SYNC_POS[i] = config.leader.sync_pos[i];
         }
     } else {
-        printf("Error: 4 DOF supported\n");
+        printf("Error: 7 DOF supported\n");
         return false;
     }
 

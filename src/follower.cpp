@@ -21,6 +21,7 @@
 #include <barrett/systems.h>
 #include <barrett/units.h>
 
+#define BARRETT_SMF_VALIDATE_ARGS
 #include <barrett/standard_main_function.h>
 
 #include "lib/follower.h"
@@ -31,6 +32,18 @@
 
 using namespace barrett;
 using detail::waitForEnter;
+
+bool validate_args(int argc, char** argv) {
+    const std::string config_dir = get_teleop_config_directory();
+    try {
+        TeleopConfig config = load_teleop_config(config_dir);
+        print_follower_banner(config);
+    } catch (...) {
+        printf("ERROR: could not print follower config... exiting\n.");
+        return false;
+    }
+    return true;
+}
 
 template <size_t DOF> int wam_main(int argc, char **argv, ProductManager &pm, systems::Wam<DOF> &wam) {
     BARRETT_UNITS_TEMPLATE_TYPEDEFS(DOF);
@@ -184,6 +197,10 @@ template <size_t DOF> int wam_main(int argc, char **argv, ProductManager &pm, sy
         case 'l':
             if (follower.isLinked()) {
                 follower.unlink();
+                printf("unlinked");
+            } else if (follower.isInference()) {
+                follower.disableInference();
+                printf("disabled inference");
             } else {
                 wam.moveTo(SYNC_POS, true);
 
@@ -266,9 +283,10 @@ template <size_t DOF> int wam_main(int argc, char **argv, ProductManager &pm, sy
 
         default:
             printf("\n");
-            printf("    'l' to toggle linking with other WAM\n");
-            printf("    't' to tune control gains\n");
-            printf("    'x' to exit\n");
+            printf("    'l'  start/stop (teleop in mode 0, teleop in mode 1 (with data recording), inference in mode 2 (with data recording)\n");
+            printf("    't'  tune control gains\n");
+            printf("    'x'  exit\n");
+            printf("\n");
 
             break;
         }
