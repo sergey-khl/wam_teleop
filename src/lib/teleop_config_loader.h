@@ -52,7 +52,7 @@ template<> struct convert<NetworkConfig> {
         c.leader_inference_send = node["leader_inference_send"].as<int>();
         c.follower_inference_send = node["follower_inference_send"].as<int>();
         c.inference_recv = node["inference_recv"].as<int>();
-        c.recording = node["recording"].as<int>();
+        c.recording = node["recording"].as<bool>();
         return true;
     }
 };

@@ -167,7 +167,7 @@ class Follower : public barrett::systems::System {
                 theirJPOutputValue->setData(&theirJp);
             } else {
                 std::cout << "lost link" << std::endl;
-                unlink();
+                linked.store(false);
             }
         }
         if (isInference()) {
@@ -184,7 +184,7 @@ class Follower : public barrett::systems::System {
                 policy_gripper_vel.store(static_cast<double>(policy_data->gripper));
             } else {
                 std::cout << "lost link" << std::endl;
-                unlink();
+                inference_enabled.store(false);
             }
         }
 

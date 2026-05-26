@@ -178,7 +178,7 @@ class Leader : public barrett::systems::System {
         } else {
             if (isLinked()) {
                 std::cout << "lost link" << std::endl;
-                unlink();
+                linked.store(false);
             }
         }
 

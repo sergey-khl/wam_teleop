@@ -35,6 +35,10 @@ using detail::waitForEnter;
 
 bool validate_args(int argc, char** argv) {
     const std::string config_dir = get_teleop_config_directory();
+    if (config_dir.empty()) {
+        throw std::runtime_error("No valid configuration directory found.");
+    }
+
     try {
         TeleopConfig config = load_teleop_config(config_dir);
         print_follower_banner(config);
@@ -218,6 +222,23 @@ template <size_t DOF> int wam_main(int argc, char **argv, ProductManager &pm, sy
                     printf("Linked with remote WAM.\n");
                 } else {
                     printf("WARNING: Linking was unsuccessful.\n");
+                }
+            }
+
+            break;
+
+        case 'p':
+            if (follower.isInference()) {
+                follower.disableInference();
+                printf("disabled inference");
+            } else {
+                follower.enableInference();
+
+                btsleep(0.1); // wait an execution cycle or two
+                if (follower.isInference()) {
+                    printf("Running policy.\n");
+                } else {
+                    printf("WARNING: inference was unsuccessful.\n");
                 }
             }
 

@@ -1,4 +1,3 @@
-
 #include "udp_handler.h"
 #include <boost/system/error_code.hpp>
 #include <cstring>
@@ -68,25 +67,28 @@ void UDPHandler<DOF>::enableInference() {
 
 template <size_t DOF>
 void UDPHandler<DOF>::disableInference() {
-    std::lock_guard<std::mutex> lock(inference_socket_mutex);
-    if (!inference_active) return;
+    {
+        std::lock_guard<std::mutex> lock(inference_socket_mutex);
+        if (!inference_active) return;
 
-    if (inference_recv_socket.is_open()) {
-        inference_recv_socket.cancel();
-        inference_recv_socket.close();
+        if (inference_recv_socket.is_open()) {
+            inference_recv_socket.cancel();
+            inference_recv_socket.close();
+        }
+
+        // remove inference endpoint from send list
+        auto it = std::remove_if(send_endpoints.begin(), send_endpoints.end(),
+            [&](const auto& ep) {
+                return ep.port() == inference_send_port;
+            });
+        send_endpoints.erase(it, send_endpoints.end());
+
+        latest_inference_received = boost::none;
+        inference_active = false;
     }
-    if (inference_recv_thread.joinable())
+    if (inference_recv_thread.joinable()) {
         inference_recv_thread.join();
-
-    // remove inference endpoint from send list
-    auto it = std::remove_if(send_endpoints.begin(), send_endpoints.end(),
-        [&](const auto& ep) {
-            return ep.port() == inference_send_port;
-        });
-    send_endpoints.erase(it, send_endpoints.end());
-
-    latest_inference_received = boost::none;
-    inference_active = false;
+    }
 }
 
 template <size_t DOF>
@@ -153,19 +155,24 @@ void UDPHandler<DOF>::send(const jp_type& jp, const jv_type& jv, const jt_type& 
 template <size_t DOF>
 void UDPHandler<DOF>::sendLoop() {
     while (!stop_threads) {
-        std::unique_lock<std::mutex> lock(send_mutex);
-        send_condition.wait(lock, [this] { return new_data_available || stop_threads; });
+        std::vector<boost::asio::ip::udp::endpoint> endpoints_snapshot;
 
-        if (stop_threads)
-            break;
+        {
+            std::unique_lock<std::mutex> lock(send_mutex);
+            send_condition.wait(lock, [this] { return new_data_available || stop_threads; });
 
-        new_data_available = false;
-        jp_type data_to_send_jp = pending_send_jp;
-        jp_type data_to_send_jv = pending_send_jv;
-        jt_type data_to_send_extTorque = pending_send_extTorque;
-        jt_type data_to_send_measTorque = pending_send_measTorque;
-        double data_to_send_gripper = pending_send_gripper;
-        lock.unlock();
+            if (stop_threads)
+                break;
+
+            new_data_available = false;
+            jp_type data_to_send_jp = pending_send_jp;
+            jp_type data_to_send_jv = pending_send_jv;
+            jt_type data_to_send_extTorque = pending_send_extTorque;
+            jt_type data_to_send_measTorque = pending_send_measTorque;
+            double data_to_send_gripper = pending_send_gripper;
+
+            endpoints_snapshot = send_endpoints;
+        }
 
         auto now = std::chrono::high_resolution_clock::now().time_since_epoch();
         uint64_t current_time_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(now).count();
@@ -177,9 +184,8 @@ void UDPHandler<DOF>::sendLoop() {
         std::memcpy(buffer + 3*(sizeof(double) * DOF), data_to_send_measTorque.data(), sizeof(double) * DOF);
         std::memcpy(buffer + 4*(sizeof(double) * DOF), &data_to_send_gripper, sizeof(double));
         std::memcpy(buffer + 4*(sizeof(double) * DOF) + sizeof(double), &current_time_ns, sizeof(uint64_t));
-
         boost::system::error_code ec;
-        for (const auto& endpoint : send_endpoints) {
+        for (const auto& endpoint : endpoints_snapshot) {
             send_socket.send_to(boost::asio::buffer(buffer, sizeof(buffer)), endpoint, 0, ec);
         }
     }
