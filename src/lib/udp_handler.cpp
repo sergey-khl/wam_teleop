@@ -10,7 +10,10 @@ UDPHandler<DOF>::UDPHandler(const std::string& teleop_host, int teleop_send, int
     , inference_active(false)
     , send_socket(io_context, boost::asio::ip::udp::v4())
     , teleop_recv_socket(io_context, boost::asio::ip::udp::endpoint(boost::asio::ip::udp::v4(), teleop_recv))
-    , inference_recv_socket(io_context) {
+    , inference_recv_socket(io_context)
+    , inference_host(inference_host)
+    , inference_send_port(inference_send)
+    , inference_recv_port(inference_recv) {
 
     // Always add teleop to our broadcast list
     send_endpoints.push_back(boost::asio::ip::udp::endpoint(boost::asio::ip::make_address(teleop_host), teleop_send));
@@ -60,8 +63,12 @@ void UDPHandler<DOF>::enableInference() {
     if (inference_active) return;
 
     inference_recv_socket = boost::asio::ip::udp::socket(io_context, boost::asio::ip::udp::endpoint(boost::asio::ip::udp::v4(), inference_recv_port));
-
     inference_recv_thread = std::thread(&UDPHandler::receiveLoop, this, std::ref(inference_recv_socket), std::ref(latest_inference_received));
+
+    if (!recording) {
+        send_endpoints.push_back(boost::asio::ip::udp::endpoint(boost::asio::ip::make_address(inference_host), inference_send_port));
+    }
+
     inference_active = true;
 }
 
@@ -76,12 +83,12 @@ void UDPHandler<DOF>::disableInference() {
             inference_recv_socket.close();
         }
 
-        // remove inference endpoint from send list
-        auto it = std::remove_if(send_endpoints.begin(), send_endpoints.end(),
-            [&](const auto& ep) {
-                return ep.port() == inference_send_port;
-            });
-        send_endpoints.erase(it, send_endpoints.end());
+        if (!recording) {
+            std::lock_guard<std::mutex> send_lock(send_mutex);
+            auto it = std::remove_if(send_endpoints.begin(), send_endpoints.end(),
+                [&](const auto& ep) { return ep.port() == inference_send_port; });
+            send_endpoints.erase(it, send_endpoints.end());
+        }
 
         latest_inference_received = boost::none;
         inference_active = false;

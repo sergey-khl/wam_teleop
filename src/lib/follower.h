@@ -217,13 +217,16 @@ class Follower : public barrett::systems::System {
         //               << " ms | UDP Rx Age: " << udp_rx_age 
         //               << " ms | UDP Send latency: " << send_dt << " ms\n";
 
-            // std::cout << std::fixed << std::setprecision(3);
+            std::cout << std::fixed << std::setprecision(3);
             // std::cout << "  -> TX JP:      [" << sendJpMsg.transpose() << "]\n";
             // std::cout << "  -> TX JV:      [" << sendJvMsg.transpose() << "]\n";
             // std::cout << "  -> TX ExtTrq:  [" << sendExtTorqueMsg.transpose() << "]\n";
             // std::cout << "  -> TX MeasTrq: [" << control.transpose() << "]\n";
             // std::cout << "  -> TX GrpTrq:  " << current_gripper_torque.load() << "\n\n";
             // std::cout << "  -> ref:  " << theirExtTorque.transpose() << "\n\n";
+            std::cout << "  -> P JP:      [" << policyJp.transpose() << "]\n";
+            std::cout << "  -> P JV:      [" << policyJv.transpose() << "]\n";
+            std::cout << "  -> P T:      [" << policyExtTorque.transpose() << "]\n\n";
         }
     }
 
