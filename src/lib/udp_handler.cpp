@@ -155,22 +155,24 @@ void UDPHandler<DOF>::send(const jp_type& jp, const jv_type& jv, const jt_type& 
 template <size_t DOF>
 void UDPHandler<DOF>::sendLoop() {
     while (!stop_threads) {
+        jp_type data_to_send_jp;
+        jv_type data_to_send_jv;
+        jt_type data_to_send_extTorque;
+        jt_type data_to_send_measTorque;
+        double data_to_send_gripper;
         std::vector<boost::asio::ip::udp::endpoint> endpoints_snapshot;
 
         {
             std::unique_lock<std::mutex> lock(send_mutex);
             send_condition.wait(lock, [this] { return new_data_available || stop_threads; });
-
-            if (stop_threads)
-                break;
+            if (stop_threads) break;
 
             new_data_available = false;
-            jp_type data_to_send_jp = pending_send_jp;
-            jp_type data_to_send_jv = pending_send_jv;
-            jt_type data_to_send_extTorque = pending_send_extTorque;
-            jt_type data_to_send_measTorque = pending_send_measTorque;
-            double data_to_send_gripper = pending_send_gripper;
-
+            data_to_send_jp = pending_send_jp;
+            data_to_send_jv = pending_send_jv;
+            data_to_send_extTorque = pending_send_extTorque;
+            data_to_send_measTorque = pending_send_measTorque;
+            data_to_send_gripper = pending_send_gripper;
             endpoints_snapshot = send_endpoints;
         }
 
@@ -184,6 +186,7 @@ void UDPHandler<DOF>::sendLoop() {
         std::memcpy(buffer + 3*(sizeof(double) * DOF), data_to_send_measTorque.data(), sizeof(double) * DOF);
         std::memcpy(buffer + 4*(sizeof(double) * DOF), &data_to_send_gripper, sizeof(double));
         std::memcpy(buffer + 4*(sizeof(double) * DOF) + sizeof(double), &current_time_ns, sizeof(uint64_t));
+
         boost::system::error_code ec;
         for (const auto& endpoint : endpoints_snapshot) {
             send_socket.send_to(boost::asio::buffer(buffer, sizeof(buffer)), endpoint, 0, ec);
