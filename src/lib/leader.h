@@ -215,15 +215,16 @@ class Leader : public barrett::systems::System {
         //               << " ms | UDP Send latency: " << send_dt << " ms\n";
                
             std::cout << std::fixed << std::setprecision(3);
-            std::cout << "  -> TX JP:      [" << sendJpMsg.transpose() << "]\n";
-            std::cout << "  -> TX JV:      [" << sendJvMsg.transpose() << "]\n";
-            std::cout << "  -> TX ExtTrq:  [" << sendExtTorqueMsg.transpose() << "]\n";
-            std::cout << "  -> TX MeasTrq: [" << sendMeasTorqueMsg.transpose() << "]\n";
+            std::cout << "  -> LEADER JP:      [" << sendJpMsg.transpose() << "]\n";
+            // std::cout << "  -> TX JV:      [" << sendJvMsg.transpose() << "]\n";
+            // std::cout << "  -> TX ExtTrq:  [" << sendExtTorqueMsg.transpose() << "]\n";
+            // std::cout << "  -> TX MeasTrq: [" << sendMeasTorqueMsg.transpose() << "]\n";
             // std::cout << "  -> TX GrpVel:  " << desired_gripper_vel.load() << "\n";
             // std::cout << "  -> Their wrist:  " << theirWristJp.transpose() << "\n";
             // std::cout << "  -> My wrist:  " << wristJP.transpose() << "\n\n";
             // std::cout << "  -> leader ext:  " << extTorque.transpose() << "\n";
             // std::cout << "  -> ref:  " << theirExtTorque.transpose() << "\n\n";
+            std::cout << " FOLLOWER -> :  " << theirJp.transpose() << "\n\n";
         }
     }
 

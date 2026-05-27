@@ -56,6 +56,7 @@ class Follower : public barrett::systems::System {
                       config.network.recording, config.network.inference_host, config.network.follower_inference_send, config.network.inference_recv)
         , gripper(gripper)
         , target_gripper_vel(0.0f)
+        , current_gripper_pos(0.0f)
         , current_gripper_torque(0.0f)
         , io_running(false)
         , linked(false)
@@ -147,7 +148,7 @@ class Follower : public barrett::systems::System {
         if (isLinked()) {
             boost::optional<ReceivedData> teleop_data = udp_handler.getLatestTeleopReceived();
             uint64_t now_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::high_resolution_clock::now().time_since_epoch()).count();
-            uint64_t timeout_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(TIMEOUT_DURATION).count();
+            uint64_t timeout_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(TELEOP_TIMEOUT_DURATION).count();
             double udp_rx_age = 0.0;
             if (teleop_data && (now_ns >= teleop_data->timestamp) && (now_ns - teleop_data->timestamp <= timeout_ns)) {
                 udp_rx_age = static_cast<double>(now_ns - teleop_data->timestamp) / 1000000.0;
@@ -173,7 +174,7 @@ class Follower : public barrett::systems::System {
         if (isInference()) {
             boost::optional<ReceivedData> policy_data = udp_handler.getLatestInferenceReceived();
             uint64_t now_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::high_resolution_clock::now().time_since_epoch()).count();
-            uint64_t timeout_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(TIMEOUT_DURATION).count();
+            uint64_t timeout_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(INFERENCE_TIMEOUT_DURATION).count();
             double udp_rx_age = 0.0;
             if (policy_data && (now_ns >= policy_data->timestamp) && (now_ns - policy_data->timestamp <= timeout_ns)) {
                 udp_rx_age = static_cast<double>(now_ns - policy_data->timestamp) / 1000000.0;
@@ -181,10 +182,14 @@ class Follower : public barrett::systems::System {
                 policyJp = policy_data->jp;
                 policyJv = policy_data->jv;
                 policyExtTorque = policy_data->extTorque;
-                policy_gripper_vel.store(static_cast<double>(policy_data->gripper));
+                policy_gripper_pos.store(static_cast<double>(policy_data->gripper));
             } else {
-                std::cout << "lost link" << std::endl;
-                inference_enabled.store(false);
+                std::cout << "lost inference" << std::endl;
+                // stay where we are
+                policyJp = wamJP;
+                policyJv = wamJV;
+                policyExtTorque.setZero();
+                policy_gripper_pos.store(static_cast<double>(current_gripper_pos));
             }
         }
 
@@ -218,15 +223,17 @@ class Follower : public barrett::systems::System {
         //               << " ms | UDP Send latency: " << send_dt << " ms\n";
 
             std::cout << std::fixed << std::setprecision(3);
-            // std::cout << "  -> TX JP:      [" << sendJpMsg.transpose() << "]\n";
+            std::cout << "  -> FOLLOWER JP:      [" << sendJpMsg.transpose() << "]\n";
             // std::cout << "  -> TX JV:      [" << sendJvMsg.transpose() << "]\n";
             // std::cout << "  -> TX ExtTrq:  [" << sendExtTorqueMsg.transpose() << "]\n";
             // std::cout << "  -> TX MeasTrq: [" << control.transpose() << "]\n";
             // std::cout << "  -> TX GrpTrq:  " << current_gripper_torque.load() << "\n\n";
             // std::cout << "  -> ref:  " << theirExtTorque.transpose() << "\n\n";
-            std::cout << "  -> P JP:      [" << policyJp.transpose() << "]\n";
-            std::cout << "  -> P JV:      [" << policyJv.transpose() << "]\n";
-            std::cout << "  -> P T:      [" << policyExtTorque.transpose() << "]\n\n";
+            std::cout << "  -> LEADER JP:  " << theirExtTorque.transpose() << "\n\n";
+            // std::cout << "  -> P JP:      [" << policyJp.transpose() << "]\n";
+            // std::cout << "  -> P JV:      [" << policyJv.transpose() << "]\n";
+            // std::cout << "  -> P T:      [" << policyExtTorque.transpose() << "]\n\n";
+            // std::cout << "  -> P G:      [" << policy_gripper_pos.load() << "]\n\n";
         }
     }
 
@@ -240,11 +247,23 @@ class Follower : public barrett::systems::System {
 
     void pollGripper() {
         while (io_running.load()) {
-            float local_gripper_vel = target_gripper_vel.load();
-            gripper->setVelocity(local_gripper_vel);
-            gripper->controlLoopCallback();
+            if (isLinked() && isInference()) { // shared control
+                // TOOD: make this actually work
+                gripper->setVelocity(0.0f);
+            } else if (isLinked()) { // teleop only
+                float local_gripper_vel = target_gripper_vel.load();
+                gripper->setVelocity(local_gripper_vel);
+                gripper->controlLoopCallback();
+            } else if (isInference()) { // inference only
+                float local_gripper_pos = policy_gripper_pos.load();
+                // gripper->setPosition(local_gripper_pos);
+                gripper->controlLoopCallback();
+            } else {
+                gripper->setVelocity(0.0f);
+            }
 
             GripperState gripper_state = gripper->getLatestState();
+            current_gripper_pos.store(gripper_state.position);
             current_gripper_torque.store(gripper_state.torque);
             
             std::this_thread::sleep_for(std::chrono::milliseconds(2));
@@ -257,7 +276,8 @@ class Follower : public barrett::systems::System {
     std::mutex state_mutex;
     jp_type joint_positions;
     UDPHandler<DOF> udp_handler;
-    const std::chrono::milliseconds TIMEOUT_DURATION = std::chrono::milliseconds(20);
+    const std::chrono::milliseconds TELEOP_TIMEOUT_DURATION = std::chrono::milliseconds(20);
+    const std::chrono::milliseconds INFERENCE_TIMEOUT_DURATION = std::chrono::milliseconds(150); // allow for 10hz
     Eigen::Matrix<double, DOF, 1> kp;
     Eigen::Matrix<double, DOF, 1> kd;
     Eigen::Matrix<double, DOF, 1> cf;
@@ -266,7 +286,8 @@ class Follower : public barrett::systems::System {
     std::thread io_thread;
     std::atomic<bool> io_running;
     std::atomic<float> target_gripper_vel;
-    std::atomic<float> policy_gripper_vel;
+    std::atomic<float> policy_gripper_pos;
+    std::atomic<float> current_gripper_pos;
     std::atomic<float> current_gripper_torque;
 
     jt_type compute_teleop_control(const jp_type& ref_pos, const jv_type& ref_vel, const jt_type& ref_extTorque,
