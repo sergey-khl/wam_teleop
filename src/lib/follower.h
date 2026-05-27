@@ -90,14 +90,18 @@ class Follower : public barrett::systems::System {
 
     bool isInference() const { return inference_enabled.load(); }
     void enableInference()  {
-        BARRETT_SCOPED_LOCK(this->getEmMutex());
+        {
+            BARRETT_SCOPED_LOCK(this->getEmMutex());
+            inference_enabled.store(true);
+        }
         udp_handler.enableInference();
-        inference_enabled.store(true);
     }
     void disableInference() {
-        BARRETT_SCOPED_LOCK(this->getEmMutex());
+        {
+            BARRETT_SCOPED_LOCK(this->getEmMutex());
+            inference_enabled.store(false);
+        }
         udp_handler.disableInference();
-        inference_enabled.store(false);
     }
 
   protected:
@@ -229,7 +233,7 @@ class Follower : public barrett::systems::System {
             // std::cout << "  -> TX MeasTrq: [" << control.transpose() << "]\n";
             // std::cout << "  -> TX GrpTrq:  " << current_gripper_torque.load() << "\n\n";
             // std::cout << "  -> ref:  " << theirExtTorque.transpose() << "\n\n";
-            std::cout << "  -> LEADER JP:  " << theirExtTorque.transpose() << "\n\n";
+            std::cout << "  -> LEADER JP:  " << theirJp.transpose() << "\n\n";
             // std::cout << "  -> P JP:      [" << policyJp.transpose() << "]\n";
             // std::cout << "  -> P JV:      [" << policyJv.transpose() << "]\n";
             // std::cout << "  -> P T:      [" << policyExtTorque.transpose() << "]\n\n";

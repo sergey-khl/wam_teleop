@@ -211,14 +211,14 @@ template <size_t DOF> int wam_main(int argc, char **argv, ProductManager &pm, sy
                 printf("Press [Enter] to link with the other WAM.");
                 waitForEnter();
                 follower.tryLink();
-                wam.trackReferenceSignal(follower.theirJPOutput);
-                systems::connect(follower.wamJPOutput, wam.input);
                 // connect(follower.wamJPOutput, wamJPOutputRamp.input); // one of the problem with the joint limiter is that it adds delay in applying external torque to the robot.
                 // connect(wamJPOutputRamp.output, wam.input);
                 // systems::forceConnect(wam.jtSum.output, externalTorque.wamTorqueSumIn);
 
                 btsleep(0.1); // wait an execution cycle or two
                 if (follower.isLinked()) {
+                    wam.trackReferenceSignal(follower.theirJPOutput);
+                    systems::connect(follower.wamJPOutput, wam.input);
                     printf("Linked with remote WAM.\n");
                 } else {
                     printf("WARNING: Linking was unsuccessful.\n");

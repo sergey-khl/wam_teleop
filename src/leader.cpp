@@ -215,12 +215,11 @@ int wam_main(int argc, char **argv, ProductManager &pm, systems::Wam<DOF> &wam) 
                 waitForEnter();
                 leader.tryLink();
 
-                // Track peer’s arm joints (Leader publishes them)
-                wam.trackReferenceSignal(leader.theirJPOutput);
-                connect(leader.wamJPOutput, wam.input);
-
                 btsleep(0.1); // wait an execution cycle or two
                 if (leader.isLinked()) {
+                    // Track peer’s arm joints (Leader publishes them)
+                    wam.trackReferenceSignal(leader.theirJPOutput);
+                    connect(leader.wamJPOutput, wam.input);
                     printf("Linked with remote WAM.\n");
                 } else {
                     printf("WARNING: Linking was unsuccessful.\n");
