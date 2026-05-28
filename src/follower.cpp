@@ -123,6 +123,7 @@ template <size_t DOF> int wam_main(int argc, char **argv, ProductManager &pm, sy
     systems::PrintToStream<jt_type> printdynamicextTorque(pm.getExecutionManager(), "dynamicextTorque: ");
     systems::PrintToStream<jt_type> printSC(pm.getExecutionManager(), "SC: ");
     systems::PrintToStream<jp_type> printPOS(pm.getExecutionManager(), "POS: ");
+    systems::PrintToStream<jt_type> printTOQ(pm.getExecutionManager(), "TOQ: ");
 
     // systems::PrintToStream<jt_type> printcustomjtSum(pm.getExecutionManager(), "customjtSum: ");
 
@@ -184,7 +185,6 @@ template <size_t DOF> int wam_main(int argc, char **argv, ProductManager &pm, sy
 
     // systems::connect(extFilter.output, printdynamicextTorque.input);
     // systems::connect(dynamicExternalTorque.wamExternalTorqueOut, printdynamicextTorque.input);
-    systems::connect(wam.wamJPOutput, printPOS.input);
     // systems::connect(wam.supervisoryController.output, printSC.input);
     // systems::connect(extFilter.output, printcustomjtSum.input);
 
@@ -240,6 +240,7 @@ template <size_t DOF> int wam_main(int argc, char **argv, ProductManager &pm, sy
                 if (follower.isInference()) {
                     wam.trackReferenceSignal(follower.wamJPOutput);
                     systems::connect(follower.wamJTOutput, wam.input);
+                    // systems::connect(follower.wamJTOutput, printTOQ.input);
                     printf("Running policy.\n");
                 } else {
                     printf("WARNING: inference was unsuccessful.\n");
