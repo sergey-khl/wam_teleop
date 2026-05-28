@@ -227,17 +227,17 @@ class Follower : public barrett::systems::System {
         //               << " ms | UDP Send latency: " << send_dt << " ms\n";
 
             std::cout << std::fixed << std::setprecision(3);
-            std::cout << "  -> FOLLOWER JP:      [" << sendJpMsg.transpose() << "]\n";
+            // std::cout << "  -> FOLLOWER JP:      [" << sendJpMsg.transpose() << "]\n";
             // std::cout << "  -> TX JV:      [" << sendJvMsg.transpose() << "]\n";
             // std::cout << "  -> TX ExtTrq:  [" << sendExtTorqueMsg.transpose() << "]\n";
             // std::cout << "  -> TX MeasTrq: [" << control.transpose() << "]\n";
             // std::cout << "  -> TX GrpTrq:  " << current_gripper_torque.load() << "\n\n";
             // std::cout << "  -> ref:  " << theirExtTorque.transpose() << "\n\n";
-            std::cout << "  -> LEADER JP:  " << theirJp.transpose() << "\n\n";
-            // std::cout << "  -> P JP:      [" << policyJp.transpose() << "]\n";
-            // std::cout << "  -> P JV:      [" << policyJv.transpose() << "]\n";
-            // std::cout << "  -> P T:      [" << policyExtTorque.transpose() << "]\n\n";
-            // std::cout << "  -> P G:      [" << policy_gripper_pos.load() << "]\n\n";
+            // std::cout << "  -> LEADER JP:  " << theirJp.transpose() << "\n\n";
+            std::cout << "  -> P JP:      [" << policyJp.transpose() << "]\n";
+            std::cout << "  -> P JV:      [" << policyJv.transpose() << "]\n";
+            std::cout << "  -> P T:      [" << policyExtTorque.transpose() << "]\n\n";
+            std::cout << "  -> P G:      [" << policy_gripper_pos.load() << "]\n\n";
         }
     }
 

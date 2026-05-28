@@ -215,7 +215,7 @@ template <size_t DOF> int wam_main(int argc, char **argv, ProductManager &pm, sy
                 // connect(wamJPOutputRamp.output, wam.input);
                 // systems::forceConnect(wam.jtSum.output, externalTorque.wamTorqueSumIn);
 
-                btsleep(0.1); // wait an execution cycle or two
+                btsleep(0.2); // wait an execution cycle or two
                 if (follower.isLinked()) {
                     wam.trackReferenceSignal(follower.theirJPOutput);
                     systems::connect(follower.wamJPOutput, wam.input);
@@ -234,7 +234,7 @@ template <size_t DOF> int wam_main(int argc, char **argv, ProductManager &pm, sy
             } else {
                 follower.enableInference();
 
-                btsleep(0.1); // wait an execution cycle or two
+                btsleep(0.2); // wait an execution cycle or two
                 if (follower.isInference()) {
                     printf("Running policy.\n");
                 } else {

@@ -1,5 +1,3 @@
 #!/bin/bash
 
-PACKAGE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-
-export BARRETT_CONFIG_FILE="$PACKAGE_DIR/config/leader-stick-7dof/leader.conf"
+export BARRETT_CONFIG_FILE="/home/user/wam_ros/wam_ws/src/wam_teleop/config/leader-stick-7dof/leader.conf"
