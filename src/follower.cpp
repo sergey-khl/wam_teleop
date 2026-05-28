@@ -122,6 +122,7 @@ template <size_t DOF> int wam_main(int argc, char **argv, ProductManager &pm, sy
 
     systems::PrintToStream<jt_type> printdynamicextTorque(pm.getExecutionManager(), "dynamicextTorque: ");
     systems::PrintToStream<jt_type> printSC(pm.getExecutionManager(), "SC: ");
+    systems::PrintToStream<jp_type> printPOS(pm.getExecutionManager(), "POS: ");
 
     // systems::PrintToStream<jt_type> printcustomjtSum(pm.getExecutionManager(), "customjtSum: ");
 
@@ -161,7 +162,7 @@ template <size_t DOF> int wam_main(int argc, char **argv, ProductManager &pm, sy
     systems::connect(wam.jvOutput, followerDynamics.jvInputDynamics);
     // systems::connect(zeroAcceleration.output, followerDynamics.jaInputDynamics);
 
-    systems::connect(follower.wamJPOutput, customjtSum.getInput(0));
+    systems::connect(follower.wamJTOutput, customjtSum.getInput(0));
     systems::connect(wam.gravity.output, customjtSum.getInput(1));
     systems::connect(wam.supervisoryController.output, customjtSum.getInput(2));
 
@@ -183,6 +184,7 @@ template <size_t DOF> int wam_main(int argc, char **argv, ProductManager &pm, sy
 
     // systems::connect(extFilter.output, printdynamicextTorque.input);
     // systems::connect(dynamicExternalTorque.wamExternalTorqueOut, printdynamicextTorque.input);
+    systems::connect(wam.wamJPOutput, printPOS.input);
     // systems::connect(wam.supervisoryController.output, printSC.input);
     // systems::connect(extFilter.output, printcustomjtSum.input);
 
@@ -218,7 +220,7 @@ template <size_t DOF> int wam_main(int argc, char **argv, ProductManager &pm, sy
                 btsleep(0.2); // wait an execution cycle or two
                 if (follower.isLinked()) {
                     wam.trackReferenceSignal(follower.theirJPOutput);
-                    systems::connect(follower.wamJPOutput, wam.input);
+                    systems::connect(follower.wamJTOutput, wam.input); // CAREFUL WITH THIS. CAN BE IN BOTH LINK AND IN INFERENCE
                     printf("Linked with remote WAM.\n");
                 } else {
                     printf("WARNING: Linking was unsuccessful.\n");
@@ -236,6 +238,8 @@ template <size_t DOF> int wam_main(int argc, char **argv, ProductManager &pm, sy
 
                 btsleep(0.2); // wait an execution cycle or two
                 if (follower.isInference()) {
+                    wam.trackReferenceSignal(follower.wamJPOutput);
+                    systems::connect(follower.wamJTOutput, wam.input);
                     printf("Running policy.\n");
                 } else {
                     printf("WARNING: inference was unsuccessful.\n");

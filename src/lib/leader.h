@@ -204,6 +204,7 @@ class Leader : public barrett::systems::System {
 
         sendMeasTorqueMsg << control;
 
+        // TODO: fix to gripper pos for recording
         auto send_start = std::chrono::steady_clock::now();
         udp_handler.send(sendJpMsg, sendJvMsg, sendExtTorqueMsg, sendMeasTorqueMsg, static_cast<double>(desired_gripper_vel.load()));
         auto send_end = std::chrono::steady_clock::now();
