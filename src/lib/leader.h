@@ -167,10 +167,11 @@ class Leader : public barrett::systems::System {
 
 
             // mirror and offset some of the wam joints
+            // NOTE: follower does the exact opposite
             for (size_t i = 0; i < DOF; i++) {
-                theirJp[i] = theirJp[i] * config.sync_mapping.scales[i] + config.sync_mapping.offsets[i];
-                theirJv[i] = theirJv[i] * config.sync_mapping.scales[i];
-                theirExtTorque[i] = theirExtTorque[i] * config.sync_mapping.scales[i];
+                theirJp[i] = (theirJp[i] - config.sync_mapping.offsets[i]) / config.sync_mapping.scales[i];
+                theirJv[i] = theirJv[i] / config.sync_mapping.scales[i];
+                theirExtTorque[i] = theirExtTorque[i] / config.sync_mapping.scales[i];
             }
 
             // Publish peer arm JP (as before)
