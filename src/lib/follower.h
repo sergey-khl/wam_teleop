@@ -27,6 +27,7 @@ class Follower : public barrett::systems::System {
   public:
     Input<jp_type> wamJPIn;
     Input<jv_type> wamJVIn;
+    Input<boost::tuple<cp_type, Eigen::Quaterniond>> wamTPIn;
     Input<jt_type> extTorqueIn;
     Input<jt_type> wamGravIn;
     Input<jt_type> wamDynIn;
@@ -48,6 +49,7 @@ class Follower : public barrett::systems::System {
         , control(0.0)
         , wamJPIn(this)
         , wamJVIn(this)
+        , wamTPIn(this)
         , extTorqueIn(this)
         , wamGravIn(this)
         , wamDynIn(this)
@@ -115,12 +117,14 @@ class Follower : public barrett::systems::System {
     typename Output<jp_type>::Value* theirJPOutputValue;
     jp_type wamJP;
     jv_type wamJV;
+    boost::tuple<cp_type, Eigen::Quaterniond> wamTP;
     jt_type extTorque;
     jt_type wamGrav;
     jt_type wamDyn;
     Eigen::Matrix<double, DOF, 1> sendJpMsg;
     Eigen::Matrix<double, DOF, 1> sendJvMsg;
     Eigen::Matrix<double, DOF, 1> sendExtTorqueMsg;
+    Eigen::Matrix<double, DOF, 1> sendMeasTorqueMsg;
 
     TeleopConfig config;
     
@@ -139,6 +143,7 @@ class Follower : public barrett::systems::System {
 
         wamJP = wamJPIn.getValue();
         wamJV = wamJVIn.getValue();
+        wamTP = wamTPIn.getValue();
         wamGrav = wamGravIn.getValue();
         wamDyn = wamDynIn.getValue();
 
@@ -153,6 +158,9 @@ class Follower : public barrett::systems::System {
         sendJpMsg << wamJP;
         sendJvMsg << wamJV;
         sendExtTorqueMsg << extTorque;
+
+        const cp_type& toolPos  = boost::get<0>(wamTP);
+        const Eigen::Quaterniond& toolQ = boost::get<1>(wamTP);
 
 
         if (isLinked()) {
@@ -222,10 +230,12 @@ class Follower : public barrett::systems::System {
 
         jpOutputValue->setData(&wamJP);
 
-        // sendExtTorqueMsg << control;
+        sendMeasTorqueMsg << control;
+
+        uint64_t loop_start = std::chrono::duration_cast<std::chrono::nanoseconds>(now_op.time_since_epoch()).count();
 
         auto send_start = std::chrono::steady_clock::now();
-        udp_handler.send(wamJP, wamJV, sendExtTorqueMsg, control, static_cast<double>(current_gripper_torque.load()));
+        udp_handler.send(wamJP, wamJV, sendExtTorqueMsg, sendMeasTorqueMsg, toolPos, toolQ, static_cast<double>(current_gripper_torque.load()), loop_start);
         auto send_end = std::chrono::steady_clock::now();
         double send_dt = std::chrono::duration<double, std::milli>(send_end - send_start).count();
 

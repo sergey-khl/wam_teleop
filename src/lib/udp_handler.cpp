@@ -1,10 +1,12 @@
 #include "udp_handler.h"
+#include <bits/stdint-uintn.h>
 #include <boost/system/error_code.hpp>
-#include <cstring>
 
 // TODO: inference recv can just pass to current teleop_recv for now. change later
 template <size_t DOF>
-UDPHandler<DOF>::UDPHandler(const std::string& teleop_host, int teleop_send, int teleop_recv, bool recording, const std::string& inference_host, int inference_send, int inference_recv)
+UDPHandler<DOF>::UDPHandler(const std::string& teleop_host, int teleop_send, int teleop_recv,
+                             bool recording, const std::string& inference_host,
+                             int inference_send, int inference_recv)
     : stop_threads(false)
     , recording(recording)
     , inference_active(false)
@@ -83,6 +85,7 @@ void UDPHandler<DOF>::disableInference() {
             inference_recv_socket.close();
         }
 
+        // recording still communicates over inference socket
         if (!recording) {
             std::lock_guard<std::mutex> send_lock(send_mutex);
             auto it = std::remove_if(send_endpoints.begin(), send_endpoints.end(),
@@ -111,49 +114,58 @@ boost::optional<typename UDPHandler<DOF>::ReceivedData> UDPHandler<DOF>::getLate
 }
 
 template <size_t DOF>
+typename UDPHandler<DOF>::ReceivedData UDPHandler<DOF>::unpackPacket(const Packet& pkt) {
+    ReceivedData rd;
+    std::memcpy(rd.jp.data(),        pkt.jp,        sizeof(double) * DOF);
+    std::memcpy(rd.jv.data(),        pkt.jv,        sizeof(double) * DOF);
+    std::memcpy(rd.extTorque.data(), pkt.extTorque, sizeof(double) * DOF);
+    std::memcpy(rd.measTorque.data(),pkt.measTorque,sizeof(double) * DOF);
+    rd.cart_pos = Eigen::Vector3d(pkt.cart_pos[0], pkt.cart_pos[1], pkt.cart_pos[2]);
+    rd.cart_rot = Eigen::Quaterniond(pkt.cart_rot[0], pkt.cart_rot[1], pkt.cart_rot[2], pkt.cart_rot[3]);
+    rd.gripper   = pkt.gripper;
+    rd.timestamp = pkt.timestamp;
+    return rd;
+}
+
+template <size_t DOF>
 void UDPHandler<DOF>::receiveLoop(boost::asio::ip::udp::socket& recv_socket, boost::optional<ReceivedData>& latest_received) {
     boost::asio::ip::udp::endpoint sender_endpoint;
-    jp_type received_jp;
-    jv_type received_jv;
-    jt_type received_extTorque;
-    jt_type received_measTorque;
-    double received_gripper;
-    uint64_t received_timestamp;
-
-    char buffer[sizeof(double) * DOF * 4 + sizeof(double) + sizeof(uint64_t)];
+    Packet pkt;
 
     while (!stop_threads) {
         boost::system::error_code ec;
-        size_t len = recv_socket.receive_from(boost::asio::buffer(buffer, sizeof(buffer)), sender_endpoint, 0, ec);
+        size_t len = recv_socket.receive_from(
+            boost::asio::buffer(&pkt, sizeof(Packet)), sender_endpoint, 0, ec);
 
-        if (ec == boost::asio::error::operation_aborted || len != sizeof(buffer))
+        if (ec == boost::asio::error::operation_aborted || len != sizeof(Packet))
             continue;
 
-
-        std::memcpy(received_jp.data(), buffer, sizeof(double) * DOF);
-        std::memcpy(received_jv.data(), buffer + sizeof(double) * DOF, sizeof(double) * DOF);
-        std::memcpy(received_extTorque.data(), buffer + 2*(sizeof(double) * DOF), sizeof(double) * DOF);
-        std::memcpy(received_measTorque.data(), buffer + 3*(sizeof(double) * DOF), sizeof(double) * DOF);
-        std::memcpy(&received_gripper, buffer + 4*(sizeof(double) * DOF), sizeof(double));
-        std::memcpy(&received_timestamp, buffer + 4*(sizeof(double) * DOF) + sizeof(double), sizeof(uint64_t));
-
-        {
-            std::lock_guard<std::mutex> lock(state_mutex);
-            latest_received = ReceivedData{received_jp, received_jv, received_extTorque, received_measTorque, received_gripper, received_timestamp};
-        }
+        std::lock_guard<std::mutex> lock(state_mutex);
+        latest_received = unpackPacket(pkt);
     }
     recv_socket.close();
 }
 
 template <size_t DOF>
-void UDPHandler<DOF>::send(const jp_type& jp, const jv_type& jv, const jt_type& extTorque, const jt_type& measTorque, const double& gripper) {
+void UDPHandler<DOF>::send(const jp_type& jp, const jv_type& jv,
+                           const jt_type& extTorque, const jt_type& measTorque,
+                           const Eigen::Vector3d& cart_pos, const Eigen::Quaterniond& cart_rot,
+                           double gripper, uint64_t timestamp) {
     {
         std::lock_guard<std::mutex> lock(send_mutex);
-        pending_send_jp = jp;
-        pending_send_jv = jv;
-        pending_send_extTorque = extTorque;
-        pending_send_measTorque = measTorque;
-        pending_send_gripper = gripper;
+        std::memcpy(pending_send_packet.jp, jp.data(), sizeof(double) * DOF);
+        std::memcpy(pending_send_packet.jv, jv.data(), sizeof(double) * DOF);
+        std::memcpy(pending_send_packet.extTorque, extTorque.data(), sizeof(double) * DOF);
+        std::memcpy(pending_send_packet.measTorque, measTorque.data(), sizeof(double) * DOF);
+        pending_send_packet.cart_pos[0] = cart_pos.x();
+        pending_send_packet.cart_pos[1] = cart_pos.y();
+        pending_send_packet.cart_pos[2] = cart_pos.z();
+        pending_send_packet.cart_rot[0] = cart_rot.w();
+        pending_send_packet.cart_rot[1] = cart_rot.x();
+        pending_send_packet.cart_rot[2] = cart_rot.y();
+        pending_send_packet.cart_rot[3] = cart_rot.z();
+        pending_send_packet.gripper = gripper;
+        pending_send_packet.timestamp = timestamp;
         new_data_available = true;
     }
     send_condition.notify_one();
@@ -161,45 +173,26 @@ void UDPHandler<DOF>::send(const jp_type& jp, const jv_type& jv, const jt_type& 
 
 template <size_t DOF>
 void UDPHandler<DOF>::sendLoop() {
-    while (!stop_threads) {
-        jp_type data_to_send_jp;
-        jv_type data_to_send_jv;
-        jt_type data_to_send_extTorque;
-        jt_type data_to_send_measTorque;
-        double data_to_send_gripper;
-        std::vector<boost::asio::ip::udp::endpoint> endpoints_snapshot;
+    Packet pkt_to_send;
+    std::vector<boost::asio::ip::udp::endpoint> endpoints_snapshot;
 
+    while (!stop_threads) {
         {
             std::unique_lock<std::mutex> lock(send_mutex);
             send_condition.wait(lock, [this] { return new_data_available || stop_threads; });
             if (stop_threads) break;
 
-            new_data_available = false;
-            data_to_send_jp = pending_send_jp;
-            data_to_send_jv = pending_send_jv;
-            data_to_send_extTorque = pending_send_extTorque;
-            data_to_send_measTorque = pending_send_measTorque;
-            data_to_send_gripper = pending_send_gripper;
+            pkt_to_send        = pending_send_packet;
             endpoints_snapshot = send_endpoints;
+            new_data_available = false;
         }
-
-        auto now = std::chrono::high_resolution_clock::now().time_since_epoch();
-        uint64_t current_time_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(now).count();
-
-        char buffer[sizeof(double) * DOF * 4 + sizeof(double) + sizeof(uint64_t)];
-        std::memcpy(buffer, data_to_send_jp.data(), sizeof(double) * DOF);
-        std::memcpy(buffer + sizeof(double) * DOF, data_to_send_jv.data(), sizeof(double) * DOF);
-        std::memcpy(buffer + 2*(sizeof(double) * DOF), data_to_send_extTorque.data(), sizeof(double) * DOF);
-        std::memcpy(buffer + 3*(sizeof(double) * DOF), data_to_send_measTorque.data(), sizeof(double) * DOF);
-        std::memcpy(buffer + 4*(sizeof(double) * DOF), &data_to_send_gripper, sizeof(double));
-        std::memcpy(buffer + 4*(sizeof(double) * DOF) + sizeof(double), &current_time_ns, sizeof(uint64_t));
 
         boost::system::error_code ec;
-        for (const auto& endpoint : endpoints_snapshot) {
-            send_socket.send_to(boost::asio::buffer(buffer, sizeof(buffer)), endpoint, 0, ec);
-        }
+        for (const auto& ep : endpoints_snapshot)
+            send_socket.send_to(boost::asio::buffer(&pkt_to_send, sizeof(Packet)), ep, 0, ec);
     }
     send_socket.close();
 }
+
 
 template class UDPHandler<7>; // For DOF=7

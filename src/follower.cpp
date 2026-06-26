@@ -183,6 +183,8 @@ template <size_t DOF> int wam_main(int argc, char **argv, ProductManager &pm, sy
 
     systems::connect(dynamicExternalTorque.wamExternalTorqueOut, extFilter.input);
 
+    systems::connect(wam.toolPose.output, follower.wamTPIn);
+
     // systems::connect(extFilter.output, printdynamicextTorque.input);
     // systems::connect(dynamicExternalTorque.wamExternalTorqueOut, printdynamicextTorque.input);
     // systems::connect(wam.supervisoryController.output, printSC.input);
@@ -213,11 +215,8 @@ template <size_t DOF> int wam_main(int argc, char **argv, ProductManager &pm, sy
                 printf("Press [Enter] to link with the other WAM.");
                 waitForEnter();
                 follower.tryLink();
-                // connect(follower.wamJPOutput, wamJPOutputRamp.input); // one of the problem with the joint limiter is that it adds delay in applying external torque to the robot.
-                // connect(wamJPOutputRamp.output, wam.input);
-                // systems::forceConnect(wam.jtSum.output, externalTorque.wamTorqueSumIn);
 
-                btsleep(0.2); // wait an execution cycle or two
+                btsleep(0.3); // wait an execution cycle or two
                 if (follower.isLinked()) {
                     wam.trackReferenceSignal(follower.theirJPOutput);
                     systems::connect(follower.wamJTOutput, wam.input); // CAREFUL WITH THIS. CAN BE IN BOTH LINK AND IN INFERENCE
@@ -236,7 +235,7 @@ template <size_t DOF> int wam_main(int argc, char **argv, ProductManager &pm, sy
             } else {
                 follower.enableInference();
 
-                btsleep(0.2); // wait an execution cycle or two
+                btsleep(0.3); // wait an execution cycle or two
                 if (follower.isInference()) {
                     wam.trackReferenceSignal(follower.wamJPOutput);
                     systems::connect(follower.wamJTOutput, wam.input);

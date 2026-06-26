@@ -26,6 +26,7 @@ class Leader : public barrett::systems::System {
     // Inputs (same as your first file)
     Input<jp_type> wamJPIn;
     Input<jv_type> wamJVIn;
+    Input<boost::tuple<cp_type, Eigen::Quaterniond>> wamTPIn;
     Input<jt_type> extTorqueIn;   // may be undefined
     Input<jt_type> wamGravIn;
     Input<jt_type> wamDynIn;
@@ -48,6 +49,7 @@ class Leader : public barrett::systems::System {
         , control(0.0)
         , wamJPIn(this)
         , wamJVIn(this)
+        , wamTPIn(this)
         , extTorqueIn(this)
         , wamGravIn(this)
         , wamDynIn(this)
@@ -100,6 +102,7 @@ class Leader : public barrett::systems::System {
     // Local copies
     jp_type wamJP;
     jv_type wamJV;
+    boost::tuple<cp_type, Eigen::Quaterniond> wamTP;
     jt_type extTorque;
     jt_type wamGrav;
     jt_type wamDyn;
@@ -142,6 +145,7 @@ class Leader : public barrett::systems::System {
         // Read WAM inputs
         wamJP  = wamJPIn.getValue();
         wamJV  = wamJVIn.getValue();
+        wamTP = wamTPIn.getValue();
         wamGrav = wamGravIn.getValue();
         wamDyn  = wamDynIn.getValue();
 
@@ -187,6 +191,9 @@ class Leader : public barrett::systems::System {
         sendJpMsg << wamJP;
         sendJvMsg << wamJV;
 
+        const cp_type& toolPos  = boost::get<0>(wamTP);
+        const Eigen::Quaterniond& toolQ = boost::get<1>(wamTP);
+
         // Only arm external torque is meaningful here; pad wrist torques with zeros
         sendExtTorqueMsg << extTorque;
 
@@ -205,9 +212,11 @@ class Leader : public barrett::systems::System {
 
         sendMeasTorqueMsg << control;
 
+        uint64_t loop_start = std::chrono::duration_cast<std::chrono::nanoseconds>(now_op.time_since_epoch()).count();
+
         // TODO: fix to gripper pos for recording
         auto send_start = std::chrono::steady_clock::now();
-        udp_handler.send(sendJpMsg, sendJvMsg, sendExtTorqueMsg, sendMeasTorqueMsg, static_cast<double>(desired_gripper_vel.load()));
+        udp_handler.send(sendJpMsg, sendJvMsg, sendExtTorqueMsg, sendMeasTorqueMsg, toolPos, toolQ, static_cast<double>(desired_gripper_vel.load()), loop_start); // we send the start of theoperation loop when we collect our leader data
         auto send_end = std::chrono::steady_clock::now();
         double send_dt = std::chrono::duration<double, std::milli>(send_end - send_start).count();
 
@@ -217,7 +226,7 @@ class Leader : public barrett::systems::System {
         //               << " ms | UDP Send latency: " << send_dt << " ms\n";
                
             std::cout << std::fixed << std::setprecision(3);
-            std::cout << "  -> LEADER JP:      [" << sendJpMsg.transpose() << "]\n";
+            // std::cout << "  -> LEADER JP:      [" << sendJpMsg.transpose() << "]\n";
             // std::cout << "  -> TX JV:      [" << sendJvMsg.transpose() << "]\n";
             // std::cout << "  -> TX ExtTrq:  [" << sendExtTorqueMsg.transpose() << "]\n";
             // std::cout << "  -> TX MeasTrq: [" << sendMeasTorqueMsg.transpose() << "]\n";
@@ -226,7 +235,9 @@ class Leader : public barrett::systems::System {
             // std::cout << "  -> My wrist:  " << wristJP.transpose() << "\n\n";
             // std::cout << "  -> leader ext:  " << extTorque.transpose() << "\n";
             // std::cout << "  -> ref:  " << theirExtTorque.transpose() << "\n\n";
-            std::cout << " FOLLOWER -> :  " << theirJp.transpose() << "\n\n";
+            // std::cout << " FOLLOWER -> :  " << theirJp.transpose() << "\n\n";
+            std::cout << "  -> Tool Pos:  [" << toolPos.transpose() << "]\n";
+            std::cout << "  -> Tool Quat: [" << toolQ.w() << " " << toolQ.x() << " " << toolQ.y() << " " << toolQ.z() << "]\n\n";
         }
     }
 

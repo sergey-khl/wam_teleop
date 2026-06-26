@@ -1,4 +1,5 @@
 #pragma once
+#include <bits/stdint-uintn.h>
 #include <boost/asio.hpp>
 #include <thread>
 #include <atomic>
@@ -7,6 +8,7 @@
 #include <Eigen/Dense>
 #include <boost/optional.hpp>
 #include <chrono>
+#include <cstring>
 
 template <size_t DOF>
 class UDPHandler {
@@ -15,13 +17,29 @@ public:
     using jv_type = Eigen::Matrix<double, DOF, 1>;
     using jt_type = Eigen::Matrix<double, DOF, 1>;
 
-    struct ReceivedData {
-        jp_type jp;
-        jv_type jv;
-        jt_type extTorque;
-        jt_type measTorque;
-        double gripper;
+// use a single packet for both teleop and inference. I dont think performance gains are worth code complexity but you do you.
+#pragma pack(push, 1)
+    struct Packet {
+        double jp[DOF];
+        double jv[DOF];
+        double extTorque[DOF];
+        double measTorque[DOF];
+        double cart_pos[3];   // x, y, z
+        double cart_rot[4];   // w, x, y, z
+        double gripper; // leader will send the gripper_cmd and the follower will send the gripper torque
         uint64_t timestamp;
+    };
+#pragma pack(pop)
+
+    struct ReceivedData {
+        jp_type            jp;
+        jv_type            jv;
+        jt_type            extTorque;
+        jt_type            measTorque;
+        Eigen::Vector3d    cart_pos;
+        Eigen::Quaterniond cart_rot;
+        double             gripper;
+        uint64_t           timestamp;
     };
 
     UDPHandler(const std::string& teleop_host, int teleop_send, int teleop_recv,
@@ -32,7 +50,10 @@ public:
     void stop();
     boost::optional<ReceivedData> getLatestTeleopReceived();
     boost::optional<ReceivedData> getLatestInferenceReceived();
-    void send(const jp_type& jp, const jv_type& jv, const jt_type& extTorque, const jt_type& measTorque, const double& gripper);
+    void send(const jp_type& jp, const jv_type& jv,
+              const jt_type& extTorque, const jt_type& measTorque,
+              const Eigen::Vector3d& cart_pos, const Eigen::Quaterniond& cart_rot,
+              double gripper, uint64_t timestamp);
 
     void enableInference();
     void disableInference();
@@ -60,11 +81,7 @@ private:
     std::mutex state_mutex, send_mutex;
     std::condition_variable send_condition;
 
-    jp_type pending_send_jp;
-    jv_type pending_send_jv;
-    jt_type pending_send_extTorque;
-    jt_type pending_send_measTorque;
-    double pending_send_gripper;
+    Packet pending_send_packet;
 
     boost::optional<ReceivedData> latest_teleop_received;
     boost::optional<ReceivedData> latest_inference_received;
@@ -72,4 +89,6 @@ private:
 
     void receiveLoop(boost::asio::ip::udp::socket& recv_socket, boost::optional<ReceivedData>& latest_received);
     void sendLoop();
+
+    static ReceivedData unpackPacket(const Packet& pkt);
 };

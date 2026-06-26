@@ -185,6 +185,9 @@ int wam_main(int argc, char **argv, ProductManager &pm, systems::Wam<DOF> &wam) 
         systems::connect(leaderDynamics.dynamicsFeedFWD, leader.wamDynIn);
     }
 
+    systems::connect(wam.toolPose.output, leader.wamTPIn);
+
+
     // Optional prints (leave commented to avoid loop jitter)
     // systems::connect(dynamicExternalTorque.wamExternalTorqueOut, printdynamicextTorque.input);
     // systems::connect(extFilter.output, printextTorque.input);
@@ -215,7 +218,7 @@ int wam_main(int argc, char **argv, ProductManager &pm, systems::Wam<DOF> &wam) 
                 waitForEnter();
                 leader.tryLink();
 
-                btsleep(0.1); // wait an execution cycle or two
+                btsleep(0.3); // wait an execution cycle or two
                 if (leader.isLinked()) {
                     // Track peer’s arm joints (Leader publishes them)
                     wam.trackReferenceSignal(leader.theirJPOutput);
