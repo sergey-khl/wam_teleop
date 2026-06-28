@@ -1,5 +1,6 @@
 #!/bin/bash
 sudo modprobe peak_pciefd
+sudo modprobe peak_pci
 
 sudo ip link set can0 down || true
 sudo ip link set can0 type can bitrate 1000000

@@ -70,7 +70,7 @@ class Leader : public barrett::systems::System {
         maxStiffness     = config.leader.haptics.maxStiffness;
         alpha            = config.leader.haptics.alpha;
 
-        last_op_time = std::chrono::steady_clock::now();
+        last_op_time = std::chrono::high_resolution_clock::now();
 
         if (em != NULL) {
             em->startManaging(*this);
@@ -123,7 +123,7 @@ class Leader : public barrett::systems::System {
     float alpha;
 
     int loop_counter = 0;
-    std::chrono::time_point<std::chrono::steady_clock> last_op_time;
+    std::chrono::time_point<std::chrono::high_resolution_clock> last_op_time;
 
     // Network payloads: arm (DOF)
     Eigen::Matrix<double, DOF, 1> sendJpMsg;
@@ -134,7 +134,7 @@ class Leader : public barrett::systems::System {
     using ReceivedData = typename UDPHandler<DOF>::ReceivedData;
 
     virtual void operate() {
-        auto now_op = std::chrono::steady_clock::now();
+        auto now_op = std::chrono::high_resolution_clock::now();
         double loop_dt = std::chrono::duration<double, std::milli>(now_op - last_op_time).count();
         last_op_time = now_op;
 
@@ -215,9 +215,9 @@ class Leader : public barrett::systems::System {
         uint64_t loop_start = std::chrono::duration_cast<std::chrono::nanoseconds>(now_op.time_since_epoch()).count();
 
         // TODO: fix to gripper pos for recording
-        auto send_start = std::chrono::steady_clock::now();
+        auto send_start = std::chrono::high_resolution_clock::now();
         udp_handler.send(sendJpMsg, sendJvMsg, sendExtTorqueMsg, sendMeasTorqueMsg, toolPos, toolQ, static_cast<double>(desired_gripper_vel.load()), loop_start); // we send the start of theoperation loop when we collect our leader data
-        auto send_end = std::chrono::steady_clock::now();
+        auto send_end = std::chrono::high_resolution_clock::now();
         double send_dt = std::chrono::duration<double, std::milli>(send_end - send_start).count();
 
         if (++loop_counter % 500 == 0) {
@@ -226,7 +226,7 @@ class Leader : public barrett::systems::System {
         //               << " ms | UDP Send latency: " << send_dt << " ms\n";
                
             std::cout << std::fixed << std::setprecision(3);
-            // std::cout << "  -> LEADER JP:      [" << sendJpMsg.transpose() << "]\n";
+            std::cout << "  -> LEADER JP:      [" << sendJpMsg.transpose() << "]\n";
             // std::cout << "  -> TX JV:      [" << sendJvMsg.transpose() << "]\n";
             // std::cout << "  -> TX ExtTrq:  [" << sendExtTorqueMsg.transpose() << "]\n";
             // std::cout << "  -> TX MeasTrq: [" << sendMeasTorqueMsg.transpose() << "]\n";
@@ -235,9 +235,9 @@ class Leader : public barrett::systems::System {
             // std::cout << "  -> My wrist:  " << wristJP.transpose() << "\n\n";
             // std::cout << "  -> leader ext:  " << extTorque.transpose() << "\n";
             // std::cout << "  -> ref:  " << theirExtTorque.transpose() << "\n\n";
-            // std::cout << " FOLLOWER -> :  " << theirJp.transpose() << "\n\n";
-            std::cout << "  -> Tool Pos:  [" << toolPos.transpose() << "]\n";
-            std::cout << "  -> Tool Quat: [" << toolQ.w() << " " << toolQ.x() << " " << toolQ.y() << " " << toolQ.z() << "]\n\n";
+            std::cout << " FOLLOWER -> :  " << theirJp.transpose() << "\n\n";
+            // std::cout << "  -> Tool Pos:  [" << toolPos.transpose() << "]\n";
+            // std::cout << "  -> Tool Quat: [" << toolQ.w() << " " << toolQ.x() << " " << toolQ.y() << " " << toolQ.z() << "]\n\n";
         }
     }
 
