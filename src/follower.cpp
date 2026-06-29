@@ -198,6 +198,8 @@ template <size_t DOF> int wam_main(int argc, char **argv, ProductManager &pm, sy
     systems::connect(tf2jt.output, printFOR.input);
     systems::connect(tt2jt.output, printTOQ.input);
 
+    systems::connect(tf2jt.output, follower.policyJtIn);
+
     // systems::connect(extFilter.output, printdynamicextTorque.input);
     // systems::connect(dynamicExternalTorque.wamExternalTorqueOut, printdynamicextTorque.input);
     // systems::connect(wam.supervisoryController.output, printSC.input);

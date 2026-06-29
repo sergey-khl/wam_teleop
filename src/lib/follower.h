@@ -153,7 +153,6 @@ class Follower : public barrett::systems::System {
         wamTP = wamTPIn.getValue();
         wamGrav = wamGravIn.getValue();
         wamDyn = wamDynIn.getValue();
-        policyJt = policyJtIn.getValue();
 
         if (extTorqueIn.valueDefined()) {
             extTorque = extTorqueIn.getValue();
@@ -161,6 +160,12 @@ class Follower : public barrett::systems::System {
         } else {
             // std::cout << "not defined" << std::endl;
             extTorque << 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0;
+        }
+
+        if (policyJtIn.valueDefined()) {
+            policyJt = policyJtIn.getValue();
+        } else {
+            policyJt << 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0;
         }
 
         policyToolForce << 0.0, 0.0, 0.0;
