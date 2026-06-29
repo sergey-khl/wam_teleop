@@ -31,9 +31,12 @@ class Follower : public barrett::systems::System {
     Input<jt_type> extTorqueIn;
     Input<jt_type> wamGravIn;
     Input<jt_type> wamDynIn;
+    Input<jt_type> policyJtIn;
     Output<jp_type> wamJPOutput;
     Output<jt_type> wamJTOutput;
     Output<jp_type> theirJPOutput;
+    Output<cf_type> policyToolForceOutput;
+    Output<ct_type> policyToolTorqueOutput;
 
     std::atomic<bool> linked;
     std::atomic<bool> inference_enabled;
@@ -50,12 +53,15 @@ class Follower : public barrett::systems::System {
         , wamJPIn(this)
         , wamJVIn(this)
         , wamTPIn(this)
+        , policyJtIn(this)
         , extTorqueIn(this)
         , wamGravIn(this)
         , wamDynIn(this)
         , wamJPOutput(this, &jpOutputValue)
         , wamJTOutput(this, &jtOutputValue)
         , theirJPOutput(this, &theirJPOutputValue)
+        , policyToolForceOutput(this, &policyToolForceValue)
+        , policyToolTorqueOutput(this, &policyToolTorqueValue)
         , udp_handler(config.network.leader_host, config.network.teleop_recv, config.network.teleop_send, 
                       config.network.recording, config.network.inference_host, config.network.follower_inference_send, config.network.inference_recv)
         , gripper(gripper)
@@ -63,8 +69,6 @@ class Follower : public barrett::systems::System {
         , current_gripper_pos(0.0f)
         , current_gripper_torque(0.0f)
         , io_running(false)
-        , kp((Eigen::Matrix<double, DOF, 1>() << 0.1, 5.0, 0.1, 5.0, 0.1, 0.1, 0.1).finished())
-        , kd((Eigen::Matrix<double, DOF, 1>() << 0.001, 0.05, 0.001, 0.05, 0.001, 0.001, 0.001).finished())
         , prevError_(0.0)
         , linked(false)
         , inference_enabled (false) {
@@ -115,12 +119,15 @@ class Follower : public barrett::systems::System {
     typename Output<jp_type>::Value* jpOutputValue;
     typename Output<jt_type>::Value* jtOutputValue;
     typename Output<jp_type>::Value* theirJPOutputValue;
+    typename Output<cf_type>::Value* policyToolForceValue;
+    typename Output<ct_type>::Value* policyToolTorqueValue;
     jp_type wamJP;
     jv_type wamJV;
     boost::tuple<cp_type, Eigen::Quaterniond> wamTP;
     jt_type extTorque;
     jt_type wamGrav;
     jt_type wamDyn;
+    jt_type policyJt;
     Eigen::Matrix<double, DOF, 1> sendJpMsg;
     Eigen::Matrix<double, DOF, 1> sendJvMsg;
     Eigen::Matrix<double, DOF, 1> sendExtTorqueMsg;
@@ -146,6 +153,7 @@ class Follower : public barrett::systems::System {
         wamTP = wamTPIn.getValue();
         wamGrav = wamGravIn.getValue();
         wamDyn = wamDynIn.getValue();
+        policyJt = policyJtIn.getValue();
 
         if (extTorqueIn.valueDefined()) {
             extTorque = extTorqueIn.getValue();
@@ -154,6 +162,9 @@ class Follower : public barrett::systems::System {
             // std::cout << "not defined" << std::endl;
             extTorque << 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0;
         }
+
+        policyToolForce << 0.0, 0.0, 0.0;
+        policyToolTorque << 0.0, 0.0, 0.0;
 
         sendJpMsg << wamJP;
         sendJvMsg << wamJV;
@@ -197,16 +208,14 @@ class Follower : public barrett::systems::System {
             if (policy_data && (now_ns >= policy_data->timestamp) && (now_ns - policy_data->timestamp <= timeout_ns)) {
                 udp_rx_age = static_cast<double>(now_ns - policy_data->timestamp) / 1000000.0;
 
-                policyJp = policy_data->jp;
-                policyJv = policy_data->jv;
-                policyExtTorque = policy_data->extTorque;
+                // from inference we directly get the tool force and tool torque. Calculated in openpi policy repo
+                // TODO: this is gross. properly sepearte out udp controller to handle the different cases in a not dumb way
+                policyToolForce << policy_data->cart_pos.x(), policy_data->cart_pos.y(), policy_data->cart_pos.z();
+                policyToolTorque << policy_data->cart_rot.w(), policy_data->cart_rot.x(), policy_data->cart_rot.y();
+
                 policy_gripper_pos.store(static_cast<double>(policy_data->gripper));
             } else {
-                // std::cout << "lost inference" << std::endl;
-                // stay where we are
-                policyJp = wamJP;
-                policyJv = wamJV;
-                policyExtTorque.setZero();
+                // policy force and torque are already zeroed above
                 policy_gripper_pos.store(static_cast<double>(current_gripper_pos));
             }
         }
@@ -221,7 +230,9 @@ class Follower : public barrett::systems::System {
             control = compute_teleop_control(theirJp, theirJv, theirExtTorque, wamJP, wamJV, extTorque, wamGrav, wamDyn);
             jtOutputValue->setData(&control);
         } else if (isInference()) { // inference only
-            control = compute_policy_control(policyJp, policyJv, policyExtTorque, wamJP, wamJV, extTorque, wamGrav, wamDyn, loop_dt);
+            // control = compute_policy_control(policyJp, policyJv, policyExtTorque, wamJP, wamJV, extTorque, wamGrav, wamDyn, loop_dt);
+            // jtOutputValue->setData(&control);
+            control.setZero();
             jtOutputValue->setData(&control);
         } else {
             control.setZero();
@@ -229,6 +240,8 @@ class Follower : public barrett::systems::System {
         }
 
         jpOutputValue->setData(&wamJP);
+        policyToolForceValue->setData(&policyToolForce);
+        policyToolTorqueValue->setData(&policyToolTorque);
 
         sendMeasTorqueMsg << control;
 
@@ -245,7 +258,7 @@ class Follower : public barrett::systems::System {
         //               << " ms | UDP Send latency: " << send_dt << " ms\n";
 
             // std::cout << std::fixed << std::setprecision(3);
-            std::cout << "  -> FOLLOWER JP:      [" << sendJpMsg.transpose() << "]\n";
+            // std::cout << "  -> FOLLOWER JP:      [" << sendJpMsg.transpose() << "]\n";
             // std::cout << "  -> TX JV:      [" << sendJvMsg.transpose() << "]\n";
             // std::cout << "  -> TX ExtTrq:  [" << sendExtTorqueMsg.transpose() << "]\n";
             // std::cout << "  -> TX MeasTrq: [" << compute_policy_control(policyJp, policyJv, policyExtTorque, wamJP, wamJV, extTorque, wamGrav, wamDyn, loop_dt) << "]\n\n";
@@ -255,11 +268,10 @@ class Follower : public barrett::systems::System {
             // std::cout << "  -> TX GrpTrq:  " << current_gripper_torque.load() << "\n\n";
             // std::cout << "  -> TX GrpPos:  " << current_gripper_pos.load() << "\n\n";
             // std::cout << "  -> ref:  " << theirExtTorque.transpose() << "\n\n";
-            std::cout << "  -> LEADER JP:  " << theirJp.transpose() << "\n\n";
+            // std::cout << "  -> LEADER JP:  " << theirJp.transpose() << "\n\n";
             // std::cout << "  -> P JP:      [" << policyJp.transpose() << "]\n";
             // std::cout << "  -> P JV:      [" << policyJv.transpose() << "]\n";
-            // std::cout << "  -> P T:      [" << policyExtTorque.transpose() << "]\n\n";
-            // std::cout << "  -> P G:      [" << policy_gripper_pos.load() << "]\n\n";
+            std::cout << "  -> P T:      [" << policyJt.transpose() << "]\n\n";
             // std::cout << "  -> P G:      [" << policy_gripper_pos.load() << "]\n\n";
         }
     }
@@ -267,9 +279,8 @@ class Follower : public barrett::systems::System {
     jp_type theirJp;
     jv_type theirJv;
     jt_type theirExtTorque;
-    jp_type policyJp;
-    jv_type policyJv;
-    jt_type policyExtTorque;
+    cf_type policyToolForce;
+    ct_type policyToolTorque;
     jt_type control;
     jv_type prevError_;
 
@@ -357,19 +368,5 @@ class Follower : public barrett::systems::System {
         }
         return u;
     };
-
-    jt_type compute_policy_control(const jp_type& ref_pos, const jv_type& ref_vel, const jt_type& ref_extTorque,
-                            const jp_type& cur_pos, const jv_type& cur_vel, const jt_type& cur_extTorque,
-                            const jt_type& cur_grav, const jt_type& cur_dyn, double loop_dt) {
-        double dt_s = loop_dt / 1000.0; // convert ms -> seconds
-
-        jv_type error = ref_pos - cur_pos;
-        jv_type derivative = (dt_s > 0.0 && dt_s < 0.01) ? ((error - prevError_) / dt_s) : jv_type(0.0);
-        prevError_ = error;
-
-        jt_type j_torque = kp.cwiseProduct(error) + kd.cwiseProduct(derivative);
-        // j_torque << 0, j_torque[1], 0, j_torque[3], 0, 0, 0;
-        j_torque << 0, 0, 0, 0, 0, 0, 0;
-        return j_torque;
-    };
 };
+

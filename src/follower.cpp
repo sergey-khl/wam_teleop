@@ -10,6 +10,7 @@
 // A version of 7-DOF follower.
 
 #include "lib/external_torque.h"
+#include <barrett/systems/tool_torque_to_joint_torques.h>
 #include <iostream>
 #include <string>
 
@@ -123,6 +124,7 @@ template <size_t DOF> int wam_main(int argc, char **argv, ProductManager &pm, sy
     systems::PrintToStream<jt_type> printdynamicextTorque(pm.getExecutionManager(), "dynamicextTorque: ");
     systems::PrintToStream<jt_type> printSC(pm.getExecutionManager(), "SC: ");
     systems::PrintToStream<jp_type> printPOS(pm.getExecutionManager(), "POS: ");
+    systems::PrintToStream<jt_type> printFOR(pm.getExecutionManager(), "FOR: ");
     systems::PrintToStream<jt_type> printTOQ(pm.getExecutionManager(), "TOQ: ");
 
     // systems::PrintToStream<jt_type> printcustomjtSum(pm.getExecutionManager(), "customjtSum: ");
@@ -138,6 +140,9 @@ template <size_t DOF> int wam_main(int argc, char **argv, ProductManager &pm, sy
     jaFilter.setLowPass(l_omega_p);
     pm.getExecutionManager()->startManaging(jaFilter);
 
+    // convert VLA actions to joint torques
+    systems::ToolForceToJointTorques<DOF> tf2jt;
+    systems::ToolTorqueToJointTorques<DOF> tt2jt;
 
     systems::connect(wam.jvOutput, hp1.input);
     systems::connect(hp1.output, jaWAM.input);
@@ -184,6 +189,14 @@ template <size_t DOF> int wam_main(int argc, char **argv, ProductManager &pm, sy
     systems::connect(dynamicExternalTorque.wamExternalTorqueOut, extFilter.input);
 
     systems::connect(wam.toolPose.output, follower.wamTPIn);
+
+    systems::connect(wam.kinematicsBase.kinOutput, tf2jt.kinInput);
+    systems::connect(wam.kinematicsBase.kinOutput, tt2jt.kinInput);
+    systems::connect(follower.policyToolForceOutput, tf2jt.input);
+    systems::connect(follower.policyToolTorqueOutput, tt2jt.input);
+
+    systems::connect(tf2jt.output, printFOR.input);
+    systems::connect(tt2jt.output, printTOQ.input);
 
     // systems::connect(extFilter.output, printdynamicextTorque.input);
     // systems::connect(dynamicExternalTorque.wamExternalTorqueOut, printdynamicextTorque.input);
