@@ -179,52 +179,50 @@ class Follower : public barrett::systems::System {
         const Eigen::Quaterniond& toolQ = boost::get<1>(wamTP);
 
 
-        if (isLinked()) {
-            boost::optional<ReceivedData> teleop_data = udp_handler.getLatestTeleopReceived();
-            uint64_t now_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::high_resolution_clock::now().time_since_epoch()).count();
-            uint64_t timeout_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(TELEOP_TIMEOUT_DURATION).count();
-            double udp_rx_age = 0.0;
-            if (teleop_data && (now_ns >= teleop_data->timestamp) && (now_ns - teleop_data->timestamp <= timeout_ns)) {
-                udp_rx_age = static_cast<double>(now_ns - teleop_data->timestamp) / 1000000.0;
+        // teleop
+        boost::optional<ReceivedData> teleop_data = udp_handler.getLatestTeleopReceived();
+        uint64_t now_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::high_resolution_clock::now().time_since_epoch()).count();
+        uint64_t timeout_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(TELEOP_TIMEOUT_DURATION).count();
+        double udp_rx_age = 0.0;
+        if (teleop_data && (now_ns >= teleop_data->timestamp) && (now_ns - teleop_data->timestamp <= timeout_ns)) {
+            udp_rx_age = static_cast<double>(now_ns - teleop_data->timestamp) / 1000000.0;
 
-                theirJp = teleop_data->jp;
-                theirJv = teleop_data->jv;
-                theirExtTorque = teleop_data->extTorque;
-                target_gripper_vel.store(static_cast<double>(teleop_data->gripper));
+            theirJp = teleop_data->jp;
+            theirJv = teleop_data->jv;
+            theirExtTorque = teleop_data->extTorque;
+            target_gripper_vel.store(static_cast<double>(teleop_data->gripper));
 
-                // mirror and offset some of the wam joints
-                for (size_t i = 0; i < DOF; i++) {
-                    theirJp[i] = theirJp[i] * config.sync_mapping.scales[i] + config.sync_mapping.offsets[i];
-                    theirJv[i] = theirJv[i] * config.sync_mapping.scales[i];
-                    theirExtTorque[i] = theirExtTorque[i] * config.sync_mapping.scales[i];
-                }
-
-                theirJPOutputValue->setData(&theirJp);
-            } else {
-                std::cout << "lost link" << std::endl;
-                linked.store(false);
+            // mirror and offset some of the wam joints
+            for (size_t i = 0; i < DOF; i++) {
+                theirJp[i] = theirJp[i] * config.sync_mapping.scales[i] + config.sync_mapping.offsets[i];
+                theirJv[i] = theirJv[i] * config.sync_mapping.scales[i];
+                theirExtTorque[i] = theirExtTorque[i] * config.sync_mapping.scales[i];
             }
-        }
-        if (isInference()) {
-            boost::optional<ReceivedData> policy_data = udp_handler.getLatestInferenceReceived();
-            uint64_t now_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::high_resolution_clock::now().time_since_epoch()).count();
-            uint64_t timeout_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(INFERENCE_TIMEOUT_DURATION).count();
-            double udp_rx_age = 0.0;
-            if (policy_data && (now_ns >= policy_data->timestamp) && (now_ns - policy_data->timestamp <= timeout_ns)) {
-                udp_rx_age = static_cast<double>(now_ns - policy_data->timestamp) / 1000000.0;
 
-                // from inference we directly get the tool force and tool torque. Calculated in openpi policy repo
-                // TODO: this is gross. properly sepearte out udp controller to handle the different cases in a not dumb way
-                policyToolForce << policy_data->cart_pos.x(), policy_data->cart_pos.y(), policy_data->cart_pos.z();
-                policyToolTorque << policy_data->cart_rot.w(), policy_data->cart_rot.x(), policy_data->cart_rot.y();
-
-                policy_gripper_pos.store(static_cast<double>(policy_data->gripper));
-            } else {
-                // policy force and torque are already zeroed above
-                policy_gripper_pos.store(static_cast<double>(current_gripper_pos));
-            }
+            theirJPOutputValue->setData(&theirJp);
+        } else {
+            std::cout << "lost link" << std::endl;
+            linked.store(false);
         }
 
+        // inference
+        boost::optional<ReceivedData> policy_data = udp_handler.getLatestInferenceReceived();
+        uint64_t now_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::high_resolution_clock::now().time_since_epoch()).count();
+        uint64_t timeout_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(INFERENCE_TIMEOUT_DURATION).count();
+        double udp_rx_age = 0.0;
+        if (policy_data && (now_ns >= policy_data->timestamp) && (now_ns - policy_data->timestamp <= timeout_ns)) {
+            udp_rx_age = static_cast<double>(now_ns - policy_data->timestamp) / 1000000.0;
+
+            // from inference we directly get the tool force and tool torque. Calculated in openpi policy repo
+            // TODO: this is gross. properly sepearte out udp controller to handle the different cases in a not dumb way
+            policyToolForce << policy_data->cart_pos.x(), policy_data->cart_pos.y(), policy_data->cart_pos.z();
+            policyToolTorque << policy_data->cart_rot.w(), policy_data->cart_rot.x(), policy_data->cart_rot.y();
+
+            policy_gripper_pos.store(static_cast<double>(policy_data->gripper));
+        } else {
+            // policy force and torque are already zeroed above
+            policy_gripper_pos.store(static_cast<double>(current_gripper_pos));
+        }
 
 
         if (isLinked() && isInference()) { // shared control
@@ -276,7 +274,8 @@ class Follower : public barrett::systems::System {
             // std::cout << "  -> LEADER JP:  " << theirJp.transpose() << "\n\n";
             // std::cout << "  -> P JP:      [" << policyJp.transpose() << "]\n";
             // std::cout << "  -> P JV:      [" << policyJv.transpose() << "]\n";
-            std::cout << "  -> P T:      [" << policyJt.transpose() << "]\n\n";
+            std::cout << "  -> P JT:      [" << policyJt.transpose() << "]\n";
+            std::cout << "  -> P T Force:      [" << policyToolForce.transpose() << "]\n\n";
             // std::cout << "  -> P G:      [" << policy_gripper_pos.load() << "]\n\n";
         }
     }
