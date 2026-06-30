@@ -179,32 +179,31 @@ class Follower : public barrett::systems::System {
         const Eigen::Quaterniond& toolQ = boost::get<1>(wamTP);
 
 
-        if (isLinked()) {
-            boost::optional<ReceivedData> teleop_data = udp_handler.getLatestTeleopReceived();
-            uint64_t now_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::high_resolution_clock::now().time_since_epoch()).count();
-            uint64_t timeout_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(TELEOP_TIMEOUT_DURATION).count();
-            double udp_rx_age = 0.0;
-            if (teleop_data && (now_ns >= teleop_data->timestamp) && (now_ns - teleop_data->timestamp <= timeout_ns)) {
-                udp_rx_age = static_cast<double>(now_ns - teleop_data->timestamp) / 1000000.0;
+        boost::optional<ReceivedData> teleop_data = udp_handler.getLatestTeleopReceived();
+        uint64_t now_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::high_resolution_clock::now().time_since_epoch()).count();
+        uint64_t timeout_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(TELEOP_TIMEOUT_DURATION).count();
+        double udp_rx_age = 0.0;
+        if (teleop_data && (now_ns >= teleop_data->timestamp) && (now_ns - teleop_data->timestamp <= timeout_ns)) {
+            udp_rx_age = static_cast<double>(now_ns - teleop_data->timestamp) / 1000000.0;
 
-                theirJp = teleop_data->jp;
-                theirJv = teleop_data->jv;
-                theirExtTorque = teleop_data->extTorque;
-                target_gripper_vel.store(static_cast<double>(teleop_data->gripper));
+            theirJp = teleop_data->jp;
+            theirJv = teleop_data->jv;
+            theirExtTorque = teleop_data->extTorque;
+            target_gripper_vel.store(static_cast<double>(teleop_data->gripper));
 
-                // mirror and offset some of the wam joints
-                for (size_t i = 0; i < DOF; i++) {
-                    theirJp[i] = theirJp[i] * config.sync_mapping.scales[i] + config.sync_mapping.offsets[i];
-                    theirJv[i] = theirJv[i] * config.sync_mapping.scales[i];
-                    theirExtTorque[i] = theirExtTorque[i] * config.sync_mapping.scales[i];
-                }
-
-                theirJPOutputValue->setData(&theirJp);
-            } else {
-                std::cout << "lost link" << std::endl;
-                linked.store(false);
+            // mirror and offset some of the wam joints
+            for (size_t i = 0; i < DOF; i++) {
+                theirJp[i] = theirJp[i] * config.sync_mapping.scales[i] + config.sync_mapping.offsets[i];
+                theirJv[i] = theirJv[i] * config.sync_mapping.scales[i];
+                theirExtTorque[i] = theirExtTorque[i] * config.sync_mapping.scales[i];
             }
+
+            theirJPOutputValue->setData(&theirJp);
+        } else {
+            std::cout << "lost link" << std::endl;
+            linked.store(false);
         }
+
         if (isInference()) {
             boost::optional<ReceivedData> policy_data = udp_handler.getLatestInferenceReceived();
             uint64_t now_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::high_resolution_clock::now().time_since_epoch()).count();
@@ -273,7 +272,7 @@ class Follower : public barrett::systems::System {
             // std::cout << "  -> TX GrpTrq:  " << current_gripper_torque.load() << "\n\n";
             // std::cout << "  -> TX GrpPos:  " << current_gripper_pos.load() << "\n\n";
             // std::cout << "  -> ref:  " << theirExtTorque.transpose() << "\n\n";
-            // std::cout << "  -> LEADER JP:  " << theirJp.transpose() << "\n\n";
+            std::cout << "  -> LEADER JP:  " << theirJp.transpose() << "\n\n";
             // std::cout << "  -> P JP:      [" << policyJp.transpose() << "]\n";
             // std::cout << "  -> P JV:      [" << policyJv.transpose() << "]\n";
             std::cout << "  -> P T:      [" << policyJt.transpose() << "]\n\n";
@@ -372,6 +371,20 @@ class Follower : public barrett::systems::System {
             u[i] = 0.0;
         }
         return u;
+    };
+
+    jt_type compute_policy_control(const jp_type& ref_pos, const jv_type& ref_vel, const jt_type& ref_extTorque,
+                            const jp_type& cur_pos, const jv_type& cur_vel, const jt_type& cur_extTorque,
+                            const jt_type& cur_grav, const jt_type& cur_dyn, double loop_dt) {
+        double dt_s = loop_dt / 1000.0; // convert ms -> seconds
+
+        jv_type error = ref_pos - cur_pos;
+        jv_type derivative = (dt_s > 0.0 && dt_s < 0.01) ? ((error - prevError_) / dt_s) : jv_type(0.0);
+        prevError_ = error;
+
+        jt_type j_torque = kp.cwiseProduct(error) + kd.cwiseProduct(derivative);
+        j_torque << 0, 0, 0, 0, 0, 0, 0;
+        return j_torque;
     };
 };
 

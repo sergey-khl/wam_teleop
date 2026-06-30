@@ -46,6 +46,7 @@ class Leader : public barrett::systems::System {
         , theirJp(0.0)
         , theirJv(0.0)
         , theirExtTorque(0.0)
+        , offset(0.0)
         , control(0.0)
         , wamJPIn(this)
         , wamJVIn(this)
@@ -60,6 +61,7 @@ class Leader : public barrett::systems::System {
         , handle(handle)
     	, bumper(0.0f)
     	, trigger(0.0f)
+    	, down(0.0f)
         , desired_gripper_vel(0.0f)
         , remote_gripper_torque(0.0f)
         , io_running(false)
@@ -90,8 +92,15 @@ class Leader : public barrett::systems::System {
     virtual bool inputsValid() { return true; }
 
     bool isLinked() const { return linked.load(); }
-    void tryLink()  { BARRETT_SCOPED_LOCK(this->getEmMutex()); linked.store(true); }
-    void unlink()   { BARRETT_SCOPED_LOCK(this->getEmMutex()); linked.store(false); }
+    void tryLink() {
+      BARRETT_SCOPED_LOCK(this->getEmMutex());
+      offset = computeOffset(); // find offset dynamically
+      linked.store(true);
+    }
+    void unlink() {
+      BARRETT_SCOPED_LOCK(this->getEmMutex());
+      linked.store(false);
+    }
 
   protected:
     typename Output<jt_type>::Value* jtOutputValue;
@@ -106,12 +115,14 @@ class Leader : public barrett::systems::System {
     jt_type extTorque;
     jt_type wamGrav;
     jt_type wamDyn;
+    jp_type offset;
 
     const float gripper_speed = 0.3f;
 
     // TODO: these should be bool
     std::atomic<double> bumper;
     std::atomic<double> trigger;
+    std::atomic<double> down;
 
     std::atomic<float> desired_gripper_vel;
     std::atomic<float> remote_gripper_torque;
@@ -169,7 +180,6 @@ class Leader : public barrett::systems::System {
             theirExtTorque = received_data->extTorque.template head<DOF>();
             remote_gripper_torque.store(static_cast<double>(received_data->gripper));
 
-
             // mirror and offset some of the wam joints
             // NOTE: follower does the exact opposite
             for (size_t i = 0; i < DOF; i++) {
@@ -177,6 +187,15 @@ class Leader : public barrett::systems::System {
                 theirJv[i] = theirJv[i] / config.sync_mapping.scales[i];
                 theirExtTorque[i] = theirExtTorque[i] / config.sync_mapping.scales[i];
             }
+
+            if (down.load()) { // if clutching, j6 follows itself
+                offset[5] = theirJp[5] - wamJP[5];
+
+                // theirJp[5] = wamJP[5];
+                // theirJv[5] = wamJV[5];
+                // theirExtTorque[5] = extTorque[5];
+            }
+
 
             // Publish peer arm JP (as before)
             theirJPOutputValue->setData(&theirJp);
@@ -235,9 +254,9 @@ class Leader : public barrett::systems::System {
             // std::cout << "  -> My wrist:  " << wristJP.transpose() << "\n\n";
             // std::cout << "  -> leader ext:  " << extTorque.transpose() << "\n";
             // std::cout << "  -> ref:  " << theirExtTorque.transpose() << "\n\n";
-            std::cout << " FOLLOWER -> :  " << theirJp.transpose() << "\n\n";
-            // std::cout << "  -> Tool Pos:  [" << toolPos.transpose() << "]\n";
-            // std::cout << "  -> Tool Quat: [" << toolQ.w() << " " << toolQ.x() << " " << toolQ.y() << " " << toolQ.z() << "]\n\n";
+            std::cout << " FOLLOWER -> :  " << theirJp.transpose() << "\n";
+            std::cout << " offset -> :  " << offset.transpose() << "\n";
+            std::cout << " down -> :  " << down.load() << "\n\n";
         }
     }
 
@@ -249,6 +268,10 @@ class Leader : public barrett::systems::System {
     std::thread io_thread;
     std::atomic<bool> io_running;
 
+    jp_type computeOffset() {
+        return theirJp - wamJP;
+    }
+
     void pollHandle() {
         float local_smoothed_torque = 0.0f;
         while (io_running.load()) {
@@ -257,6 +280,7 @@ class Leader : public barrett::systems::System {
                 haptic_wrist::handle_type handle = *opt_handle;
                 bumper.store(handle[0]);
                 trigger.store(handle[1]);
+                down.store(handle[2]);
             }
 
             float target_velocity = 0.0f;
