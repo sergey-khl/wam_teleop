@@ -123,6 +123,8 @@ typename UDPHandler<DOF>::ReceivedData UDPHandler<DOF>::unpackPacket(const Packe
     rd.cart_pos = Eigen::Vector3d(pkt.cart_pos[0], pkt.cart_pos[1], pkt.cart_pos[2]);
     rd.cart_rot = Eigen::Quaterniond(pkt.cart_rot[0], pkt.cart_rot[1], pkt.cart_rot[2], pkt.cart_rot[3]);
     rd.gripper   = pkt.gripper;
+    rd.is_clutching   = pkt.is_clutching;
+    std::memcpy(rd.offset.data(),    pkt.offset,    sizeof(double) * DOF);
     rd.timestamp = pkt.timestamp;
     return rd;
 }
@@ -150,7 +152,7 @@ template <size_t DOF>
 void UDPHandler<DOF>::send(const jp_type& jp, const jv_type& jv,
                            const jt_type& extTorque, const jt_type& measTorque,
                            const Eigen::Vector3d& cart_pos, const Eigen::Quaterniond& cart_rot,
-                           double gripper, uint64_t timestamp) {
+                           const double gripper, const bool is_clutching, const jp_type& offset, uint64_t timestamp) {
     {
         std::lock_guard<std::mutex> lock(send_mutex);
         std::memcpy(pending_send_packet.jp, jp.data(), sizeof(double) * DOF);
@@ -165,6 +167,8 @@ void UDPHandler<DOF>::send(const jp_type& jp, const jv_type& jv,
         pending_send_packet.cart_rot[2] = cart_rot.y();
         pending_send_packet.cart_rot[3] = cart_rot.z();
         pending_send_packet.gripper = gripper;
+        pending_send_packet.is_clutching = is_clutching;
+        std::memcpy(pending_send_packet.offset, offset.data(), sizeof(double) * DOF);
         pending_send_packet.timestamp = timestamp;
         new_data_available = true;
     }

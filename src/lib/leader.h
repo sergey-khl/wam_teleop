@@ -94,7 +94,7 @@ class Leader : public barrett::systems::System {
     bool isLinked() const { return linked.load(); }
     void tryLink() {
       BARRETT_SCOPED_LOCK(this->getEmMutex());
-      offset = computeOffset(); // find offset dynamically
+      offset = computeOffset(); // find offset dynamically, only in leader
       linked.store(true);
     }
     void unlink() {
@@ -235,7 +235,7 @@ class Leader : public barrett::systems::System {
 
         // TODO: fix to gripper pos for recording
         auto send_start = std::chrono::high_resolution_clock::now();
-        udp_handler.send(sendJpMsg, sendJvMsg, sendExtTorqueMsg, sendMeasTorqueMsg, toolPos, toolQ, static_cast<double>(desired_gripper_vel.load()), loop_start); // we send the start of theoperation loop when we collect our leader data
+        udp_handler.send(sendJpMsg, sendJvMsg, sendExtTorqueMsg, sendMeasTorqueMsg, toolPos, toolQ, static_cast<double>(desired_gripper_vel.load()), static_cast<bool>(down.load()), offset, loop_start); // we send the start of theoperation loop when we collect our leader data
         auto send_end = std::chrono::high_resolution_clock::now();
         double send_dt = std::chrono::duration<double, std::milli>(send_end - send_start).count();
 

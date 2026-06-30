@@ -27,6 +27,8 @@ public:
         double cart_pos[3];   // x, y, z
         double cart_rot[4];   // w, x, y, z
         double gripper; // leader will send the gripper_cmd and the follower will send the gripper torque
+        bool is_clutching; 
+        double offset[DOF]; // source of truth for both leader and follower
         uint64_t timestamp;
     };
 #pragma pack(pop)
@@ -39,6 +41,8 @@ public:
         Eigen::Vector3d    cart_pos;
         Eigen::Quaterniond cart_rot;
         double             gripper;
+        bool               is_clutching; 
+        jp_type            offset;
         uint64_t           timestamp;
     };
 
@@ -53,7 +57,7 @@ public:
     void send(const jp_type& jp, const jv_type& jv,
               const jt_type& extTorque, const jt_type& measTorque,
               const Eigen::Vector3d& cart_pos, const Eigen::Quaterniond& cart_rot,
-              double gripper, uint64_t timestamp);
+              const double gripper, const bool is_clutching, const jp_type& offset, uint64_t timestamp);
 
     void enableInference();
     void disableInference();

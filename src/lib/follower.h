@@ -49,6 +49,7 @@ class Follower : public barrett::systems::System {
         , theirJp(0.0)
         , theirJv(0.0)
         , theirExtTorque(0.0)
+        , offset(0.0)
         , control(0.0)
         , wamJPIn(this)
         , wamJVIn(this)
@@ -132,6 +133,7 @@ class Follower : public barrett::systems::System {
     Eigen::Matrix<double, DOF, 1> sendJvMsg;
     Eigen::Matrix<double, DOF, 1> sendExtTorqueMsg;
     Eigen::Matrix<double, DOF, 1> sendMeasTorqueMsg;
+    jp_type offset;
 
     TeleopConfig config;
     
@@ -190,12 +192,21 @@ class Follower : public barrett::systems::System {
             theirJv = teleop_data->jv;
             theirExtTorque = teleop_data->extTorque;
             target_gripper_vel.store(static_cast<double>(teleop_data->gripper));
+            is_clutching.store(static_cast<bool>(teleop_data->is_clutching));
 
             // mirror and offset some of the wam joints
             for (size_t i = 0; i < DOF; i++) {
                 theirJp[i] = theirJp[i] * config.sync_mapping.scales[i] + config.sync_mapping.offsets[i];
                 theirJv[i] = theirJv[i] * config.sync_mapping.scales[i];
                 theirExtTorque[i] = theirExtTorque[i] * config.sync_mapping.scales[i];
+            }
+
+            if (is_clutching) {
+                offset[5] = theirJp[5] - wamJP[5];
+
+                // theirJp[5] = wamJP[5];
+                // theirJv[5] = wamJV[5];
+                // theirExtTorque[5] = extTorque[5];
             }
 
             theirJPOutputValue->setData(&theirJp);
@@ -252,7 +263,7 @@ class Follower : public barrett::systems::System {
         uint64_t loop_start = std::chrono::duration_cast<std::chrono::nanoseconds>(now_op.time_since_epoch()).count();
 
         auto send_start = std::chrono::high_resolution_clock::now();
-        udp_handler.send(wamJP, wamJV, sendExtTorqueMsg, sendMeasTorqueMsg, toolPos, toolQ, static_cast<double>(current_gripper_torque.load()), loop_start);
+        udp_handler.send(wamJP, wamJV, sendExtTorqueMsg, sendMeasTorqueMsg, toolPos, toolQ, static_cast<double>(current_gripper_torque.load()), is_clutching, offset, loop_start);
         auto send_end = std::chrono::high_resolution_clock::now();
         double send_dt = std::chrono::duration<double, std::milli>(send_end - send_start).count();
 
@@ -262,7 +273,7 @@ class Follower : public barrett::systems::System {
         //               << " ms | UDP Send latency: " << send_dt << " ms\n";
 
             // std::cout << std::fixed << std::setprecision(3);
-            // std::cout << "  -> FOLLOWER JP:      [" << sendJpMsg.transpose() << "]\n";
+            std::cout << "  -> FOLLOWER JP:      [" << sendJpMsg.transpose() << "]\n";
             // std::cout << "  -> TX JV:      [" << sendJvMsg.transpose() << "]\n";
             // std::cout << "  -> TX ExtTrq:  [" << sendExtTorqueMsg.transpose() << "]\n";
             // std::cout << "  -> TX MeasTrq: [" << compute_policy_control(policyJp, policyJv, policyExtTorque, wamJP, wamJV, extTorque, wamGrav, wamDyn, loop_dt) << "]\n\n";
@@ -272,10 +283,12 @@ class Follower : public barrett::systems::System {
             // std::cout << "  -> TX GrpTrq:  " << current_gripper_torque.load() << "\n\n";
             // std::cout << "  -> TX GrpPos:  " << current_gripper_pos.load() << "\n\n";
             // std::cout << "  -> ref:  " << theirExtTorque.transpose() << "\n\n";
-            std::cout << "  -> LEADER JP:  " << theirJp.transpose() << "\n\n";
+            std::cout << "  -> LEADER JP:  " << theirJp.transpose() << "\n";
+            std::cout << " offset -> :  " << offset.transpose() << "\n";
+            std::cout << " is_clutching -> :  " << is_clutching << "\n\n";
             // std::cout << "  -> P JP:      [" << policyJp.transpose() << "]\n";
             // std::cout << "  -> P JV:      [" << policyJv.transpose() << "]\n";
-            std::cout << "  -> P T:      [" << policyJt.transpose() << "]\n\n";
+            // std::cout << "  -> P T:      [" << policyJt.transpose() << "]\n\n";
             // std::cout << "  -> P G:      [" << policy_gripper_pos.load() << "]\n\n";
         }
     }
@@ -332,6 +345,7 @@ class Follower : public barrett::systems::System {
     std::atomic<float> policy_gripper_pos;
     std::atomic<float> current_gripper_pos;
     std::atomic<float> current_gripper_torque;
+    std::atomic<bool> is_clutching;
 
     jt_type compute_teleop_control(const jp_type& ref_pos, const jv_type& ref_vel, const jt_type& ref_extTorque,
                             const jp_type& cur_pos, const jv_type& cur_vel, const jt_type& cur_extTorque,
