@@ -10,7 +10,7 @@
 #include <iomanip>
 
 
-#include "udp_handler.h"
+#include "follower_udp_handler.h"
 #include <barrett/detail/ca_macro.h>
 #include <barrett/systems/abstract/single_io.h>
 #include <barrett/thread/abstract/mutex.h>
@@ -67,6 +67,7 @@ class Follower : public barrett::systems::System {
         , gripper(gripper)
         , target_gripper_vel(0.0f)
         , current_gripper_pos(0.0f)
+        , current_gripper_vel(0.0f)
         , current_gripper_torque(0.0f)
         , io_running(false)
         , prevError_(0.0)
@@ -131,7 +132,6 @@ class Follower : public barrett::systems::System {
     Eigen::Matrix<double, DOF, 1> sendJpMsg;
     Eigen::Matrix<double, DOF, 1> sendJvMsg;
     Eigen::Matrix<double, DOF, 1> sendExtTorqueMsg;
-    Eigen::Matrix<double, DOF, 1> sendMeasTorqueMsg;
 
     TeleopConfig config;
     
@@ -141,7 +141,7 @@ class Follower : public barrett::systems::System {
     float gripper_max_pos;
     float gripper_min_pos; // assumes 0 is the open pos of the gripper
 
-    using ReceivedData = typename UDPHandler<DOF>::ReceivedData;
+    using TeleopReceivedData = typename FollowerUDPHandler<DOF>::TeleopReceivedData;
 
     virtual void operate() {
         auto now_op = std::chrono::high_resolution_clock::now();
@@ -180,7 +180,7 @@ class Follower : public barrett::systems::System {
 
 
         // teleop
-        boost::optional<ReceivedData> teleop_data = udp_handler.getLatestTeleopReceived();
+        boost::optional<TeleopReceivedData> teleop_data = udp_handler.getLatestTeleopReceived();
         uint64_t now_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::high_resolution_clock::now().time_since_epoch()).count();
         uint64_t timeout_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(TELEOP_TIMEOUT_DURATION).count();
         double udp_rx_age = 0.0;
@@ -190,7 +190,7 @@ class Follower : public barrett::systems::System {
             theirJp = teleop_data->jp;
             theirJv = teleop_data->jv;
             theirExtTorque = teleop_data->extTorque;
-            target_gripper_vel.store(static_cast<double>(teleop_data->gripper));
+            target_gripper_vel.store(static_cast<double>(teleop_data->gripper_cmd));
 
             // mirror and offset some of the wam joints
             for (size_t i = 0; i < DOF; i++) {
@@ -208,7 +208,7 @@ class Follower : public barrett::systems::System {
         }
 
         // inference
-        boost::optional<ReceivedData> policy_data = udp_handler.getLatestInferenceReceived();
+        boost::optional<PolicyReceivedData> policy_data = udp_handler.getLatestPolicyReceived();
         now_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::high_resolution_clock::now().time_since_epoch()).count();
         timeout_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(INFERENCE_TIMEOUT_DURATION).count();
         if (policy_data && (now_ns >= policy_data->timestamp) && (now_ns - policy_data->timestamp <= timeout_ns)) {
@@ -217,12 +217,12 @@ class Follower : public barrett::systems::System {
             // from inference we directly get the tool force and tool torque. Calculated in openpi policy repo
             // TODO: this is gross. properly sepearte out udp controller to handle the different cases in a not dumb way
             policyToolForce << policy_data->cart_pos.x(), policy_data->cart_pos.y(), policy_data->cart_pos.z();
-            policyToolTorque << policy_data->cart_rot.w(), policy_data->cart_rot.x(), policy_data->cart_rot.y();
+            policyToolTorque << policy_data->cart_rot.x(), policy_data->cart_rot.y(), policy_data->cart_rot.z();
 
-            policy_gripper_pos.store(static_cast<double>(policy_data->gripper));
+            policy_gripper_cmd.store(static_cast<double>(policy_data->gripper_cmd));
         } else {
             // policy force and torque are already zeroed above
-            policy_gripper_pos.store(static_cast<double>(current_gripper_pos));
+            policy_gripper_cmd.store(static_cast<double>(current_gripper_pos));
         }
 
 
@@ -252,12 +252,11 @@ class Follower : public barrett::systems::System {
         policyToolForceValue->setData(&policyToolForce);
         policyToolTorqueValue->setData(&policyToolTorque);
 
-        sendMeasTorqueMsg << control;
-
         uint64_t loop_start = std::chrono::duration_cast<std::chrono::nanoseconds>(now_op.time_since_epoch()).count();
 
         auto send_start = std::chrono::high_resolution_clock::now();
-        udp_handler.send(wamJP, wamJV, sendExtTorqueMsg, sendMeasTorqueMsg, toolPos, toolQ, static_cast<double>(current_gripper_torque.load()), loop_start);
+        udp_handler.send(wamJP, wamJV, sendExtTorqueMsg, static_cast<double>(current_gripper_torque.load()), loop_start);
+        udp_handler.sendToPolicy(wamJP, wamJV, sendExtTorqueMsg, theirJp, theirJv, theirExtTorque, toolPos, toolQ, static_cast<double>(current_gripper_pos.load()), static_cast<double>(current_gripper_vel.load()), static_cast<double>(current_gripper_torque.load()), loop_start);
         auto send_end = std::chrono::high_resolution_clock::now();
         double send_dt = std::chrono::duration<double, std::milli>(send_end - send_start).count();
 
@@ -315,6 +314,7 @@ class Follower : public barrett::systems::System {
 
             GripperState gripper_state = gripper->getLatestState();
             current_gripper_pos.store(gripper_state.position);
+            current_gripper_vel.store(gripper_state.velocity);
             current_gripper_torque.store(gripper_state.torque);
             
             std::this_thread::sleep_for(std::chrono::milliseconds(2));
@@ -326,7 +326,7 @@ class Follower : public barrett::systems::System {
     DISALLOW_COPY_AND_ASSIGN(Follower);
     std::mutex state_mutex;
     jp_type joint_positions;
-    UDPHandler<DOF> udp_handler;
+    FollowerUDPHandler<DOF> udp_handler;
     const std::chrono::milliseconds TELEOP_TIMEOUT_DURATION = std::chrono::milliseconds(20);
     const std::chrono::milliseconds INFERENCE_TIMEOUT_DURATION = std::chrono::milliseconds(150); // allow for 10hz
     const Eigen::Matrix<double, DOF, 1> kp;
@@ -336,8 +336,9 @@ class Follower : public barrett::systems::System {
     std::thread io_thread;
     std::atomic<bool> io_running;
     std::atomic<float> target_gripper_vel;
-    std::atomic<float> policy_gripper_pos;
+    std::atomic<float> policy_gripper_cmd;
     std::atomic<float> current_gripper_pos;
+    std::atomic<float> current_gripper_vel;
     std::atomic<float> current_gripper_torque;
 
     jt_type compute_teleop_control(const jp_type& ref_pos, const jv_type& ref_vel, const jt_type& ref_extTorque,

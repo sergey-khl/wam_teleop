@@ -10,7 +10,7 @@
 #include <chrono>
 #include <iomanip>
 
-#include "udp_handler.h"
+#include "leader_udp_handler.h"
 #include <barrett/detail/ca_macro.h>
 #include <barrett/systems/abstract/single_io.h>
 #include <barrett/thread/abstract/mutex.h>
@@ -55,8 +55,7 @@ class Leader : public barrett::systems::System {
         , wamDynIn(this)
         , wamJPOutput(this, &jtOutputValue)
         , theirJPOutput(this, &theirJPOutputValue)
-        , udp_handler(config.network.follower_host, config.network.teleop_send, config.network.teleop_recv, 
-                      config.network.recording, config.network.inference_host, config.network.leader_inference_send, config.network.inference_recv)
+        , udp_handler(config.network.follower_host, config.network.teleop_send, config.network.teleop_recv)
         , handle(handle)
     	, bumper(0.0f)
     	, trigger(0.0f)
@@ -131,7 +130,7 @@ class Leader : public barrett::systems::System {
     Eigen::Matrix<double, DOF, 1> sendExtTorqueMsg;
     Eigen::Matrix<double, DOF, 1> sendMeasTorqueMsg;
 
-    using ReceivedData = typename UDPHandler<DOF>::ReceivedData;
+    using TeleopReceivedData = typename LeaderUDPHandler<DOF>::TeleopReceivedData;
 
     virtual void operate() {
         auto now_op = std::chrono::high_resolution_clock::now();
@@ -157,7 +156,7 @@ class Leader : public barrett::systems::System {
 
 
         // Receive (non-blocking)
-        boost::optional<ReceivedData> received_data = udp_handler.getLatestTeleopReceived();
+        boost::optional<TeleopReceivedData> received_data = udp_handler.getLatestTeleopReceived();
         uint64_t now_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::high_resolution_clock::now().time_since_epoch()).count();
         uint64_t timeout_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(TIMEOUT_DURATION).count();
         double udp_rx_age = 0.0;
@@ -167,7 +166,7 @@ class Leader : public barrett::systems::System {
             theirJp        = received_data->jp.template head<DOF>();
             theirJv        = received_data->jv.template head<DOF>();
             theirExtTorque = received_data->extTorque.template head<DOF>();
-            remote_gripper_torque.store(static_cast<double>(received_data->gripper));
+            remote_gripper_torque.store(static_cast<double>(received_data->gripper_torque));
 
 
             // mirror and offset some of the wam joints
@@ -216,7 +215,7 @@ class Leader : public barrett::systems::System {
 
         // TODO: fix to gripper pos for recording
         auto send_start = std::chrono::high_resolution_clock::now();
-        udp_handler.send(sendJpMsg, sendJvMsg, sendExtTorqueMsg, sendMeasTorqueMsg, toolPos, toolQ, static_cast<double>(desired_gripper_vel.load()), loop_start); // we send the start of theoperation loop when we collect our leader data
+        udp_handler.send(sendJpMsg, sendJvMsg, sendExtTorqueMsg, static_cast<double>(desired_gripper_vel.load()), loop_start); // we send the start of theoperation loop when we collect our leader data
         auto send_end = std::chrono::high_resolution_clock::now();
         double send_dt = std::chrono::duration<double, std::milli>(send_end - send_start).count();
 
@@ -281,7 +280,7 @@ class Leader : public barrett::systems::System {
     haptic_wrist::Handle* handle;
     std::mutex state_mutex;
     jp_type joint_positions;
-    UDPHandler<DOF> udp_handler;
+    LeaderUDPHandler<DOF> udp_handler;
     const std::chrono::milliseconds TIMEOUT_DURATION = std::chrono::milliseconds(20);
 
     // Gains you had
