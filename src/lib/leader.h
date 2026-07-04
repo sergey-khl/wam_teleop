@@ -213,7 +213,6 @@ class Leader : public barrett::systems::System {
 
         uint64_t loop_start = std::chrono::duration_cast<std::chrono::nanoseconds>(now_op.time_since_epoch()).count();
 
-        // TODO: fix to gripper pos for recording
         auto send_start = std::chrono::high_resolution_clock::now();
         udp_handler.send(sendJpMsg, sendJvMsg, sendExtTorqueMsg, static_cast<double>(desired_gripper_vel.load()), loop_start); // we send the start of theoperation loop when we collect our leader data
         auto send_end = std::chrono::high_resolution_clock::now();
@@ -281,7 +280,7 @@ class Leader : public barrett::systems::System {
     std::mutex state_mutex;
     jp_type joint_positions;
     LeaderUDPHandler<DOF> udp_handler;
-    const std::chrono::milliseconds TIMEOUT_DURATION = std::chrono::milliseconds(20);
+    const std::chrono::milliseconds TIMEOUT_DURATION = std::chrono::milliseconds(8);
 
     // Gains you had
     Eigen::Matrix<double, DOF, 1> kp;

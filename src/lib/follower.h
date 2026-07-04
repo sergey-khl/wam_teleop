@@ -237,7 +237,7 @@ class Follower : public barrett::systems::System {
 
             std::cout << "  infing:      [" << policyJt.transpose() << "]\n";
             for (size_t i = 0; i < DOF; ++i) {
-                policyControl[i] = std::max(-2.0, std::min(2.0, policyJt[i]));
+                policyControl[i] = std::max(-1.0, std::min(1.0, policyJt[i]));
             }
             policyControl[4] = 0;
             policyControl[5] = 0;
@@ -255,8 +255,11 @@ class Follower : public barrett::systems::System {
         uint64_t loop_start = std::chrono::duration_cast<std::chrono::nanoseconds>(now_op.time_since_epoch()).count();
 
         auto send_start = std::chrono::high_resolution_clock::now();
+
+        // send to leader then send to policy
         udp_handler.send(wamJP, wamJV, sendExtTorqueMsg, static_cast<double>(current_gripper_torque.load()), loop_start);
         udp_handler.sendToPolicy(wamJP, wamJV, sendExtTorqueMsg, theirJp, theirJv, theirExtTorque, toolPos, toolQ, static_cast<double>(current_gripper_pos.load()), static_cast<double>(current_gripper_vel.load()), static_cast<double>(current_gripper_torque.load()), loop_start);
+
         auto send_end = std::chrono::high_resolution_clock::now();
         double send_dt = std::chrono::duration<double, std::milli>(send_end - send_start).count();
 
@@ -265,8 +268,8 @@ class Follower : public barrett::systems::System {
         //               << " ms | UDP Rx Age: " << udp_rx_age 
         //               << " ms | UDP Send latency: " << send_dt << " ms\n";
 
-            // std::cout << std::fixed << std::setprecision(3);
-            // std::cout << "  -> FOLLOWER JP:      [" << sendJpMsg.transpose() << "]\n";
+            std::cout << std::fixed << std::setprecision(3);
+            std::cout << "  -> FOLLOWER JP:      [" << sendJpMsg.transpose() << "]\n";
             // std::cout << "  -> TX JV:      [" << sendJvMsg.transpose() << "]\n";
             // std::cout << "  -> TX ExtTrq:  [" << sendExtTorqueMsg.transpose() << "]\n";
             // std::cout << "  -> TX MeasTrq: [" << compute_policy_control(policyJp, policyJv, policyExtTorque, wamJP, wamJV, extTorque, wamGrav, wamDyn, loop_dt) << "]\n\n";
@@ -276,10 +279,10 @@ class Follower : public barrett::systems::System {
             // std::cout << "  -> TX GrpTrq:  " << current_gripper_torque.load() << "\n\n";
             // std::cout << "  -> TX GrpPos:  " << current_gripper_pos.load() << "\n\n";
             // std::cout << "  -> ref:  " << theirExtTorque.transpose() << "\n\n";
-            // std::cout << "  -> LEADER JP:  " << theirJp.transpose() << "\n\n";
+            std::cout << "  -> LEADER JP:  " << theirJp.transpose() << "\n\n";
             // std::cout << "  -> P JP:      [" << policyJp.transpose() << "]\n";
             // std::cout << "  -> P JV:      [" << policyJv.transpose() << "]\n";
-            std::cout << "  -> P JT:      [" << policyJt.transpose() << "]\n";
+            // std::cout << "  -> P JT:      [" << policyJt.transpose() << "]\n";
             // std::cout << "  -> P T Force:      [" << policyToolForce.transpose() << "]\n\n";
             // std::cout << "  -> P G:      [" << policy_gripper_pos.load() << "]\n\n";
         }
@@ -327,7 +330,7 @@ class Follower : public barrett::systems::System {
     std::mutex state_mutex;
     jp_type joint_positions;
     FollowerUDPHandler<DOF> udp_handler;
-    const std::chrono::milliseconds TELEOP_TIMEOUT_DURATION = std::chrono::milliseconds(20);
+    const std::chrono::milliseconds TELEOP_TIMEOUT_DURATION = std::chrono::milliseconds(8);
     const std::chrono::milliseconds INFERENCE_TIMEOUT_DURATION = std::chrono::milliseconds(150); // allow for 10hz
     const Eigen::Matrix<double, DOF, 1> kp;
     const Eigen::Matrix<double, DOF, 1> kd;
