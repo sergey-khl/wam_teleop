@@ -201,15 +201,16 @@ class Follower : public barrett::systems::System {
 
             theirJPOutputValue->setData(&theirJp);
         } else {
-            std::cout << "lost link" << std::endl;
-            linked.store(false);
+            if (isLinked()) {
+                std::cout << "lost link" << std::endl;
+                linked.store(false);
+            }
         }
 
         // inference
         boost::optional<ReceivedData> policy_data = udp_handler.getLatestInferenceReceived();
-        uint64_t now_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::high_resolution_clock::now().time_since_epoch()).count();
-        uint64_t timeout_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(INFERENCE_TIMEOUT_DURATION).count();
-        double udp_rx_age = 0.0;
+        now_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::high_resolution_clock::now().time_since_epoch()).count();
+        timeout_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(INFERENCE_TIMEOUT_DURATION).count();
         if (policy_data && (now_ns >= policy_data->timestamp) && (now_ns - policy_data->timestamp <= timeout_ns)) {
             udp_rx_age = static_cast<double>(now_ns - policy_data->timestamp) / 1000000.0;
 
@@ -233,10 +234,15 @@ class Follower : public barrett::systems::System {
             control = compute_teleop_control(theirJp, theirJv, theirExtTorque, wamJP, wamJV, extTorque, wamGrav, wamDyn);
             jtOutputValue->setData(&control);
         } else if (isInference()) { // inference only
-            // control = compute_policy_control(policyJp, policyJv, policyExtTorque, wamJP, wamJV, extTorque, wamGrav, wamDyn, loop_dt);
-            // jtOutputValue->setData(&control);
-            control.setZero();
-            jtOutputValue->setData(&control);
+
+            std::cout << "  infing:      [" << policyJt.transpose() << "]\n";
+            for (size_t i = 0; i < DOF; ++i) {
+                policyControl[i] = std::max(-2.0, std::min(2.0, policyJt[i]));
+            }
+            policyControl[4] = 0;
+            policyControl[5] = 0;
+            policyControl[6] = 0;
+            jtOutputValue->setData(&policyControl);
         } else {
             control.setZero();
             jtOutputValue->setData(&control);
@@ -275,7 +281,7 @@ class Follower : public barrett::systems::System {
             // std::cout << "  -> P JP:      [" << policyJp.transpose() << "]\n";
             // std::cout << "  -> P JV:      [" << policyJv.transpose() << "]\n";
             std::cout << "  -> P JT:      [" << policyJt.transpose() << "]\n";
-            std::cout << "  -> P T Force:      [" << policyToolForce.transpose() << "]\n\n";
+            // std::cout << "  -> P T Force:      [" << policyToolForce.transpose() << "]\n\n";
             // std::cout << "  -> P G:      [" << policy_gripper_pos.load() << "]\n\n";
         }
     }
@@ -286,6 +292,7 @@ class Follower : public barrett::systems::System {
     cf_type policyToolForce;
     ct_type policyToolTorque;
     jt_type control;
+    jt_type policyControl;
     jv_type prevError_;
 
     void pollGripper() {

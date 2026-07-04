@@ -89,6 +89,9 @@ template <size_t DOF> int wam_main(int argc, char **argv, ProductManager &pm, sy
     barrett::systems::Summer<jt_type, 3> customjtSum;
     pm.getExecutionManager()->startManaging(customjtSum);
 
+    barrett::systems::Summer<jt_type, 2> policyJtSum;
+    pm.getExecutionManager()->startManaging(policyJtSum);
+
     FollowerDynamics<DOF> followerDynamics(pm.getExecutionManager());
     ExternalTorque<DOF> externalTorque(pm.getExecutionManager());
     DynamicExternalTorque<DOF> dynamicExternalTorque(pm.getExecutionManager());
@@ -195,10 +198,10 @@ template <size_t DOF> int wam_main(int argc, char **argv, ProductManager &pm, sy
     systems::connect(follower.policyToolForceOutput, tf2jt.input);
     systems::connect(follower.policyToolTorqueOutput, tt2jt.input);
 
-    systems::connect(tf2jt.output, printFOR.input);
-    systems::connect(tt2jt.output, printTOQ.input);
+    systems::connect(tf2jt.output, policyJtSum.getInput(0));
+    systems::connect(tt2jt.output, policyJtSum.getInput(1));
 
-    systems::connect(tf2jt.output, follower.policyJtIn);
+    systems::connect(policyJtSum.output, follower.policyJtIn);
 
     // systems::connect(extFilter.output, printdynamicextTorque.input);
     // systems::connect(dynamicExternalTorque.wamExternalTorqueOut, printdynamicextTorque.input);
@@ -254,7 +257,6 @@ template <size_t DOF> int wam_main(int argc, char **argv, ProductManager &pm, sy
                 if (follower.isInference()) {
                     wam.trackReferenceSignal(follower.wamJPOutput);
                     systems::connect(follower.wamJTOutput, wam.input);
-                    // systems::connect(follower.wamJTOutput, printTOQ.input);
                     printf("Running policy.\n");
                 } else {
                     printf("WARNING: inference was unsuccessful.\n");
