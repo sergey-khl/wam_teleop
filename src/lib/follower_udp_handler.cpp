@@ -1,17 +1,18 @@
 #include "follower_udp_handler.h"
 #include <boost/system/error_code.hpp>
 #include <cstring>
+#include <iostream>
 
 template <size_t DOF>
-FollowerUDPHandler<DOF>::FollowerUDPHandler(const std::string& leader_host, int leader_send, int leader_recv,
+FollowerUDPHandler<DOF>::FollowerUDPHandler(const std::string& leader_host, int teleop_send, int teleop_recv,
                                               bool recording,
                                               const std::string& policy_host, int policy_send, int policy_recv)
     : stop_threads(false)
     , teleop_send_socket(io_context, boost::asio::ip::udp::v4())
     , policy_send_socket(io_context, boost::asio::ip::udp::v4())
-    , teleop_recv_socket(io_context, boost::asio::ip::udp::endpoint(boost::asio::ip::udp::v4(), leader_recv))
-    , policy_recv_socket(io_context)
-    , leader_endpoint(boost::asio::ip::make_address(leader_host), leader_send)
+    , teleop_recv_socket(io_context, boost::asio::ip::udp::endpoint(boost::asio::ip::udp::v4(), teleop_recv))
+    , policy_recv_socket(io_context, boost::asio::ip::udp::endpoint(boost::asio::ip::udp::v4(), policy_recv))
+    , leader_endpoint(boost::asio::ip::make_address(leader_host), teleop_send)
     , policy_endpoint(boost::asio::ip::make_address(policy_host), policy_send)
     , recording(recording)
     , inference_active(false)
@@ -22,6 +23,7 @@ FollowerUDPHandler<DOF>::FollowerUDPHandler(const std::string& leader_host, int 
     teleop_recv_thread = std::thread(&FollowerUDPHandler::teleopReceiveLoop, this);
     teleop_send_thread = std::thread(&FollowerUDPHandler::teleopSendLoop, this);
     policy_send_thread = std::thread(&FollowerUDPHandler::policySendLoop, this);
+    policy_recv_thread = std::thread(&FollowerUDPHandler::policyReceiveLoop, this);
 }
 
 template <size_t DOF>
@@ -61,9 +63,7 @@ void FollowerUDPHandler<DOF>::enableInference() {
     std::lock_guard<std::mutex> lock(inference_state_mutex);
     if (inference_active) return;
 
-    policy_recv_socket = boost::asio::ip::udp::socket(
-        io_context, boost::asio::ip::udp::endpoint(boost::asio::ip::udp::v4(), policy_recv_port));
-    policy_recv_thread = std::thread(&FollowerUDPHandler::policyReceiveLoop, this);
+    // policy_recv_thread = std::thread(&FollowerUDPHandler::policyReceiveLoop, this);
 
     inference_active = true;
     {
@@ -78,11 +78,11 @@ void FollowerUDPHandler<DOF>::disableInference() {
         std::lock_guard<std::mutex> lock(inference_state_mutex);
         if (!inference_active) return;
 
-        if (policy_recv_socket.is_open()) {
-            policy_recv_socket.cancel();
-            policy_recv_socket.close();
-        }
-
+        // if (policy_recv_socket.is_open()) {
+        //     policy_recv_socket.cancel();
+        //     policy_recv_socket.close();
+        // }
+        //
         inference_active = false;
         {
             std::lock_guard<std::mutex> send_lock(policy_send_mutex);
@@ -92,9 +92,9 @@ void FollowerUDPHandler<DOF>::disableInference() {
         std::lock_guard<std::mutex> state_lock(state_mutex);
         latest_policy_received = boost::none;
     }
-    if (policy_recv_thread.joinable()) {
-        policy_recv_thread.join();
-    }
+    // if (policy_recv_thread.joinable()) {
+    //     policy_recv_thread.join();
+    // }
 }
 
 template <size_t DOF>
@@ -103,10 +103,17 @@ boost::optional<typename FollowerUDPHandler<DOF>::TeleopReceivedData> FollowerUD
     return latest_teleop_received;
 }
 
+
 template <size_t DOF>
 boost::optional<PolicyReceivedData> FollowerUDPHandler<DOF>::getLatestPolicyReceived() {
     std::lock_guard<std::mutex> lock(state_mutex);
-    return latest_policy_received;
+    if (policy_action_queue.empty()) {
+        std::cout << "policy action queue empty" << std::endl;
+        return boost::none;
+    }
+    PolicyReceivedData rd = policy_action_queue.front();
+    policy_action_queue.pop_front();
+    return rd;
 }
 
 template <size_t DOF>
@@ -121,13 +128,36 @@ typename FollowerUDPHandler<DOF>::TeleopReceivedData FollowerUDPHandler<DOF>::un
 }
 
 template <size_t DOF>
-PolicyReceivedData FollowerUDPHandler<DOF>::unpackPolicyPacket(const PolicyActionPacket& pkt) {
-    PolicyReceivedData rd;
-    rd.cart_pos = Eigen::Vector3d(pkt.cart_pos[0], pkt.cart_pos[1], pkt.cart_pos[2]);
-    rd.cart_rot = Eigen::Vector3d(pkt.cart_rot[0], pkt.cart_rot[1], pkt.cart_rot[2]);
-    rd.gripper_cmd = pkt.gripper_cmd;
-    rd.timestamp = pkt.timestamp;
-    return rd;
+std::deque<PolicyReceivedData> FollowerUDPHandler<DOF>::interpolateChunk(
+    const PolicyActionChunkPacket& pkt, uint64_t recv_time_ns) {
+
+    std::deque<PolicyReceivedData> queue;
+    const uint64_t dt_ns = static_cast<uint64_t>(1e9 / INTERP_HZ);
+
+    for (size_t j = 0; j < NUM_INTERP_SAMPLES; ++j) {
+        // map sample j -> fractional position across the horizon waypoints
+        double frac = (NUM_INTERP_SAMPLES > 1)
+            ? static_cast<double>(j) / static_cast<double>(NUM_INTERP_SAMPLES - 1)
+            : 0.0;
+        double pos = frac * static_cast<double>(ACTION_HORIZON - 1);
+        size_t idx0 = static_cast<size_t>(pos);
+        size_t idx1 = std::min(idx0 + 1, ACTION_HORIZON - 1);
+        double alpha = pos - static_cast<double>(idx0);
+
+        const RawAction& a = pkt.actions[idx0];
+        const RawAction& b = pkt.actions[idx1];
+
+        PolicyReceivedData rd;
+        for (int k = 0; k < 3; ++k) {
+            rd.cart_pos[k] = a.cart_pos[k] + alpha * (b.cart_pos[k] - a.cart_pos[k]);
+            rd.cart_rot[k] = a.cart_rot[k] + alpha * (b.cart_rot[k] - a.cart_rot[k]);
+        }
+        rd.gripper_cmd = a.gripper_cmd + alpha * (b.gripper_cmd - a.gripper_cmd);
+        rd.timestamp = recv_time_ns + j * dt_ns;
+
+        queue.push_back(rd);
+    }
+    return queue;
 }
 
 template <size_t DOF>
@@ -152,18 +182,24 @@ void FollowerUDPHandler<DOF>::teleopReceiveLoop() {
 template <size_t DOF>
 void FollowerUDPHandler<DOF>::policyReceiveLoop() {
     boost::asio::ip::udp::endpoint sender_endpoint;
-    PolicyActionPacket pkt;
+    PolicyActionChunkPacket pkt;
 
     while (!stop_threads) {
         boost::system::error_code ec;
         size_t len = policy_recv_socket.receive_from(
-            boost::asio::buffer(&pkt, sizeof(PolicyActionPacket)), sender_endpoint, 0, ec);
+            boost::asio::buffer(&pkt, sizeof(PolicyActionChunkPacket)), sender_endpoint, 0, ec);
 
-        if (ec == boost::asio::error::operation_aborted || len != sizeof(PolicyActionPacket))
+        if (ec == boost::asio::error::operation_aborted || len != sizeof(PolicyActionChunkPacket))
             continue;
 
+        uint64_t recv_time_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(
+            std::chrono::high_resolution_clock::now().time_since_epoch()).count();
+
+        std::deque<PolicyReceivedData> new_queue = interpolateChunk(pkt, recv_time_ns);
+
         std::lock_guard<std::mutex> lock(state_mutex);
-        latest_policy_received = unpackPolicyPacket(pkt);
+        // a new chunk supersedes whatever's left of the old one
+        policy_action_queue = std::move(new_queue);
     }
     policy_recv_socket.close();
 }

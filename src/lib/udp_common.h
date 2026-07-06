@@ -3,6 +3,8 @@
 #include <cstddef>
 #include <Eigen/Dense>
 
+static constexpr size_t ACTION_HORIZON = 5;
+
 // tightly packed layouts
 #pragma pack(push, 1)
 
@@ -41,12 +43,15 @@ struct PolicyPacket {
     uint64_t timestamp;
 };
 
-// the action we perform on the follower
-struct PolicyActionPacket {
+struct RawAction {
     double cart_pos[3];   // x, y, z
     double cart_rot[3];   // roll, pitch, yaw
     double gripper_cmd;
-    uint64_t timestamp;
+};
+
+struct PolicyActionChunkPacket {
+    uint64_t chunk_timestamp_ns;   // when the policy produced this chunk (informational)
+    RawAction actions[ACTION_HORIZON];
 };
 
 #pragma pack(pop)

@@ -10,10 +10,9 @@ struct NetworkConfig {
     std::string follower_host;
     int teleop_send;
     int teleop_recv;
-    std::string inference_host;
-    int leader_inference_send;
-    int follower_inference_send;
-    int inference_recv;
+    std::string policy_host;
+    int policy_send;
+    int policy_recv;
     bool recording;
 };
 
@@ -47,10 +46,9 @@ template<> struct convert<NetworkConfig> {
         c.follower_host = node["follower_host"].as<std::string>();
         c.teleop_send = node["teleop_send"].as<int>();
         c.teleop_recv = node["teleop_recv"].as<int>();
-        c.inference_host = node["inference_host"].as<std::string>();
-        c.leader_inference_send = node["leader_inference_send"].as<int>();
-        c.follower_inference_send = node["follower_inference_send"].as<int>();
-        c.inference_recv = node["inference_recv"].as<int>();
+        c.policy_host = node["policy_host"].as<std::string>();
+        c.policy_send = node["policy_send"].as<int>();
+        c.policy_recv = node["policy_recv"].as<int>();
         c.recording = node["recording"].as<bool>();
         return true;
     }

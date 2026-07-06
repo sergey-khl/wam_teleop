@@ -4,10 +4,9 @@ network:
   follower_host: "127.0.0.1"
   teleop_send: 5555
   teleop_recv: 5554
-  inference_host: "127.0.0.1"
-  leader_inference_send: 6555
-  follower_inference_send: 6554
-  inference_recv: 6666
+  policy_host: "127.0.0.1"
+  policy_send: 6554
+  policy_recv: 6666
   recording: true
 
 sync_mapping:

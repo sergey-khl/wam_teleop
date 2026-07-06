@@ -137,10 +137,6 @@ class Leader : public barrett::systems::System {
         double loop_dt = std::chrono::duration<double, std::milli>(now_op - last_op_time).count();
         last_op_time = now_op;
 
-        double dt_sec = loop_dt / 1000.0;
-        if (dt_sec < 0.0) dt_sec = 0.0;
-        if (dt_sec > 0.1) dt_sec = 0.1;
-
         // Read WAM inputs
         wamJP  = wamJPIn.getValue();
         wamJV  = wamJVIn.getValue();
@@ -159,10 +155,8 @@ class Leader : public barrett::systems::System {
         boost::optional<TeleopReceivedData> received_data = udp_handler.getLatestTeleopReceived();
         uint64_t now_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::high_resolution_clock::now().time_since_epoch()).count();
         uint64_t timeout_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(TIMEOUT_DURATION).count();
-        double udp_rx_age = 0.0;
+        double udp_teleop_age = 0.0;
         if (received_data && (now_ns >= received_data->timestamp) && (now_ns - received_data->timestamp <= timeout_ns)) {
-            udp_rx_age = static_cast<double>(now_ns - received_data->timestamp) / 1000000.0;
-
             theirJp        = received_data->jp.template head<DOF>();
             theirJv        = received_data->jv.template head<DOF>();
             theirExtTorque = received_data->extTorque.template head<DOF>();
@@ -181,7 +175,9 @@ class Leader : public barrett::systems::System {
             theirJPOutputValue->setData(&theirJp);
         } else {
             if (isLinked()) {
-                std::cout << "lost link" << std::endl;
+                udp_teleop_age = static_cast<double>(now_ns - received_data->timestamp) / 1000000.0;
+
+                std::cout << "lost link with age " << udp_teleop_age << std::endl;
                 linked.store(false);
             }
         }
@@ -219,11 +215,12 @@ class Leader : public barrett::systems::System {
         double send_dt = std::chrono::duration<double, std::milli>(send_end - send_start).count();
 
         if (++loop_counter % 500 == 0) {
-        //     std::cout << "[LEADER] Loop dt: " << loop_dt 
-        //               << " ms | UDP Rx Age: " << udp_rx_age 
-        //               << " ms | UDP Send latency: " << send_dt << " ms\n";
-               
             std::cout << std::fixed << std::setprecision(3);
+
+            std::cout << "[LEADER] Loop dt: " << loop_dt 
+                      // << " ms | UDP teleop Age: " << udp_teleop_age 
+                      << " ms | UDP Send latency: " << send_dt << " ms\n";
+               
             std::cout << "  -> LEADER JP:      [" << sendJpMsg.transpose() << "]\n";
             // std::cout << "  -> TX JV:      [" << sendJvMsg.transpose() << "]\n";
             // std::cout << "  -> TX ExtTrq:  [" << sendExtTorqueMsg.transpose() << "]\n";
@@ -280,7 +277,7 @@ class Leader : public barrett::systems::System {
     std::mutex state_mutex;
     jp_type joint_positions;
     LeaderUDPHandler<DOF> udp_handler;
-    const std::chrono::milliseconds TIMEOUT_DURATION = std::chrono::milliseconds(8);
+    const std::chrono::milliseconds TIMEOUT_DURATION = std::chrono::milliseconds(10);
 
     // Gains you had
     Eigen::Matrix<double, DOF, 1> kp;

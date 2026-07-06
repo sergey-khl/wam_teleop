@@ -3,6 +3,7 @@
 #include <boost/asio.hpp>
 #include <boost/optional.hpp>
 #include <atomic>
+#include <deque>
 #include <condition_variable>
 #include <mutex>
 #include <string>
@@ -21,7 +22,7 @@ public:
     using PolicyPacketType = PolicyPacket<DOF>;
     using TeleopReceivedData = FollowerReceivedData<DOF>;
 
-    FollowerUDPHandler(const std::string& leader_host, int leader_send, int leader_recv,
+    FollowerUDPHandler(const std::string& leader_host, int teleop_send, int teleop_recv,
                         bool recording,
                         const std::string& policy_host = "127.0.0.1", int policy_send = 6000, int policy_recv = 6001);
     ~FollowerUDPHandler();
@@ -49,6 +50,10 @@ public:
     void disableInference();
 
 private:
+    static constexpr double CHUNK_DURATION_SEC = 2.0;
+    static constexpr double INTERP_HZ = 500.0;
+    static constexpr size_t NUM_INTERP_SAMPLES = static_cast<size_t>(INTERP_HZ * CHUNK_DURATION_SEC);
+
     std::atomic<bool> stop_threads;
 
     boost::asio::io_context io_context;
@@ -84,11 +89,14 @@ private:
     boost::optional<TeleopReceivedData> latest_teleop_received;
     boost::optional<PolicyReceivedData> latest_policy_received;
 
+    std::deque<PolicyReceivedData> policy_action_queue;
+
     void teleopReceiveLoop();
     void policyReceiveLoop();
     void teleopSendLoop();
     void policySendLoop();
 
     static TeleopReceivedData unpackTeleopPacket(const TeleopRecvPacket& pkt);
-    static PolicyReceivedData unpackPolicyPacket(const PolicyActionPacket& pkt);
+    static std::deque<PolicyReceivedData> interpolateChunk(const PolicyActionChunkPacket& pkt, uint64_t recv_time_ns);
+    static PolicyReceivedData zeroAction();
 };

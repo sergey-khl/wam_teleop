@@ -3,11 +3,11 @@
 #include <cstring>
 
 template <size_t DOF>
-LeaderUDPHandler<DOF>::LeaderUDPHandler(const std::string& follower_host, int follower_send, int follower_recv)
+LeaderUDPHandler<DOF>::LeaderUDPHandler(const std::string& follower_host, int teleop_send, int teleop_recv)
     : stop_threads(false)
     , send_socket(io_context, boost::asio::ip::udp::v4())
-    , recv_socket(io_context, boost::asio::ip::udp::endpoint(boost::asio::ip::udp::v4(), follower_recv))
-    , follower_endpoint(boost::asio::ip::make_address(follower_host), follower_send) {
+    , recv_socket(io_context, boost::asio::ip::udp::endpoint(boost::asio::ip::udp::v4(), teleop_recv))
+    , follower_endpoint(boost::asio::ip::make_address(follower_host), teleop_send) {
 
     recv_thread = std::thread(&LeaderUDPHandler::receiveLoop, this);
     send_thread = std::thread(&LeaderUDPHandler::sendLoop, this);
