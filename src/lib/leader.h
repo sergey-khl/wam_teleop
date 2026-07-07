@@ -69,7 +69,7 @@ class Leader : public barrett::systems::System {
         maxStiffness     = config.leader.haptics.maxStiffness;
         alpha            = config.leader.haptics.alpha;
 
-        last_op_time = std::chrono::high_resolution_clock::now();
+        last_op_time = std::chrono::steady_clock::now();
 
         if (em != NULL) {
             em->startManaging(*this);
@@ -122,7 +122,7 @@ class Leader : public barrett::systems::System {
     float alpha;
 
     int loop_counter = 0;
-    std::chrono::time_point<std::chrono::high_resolution_clock> last_op_time;
+    std::chrono::time_point<std::chrono::steady_clock> last_op_time;
 
     // Network payloads: arm (DOF)
     Eigen::Matrix<double, DOF, 1> sendJpMsg;
@@ -133,7 +133,7 @@ class Leader : public barrett::systems::System {
     using TeleopReceivedData = typename LeaderUDPHandler<DOF>::TeleopReceivedData;
 
     virtual void operate() {
-        auto now_op = std::chrono::high_resolution_clock::now();
+        auto now_op = std::chrono::steady_clock::now();
         double loop_dt = std::chrono::duration<double, std::milli>(now_op - last_op_time).count();
         last_op_time = now_op;
 
@@ -153,7 +153,7 @@ class Leader : public barrett::systems::System {
 
         // Receive (non-blocking)
         boost::optional<TeleopReceivedData> received_data = udp_handler.getLatestTeleopReceived();
-        uint64_t now_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::high_resolution_clock::now().time_since_epoch()).count();
+        uint64_t now_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
         uint64_t timeout_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(TIMEOUT_DURATION).count();
         double udp_teleop_age = 0.0;
         if (received_data && (now_ns >= received_data->timestamp) && (now_ns - received_data->timestamp <= timeout_ns)) {
@@ -209,9 +209,9 @@ class Leader : public barrett::systems::System {
 
         uint64_t loop_start = std::chrono::duration_cast<std::chrono::nanoseconds>(now_op.time_since_epoch()).count();
 
-        auto send_start = std::chrono::high_resolution_clock::now();
+        auto send_start = std::chrono::steady_clock::now();
         udp_handler.send(sendJpMsg, sendJvMsg, sendExtTorqueMsg, static_cast<double>(desired_gripper_vel.load()), loop_start); // we send the start of theoperation loop when we collect our leader data
-        auto send_end = std::chrono::high_resolution_clock::now();
+        auto send_end = std::chrono::steady_clock::now();
         double send_dt = std::chrono::duration<double, std::milli>(send_end - send_start).count();
 
         if (++loop_counter % 500 == 0) {

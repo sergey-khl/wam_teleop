@@ -153,7 +153,7 @@ std::deque<PolicyReceivedData> FollowerUDPHandler<DOF>::interpolateChunk(
             rd.cart_rot[k] = a.cart_rot[k] + alpha * (b.cart_rot[k] - a.cart_rot[k]);
         }
         rd.gripper_cmd = a.gripper_cmd + alpha * (b.gripper_cmd - a.gripper_cmd);
-        rd.timestamp = recv_time_ns + j * dt_ns;
+        rd.timestamp = recv_time_ns;
 
         queue.push_back(rd);
     }
@@ -193,7 +193,7 @@ void FollowerUDPHandler<DOF>::policyReceiveLoop() {
             continue;
 
         uint64_t recv_time_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(
-            std::chrono::high_resolution_clock::now().time_since_epoch()).count();
+            std::chrono::steady_clock::now().time_since_epoch()).count();
 
         std::deque<PolicyReceivedData> new_queue = interpolateChunk(pkt, recv_time_ns);
 
