@@ -108,7 +108,6 @@ template <size_t DOF>
 boost::optional<PolicyReceivedData> FollowerUDPHandler<DOF>::getLatestPolicyReceived() {
     std::lock_guard<std::mutex> lock(state_mutex);
     if (policy_action_queue.empty()) {
-        std::cout << "policy action queue empty" << std::endl;
         return boost::none;
     }
     PolicyReceivedData rd = policy_action_queue.front();
