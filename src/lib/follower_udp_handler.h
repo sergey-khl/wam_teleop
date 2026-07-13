@@ -50,7 +50,7 @@ public:
     void disableInference();
 
 private:
-    static constexpr double CHUNK_DURATION_SEC = 3.0;
+    static constexpr double CHUNK_DURATION_SEC = 20.0;
     static constexpr double INTERP_HZ = 500.0;
     static constexpr size_t NUM_INTERP_SAMPLES = static_cast<size_t>(INTERP_HZ * CHUNK_DURATION_SEC);
 

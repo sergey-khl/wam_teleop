@@ -147,9 +147,10 @@ std::deque<PolicyReceivedData> FollowerUDPHandler<DOF>::interpolateChunk(
         const RawAction& b = pkt.actions[idx1];
 
         PolicyReceivedData rd;
-        for (int k = 0; k < 3; ++k) {
-            rd.cart_pos[k] = a.cart_pos[k] + alpha * (b.cart_pos[k] - a.cart_pos[k]);
-            rd.cart_rot[k] = a.cart_rot[k] + alpha * (b.cart_rot[k] - a.cart_rot[k]);
+        for (int k = 0; k < 7; ++k) {
+            // rd.cart_pos[k] = a.cart_pos[k] + alpha * (b.cart_pos[k] - a.cart_pos[k]);
+            // rd.cart_rot[k] = a.cart_rot[k] + alpha * (b.cart_rot[k] - a.cart_rot[k]);
+            rd.jp[k] = a.jp[k] + alpha * (b.jp[k] - a.jp[k]);
         }
         rd.gripper_cmd = a.gripper_cmd + alpha * (b.gripper_cmd - a.gripper_cmd);
         rd.timestamp = recv_time_ns;

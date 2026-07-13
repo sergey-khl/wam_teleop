@@ -37,6 +37,7 @@ class Follower : public barrett::systems::System {
     Output<jp_type> theirJPOutput;
     Output<cf_type> policyToolForceOutput;
     Output<ct_type> policyToolTorqueOutput;
+    Output<jp_type> policyJpOutput;
 
     std::atomic<bool> linked;
     std::atomic<bool> inference_enabled;
@@ -62,6 +63,7 @@ class Follower : public barrett::systems::System {
         , theirJPOutput(this, &theirJPOutputValue)
         , policyToolForceOutput(this, &policyToolForceValue)
         , policyToolTorqueOutput(this, &policyToolTorqueValue)
+        , policyJpOutput(this, &policyJpOutputValue)
         , udp_handler(config.network.leader_host, config.network.teleop_recv, config.network.teleop_send, 
                       config.network.recording, config.network.policy_host, config.network.policy_send, config.network.policy_recv)
         , gripper(gripper)
@@ -122,6 +124,7 @@ class Follower : public barrett::systems::System {
     typename Output<jp_type>::Value* theirJPOutputValue;
     typename Output<cf_type>::Value* policyToolForceValue;
     typename Output<ct_type>::Value* policyToolTorqueValue;
+    typename Output<jp_type>::Value* policyJpOutputValue;
     jp_type wamJP;
     jv_type wamJV;
     boost::tuple<cp_type, Eigen::Quaterniond> wamTP;
@@ -129,6 +132,7 @@ class Follower : public barrett::systems::System {
     jt_type wamGrav;
     jt_type wamDyn;
     jt_type policyJt;
+    jp_type policyJp;
     Eigen::Matrix<double, DOF, 1> sendJpMsg;
     Eigen::Matrix<double, DOF, 1> sendJvMsg;
     Eigen::Matrix<double, DOF, 1> sendExtTorqueMsg;
@@ -208,24 +212,19 @@ class Follower : public barrett::systems::System {
         }
 
         // inference
-        boost::optional<PolicyReceivedData> policy_data = udp_handler.getLatestPolicyReceived();
-        now_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
-        timeout_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(INFERENCE_TIMEOUT_DURATION).count();
-        double udp_policy_age = 0.0;
-        if (policy_data && (now_ns >= policy_data->timestamp) && (now_ns - policy_data->timestamp <= timeout_ns)) {
+        if (isInference()) {
+            boost::optional<PolicyReceivedData> policy_data = udp_handler.getLatestPolicyReceived();
+            now_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
+            timeout_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(INFERENCE_TIMEOUT_DURATION).count();
+            double udp_policy_age = 0.0;
+            if (policy_data && (now_ns >= policy_data->timestamp) && (now_ns - policy_data->timestamp <= timeout_ns)) {
 
-            // from inference we directly get the tool force and tool torque. Calculated in openpi policy repo
-            policyToolForce << policy_data->cart_pos.x(), policy_data->cart_pos.y(), policy_data->cart_pos.z();
-            policyToolTorque << policy_data->cart_rot.x(), policy_data->cart_rot.y(), policy_data->cart_rot.z();
+                // from inference we directly get the tool force and tool torque. Calculated in openpi policy repo
+                // policyToolForce << policy_data->cart_pos.x(), policy_data->cart_pos.y(), policy_data->cart_pos.z();
+                // policyToolTorque << policy_data->cart_rot.x(), policy_data->cart_rot.y(), policy_data->cart_rot.z();
+                policyJp << policy_data->jp;
 
-            policy_gripper_cmd.store(static_cast<double>(policy_data->gripper_cmd));
-        } else {
-            if (isInference()) {
-                udp_policy_age = static_cast<double>(now_ns - policy_data->timestamp) / 1000000.0;
-
-                std::cout << "lost policy with age " << udp_policy_age << " | " <<  static_cast<double>(now_ns) << " | " << static_cast<double>(policy_data->timestamp)  << std::endl;
-                inference_enabled.store(false);
-
+                policy_gripper_cmd.store(static_cast<double>(policy_data->gripper_cmd));
             }
         }
 
@@ -234,22 +233,30 @@ class Follower : public barrett::systems::System {
             // TOOD: make this actually work
             control.setZero();
             jtOutputValue->setData(&control);
+            policyJpOutputValue->setData(&wamJP);
         } else if (isLinked()) { // teleop only
             control = compute_teleop_control(theirJp, theirJv, theirExtTorque, wamJP, wamJV, extTorque, wamGrav, wamDyn);
             jtOutputValue->setData(&control);
+            policyJpOutputValue->setData(&wamJP);
         } else if (isInference()) { // inference only
-            for (size_t i = 0; i < DOF; ++i) {
-                policyControl[i] = std::max(-2.0, std::min(2.0, policyJt[i]));
-            }
-            // policyControl[1] *= 2;
-            // policyControl[3] /= 2;
-            policyControl[4] = 0;
-            policyControl[5] = 0;
-            policyControl[6] = 0;
-            jtOutputValue->setData(&policyControl);
+            // roughly torque maxes we want: [0.15]
+            // ext when sitting at home: [-0.005 -3.734  0.473  1.878  0.019 -0.785  0.017]
+            // for (size_t i = 0; i < DOF; ++i) {
+            //     policyControl[i] = std::max(-2.0, std::min(2.0, policyJt[i]));
+            // }
+            // // policyControl[1] *= 2;
+            // // policyControl[3] /= 2;
+            // policyControl[4] = 0;
+            // policyControl[5] = 0;
+            // policyControl[6] = 0;
+            // policyControl << 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0;
+            // jtOutputValue->setData(&policyControl);
+            policyControl << policyJp;
+            policyJpOutputValue->setData(&policyControl);
         } else {
             control.setZero();
             jtOutputValue->setData(&control);
+            policyJpOutputValue->setData(&wamJP);
         }
 
         jpOutputValue->setData(&wamJP);
@@ -277,8 +284,9 @@ class Follower : public barrett::systems::System {
             // std::cout << "  -> FOLLOWER JP:      [" << sendJpMsg.transpose() << "]\n";
             // std::cout << "  -> LEADER JP:  " << theirJp.transpose() << "\n\n";
             // std::cout << "  -> TX JV:      [" << sendJvMsg.transpose() << "]\n";
-            std::cout << "  -> TX ExtTrq:  [" << sendExtTorqueMsg.transpose() << "]\n";
-            std::cout << "  -> control: [" << compute_teleop_control(theirJp, theirJv, theirExtTorque, wamJP, wamJV, extTorque, wamGrav, wamDyn) << "]\n\n";
+            // std::cout << "  -> TX ExtTrq:  [" << sendExtTorqueMsg.transpose() << "]\n";
+            // std::cout << "  -> control: [" << compute_teleop_control(theirJp, theirJv, theirExtTorque, wamJP, wamJV, extTorque, wamGrav, wamDyn) << "]\n\n";
+            // std::cout << "  -> applied: [" << (sendExtTorqueMsg + compute_teleop_control(theirJp, theirJv, theirExtTorque, wamJP, wamJV, extTorque, wamGrav, wamDyn)).transpose() << "]\n\n";
             // std::cout << "  -> TX MeasTrq: [" << control << "]\n";
             // std::cout << "  -> inf: [" << isInference() << "]\n";
             // std::cout << "  -> teleop: [" << isLinked() << "]\n\n";
@@ -287,6 +295,7 @@ class Follower : public barrett::systems::System {
             // std::cout << "  -> ref:  " << theirExtTorque.transpose() << "\n\n";
             // std::cout << "  -> P control:      [" << policyControl.transpose() << "]\n";
             // std::cout << "  -> P JT:      [" << policyJt.transpose() << "]\n";
+            // std::cout << "  -> P JP:      [" << policyJp.transpose() << "]\n";
             // std::cout << "  -> P T Force:      [" << policyToolForce.transpose() << "]\n\n";
             // std::cout << "  -> P T Torque:      [" << policyToolTorque.transpose() << "]\n\n";
             // std::cout << "  -> P G:      [" << policy_gripper_pos.load() << "]\n\n";
@@ -299,7 +308,8 @@ class Follower : public barrett::systems::System {
     cf_type policyToolForce;
     ct_type policyToolTorque;
     jt_type control;
-    jt_type policyControl;
+    // jt_type policyControl;
+    jp_type policyControl;
     jv_type prevError_;
 
     void pollGripper() {
