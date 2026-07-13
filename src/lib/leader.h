@@ -217,20 +217,21 @@ class Leader : public barrett::systems::System {
         if (++loop_counter % 500 == 0) {
             std::cout << std::fixed << std::setprecision(3);
 
-            std::cout << "[LEADER] Loop dt: " << loop_dt 
-                      // << " ms | UDP teleop Age: " << udp_teleop_age 
-                      << " ms | UDP Send latency: " << send_dt << " ms\n";
+            // std::cout << "[LEADER] Loop dt: " << loop_dt 
+            //           // << " ms | UDP teleop Age: " << udp_teleop_age 
+            //           << " ms | UDP Send latency: " << send_dt << " ms\n";
                
-            std::cout << "  -> LEADER JP:      [" << sendJpMsg.transpose() << "]\n";
+            // std::cout << "  -> LEADER JP:      [" << sendJpMsg.transpose() << "]\n";
+            // std::cout << " FOLLOWER -> :  " << theirJp.transpose() << "\n\n";
+            // std::cout << "  -> leader ExtTrq:  [" << sendExtTorqueMsg.transpose() << "]\n";
+            // std::cout << "  -> leader control: [" << compute_control(theirJp, theirJv, theirExtTorque, wamJP, wamJV, extTorque, wamGrav, wamDyn) << "]\n\n";
             // std::cout << "  -> TX JV:      [" << sendJvMsg.transpose() << "]\n";
-            // std::cout << "  -> TX ExtTrq:  [" << sendExtTorqueMsg.transpose() << "]\n";
             // std::cout << "  -> TX MeasTrq: [" << sendMeasTorqueMsg.transpose() << "]\n";
             // std::cout << "  -> TX GrpVel:  " << desired_gripper_vel.load() << "\n";
             // std::cout << "  -> Their wrist:  " << theirWristJp.transpose() << "\n";
             // std::cout << "  -> My wrist:  " << wristJP.transpose() << "\n\n";
             // std::cout << "  -> leader ext:  " << extTorque.transpose() << "\n";
             // std::cout << "  -> ref:  " << theirExtTorque.transpose() << "\n\n";
-            std::cout << " FOLLOWER -> :  " << theirJp.transpose() << "\n\n";
             // std::cout << "  -> Tool Pos:  [" << toolPos.transpose() << "]\n";
             // std::cout << "  -> Tool Quat: [" << toolQ.w() << " " << toolQ.x() << " " << toolQ.y() << " " << toolQ.z() << "]\n\n";
         }

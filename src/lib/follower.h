@@ -274,11 +274,11 @@ class Follower : public barrett::systems::System {
                       // << " ms | UDP Rx Age: " << udp_rx_age 
                       // << " ms | UDP Send latency: " << send_dt << " ms\n";
 
-            std::cout << "  -> FOLLOWER JP:      [" << sendJpMsg.transpose() << "]\n";
-            std::cout << "  -> LEADER JP:  " << theirJp.transpose() << "\n\n";
+            // std::cout << "  -> FOLLOWER JP:      [" << sendJpMsg.transpose() << "]\n";
+            // std::cout << "  -> LEADER JP:  " << theirJp.transpose() << "\n\n";
             // std::cout << "  -> TX JV:      [" << sendJvMsg.transpose() << "]\n";
-            // std::cout << "  -> TX ExtTrq:  [" << sendExtTorqueMsg.transpose() << "]\n";
-            // std::cout << "  -> TX MeasTrq: [" << compute_policy_control(policyJp, policyJv, policyExtTorque, wamJP, wamJV, extTorque, wamGrav, wamDyn, loop_dt) << "]\n\n";
+            std::cout << "  -> TX ExtTrq:  [" << sendExtTorqueMsg.transpose() << "]\n";
+            std::cout << "  -> control: [" << compute_teleop_control(theirJp, theirJv, theirExtTorque, wamJP, wamJV, extTorque, wamGrav, wamDyn) << "]\n\n";
             // std::cout << "  -> TX MeasTrq: [" << control << "]\n";
             // std::cout << "  -> inf: [" << isInference() << "]\n";
             // std::cout << "  -> teleop: [" << isLinked() << "]\n\n";
