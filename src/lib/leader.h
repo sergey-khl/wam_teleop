@@ -32,7 +32,7 @@ class Leader : public barrett::systems::System {
     Input<jt_type> wamDynIn;
 
     // Outputs (same as your first file)
-    Output<jt_type> wamJPOutput;      // control torque command for the WAM arm (DOF)
+    Output<jt_type> wamJTOutput;      // control torque command for the WAM arm (DOF)
     Output<jp_type> theirJPOutput;    // peer arm JP (DOF) for logging/monitoring
 
     std::atomic<bool> linked;
@@ -53,7 +53,7 @@ class Leader : public barrett::systems::System {
         , extTorqueIn(this)
         , wamGravIn(this)
         , wamDynIn(this)
-        , wamJPOutput(this, &jtOutputValue)
+        , wamJTOutput(this, &jtOutputValue)
         , theirJPOutput(this, &theirJPOutputValue)
         , udp_handler(config.network.follower_host, config.network.teleop_send, config.network.teleop_recv)
         , handle(handle)
@@ -128,7 +128,6 @@ class Leader : public barrett::systems::System {
     Eigen::Matrix<double, DOF, 1> sendJpMsg;
     Eigen::Matrix<double, DOF, 1> sendJvMsg;
     Eigen::Matrix<double, DOF, 1> sendExtTorqueMsg;
-    Eigen::Matrix<double, DOF, 1> sendMeasTorqueMsg;
 
     using TeleopReceivedData = typename LeaderUDPHandler<DOF>::TeleopReceivedData;
 
@@ -194,18 +193,17 @@ class Leader : public barrett::systems::System {
 
         // State machine
         if (isLinked()) {
-            control = compute_control(
-                theirJp, theirJv, theirExtTorque,
-                wamJP,   wamJV,   extTorque,
-                wamGrav, wamDyn
-            );
+            // control = compute_control(
+            //     theirJp, theirJv, theirExtTorque,
+            //     wamJP,   wamJV,   extTorque,
+            //     wamGrav, wamDyn
+            // );
+            control.setZero();
             jtOutputValue->setData(&control);
         } else {
             control.setZero();
             jtOutputValue->setData(&control);
         }
-
-        sendMeasTorqueMsg << control;
 
         uint64_t loop_start = std::chrono::duration_cast<std::chrono::nanoseconds>(now_op.time_since_epoch()).count();
 
@@ -223,10 +221,9 @@ class Leader : public barrett::systems::System {
                
             // std::cout << "  -> LEADER JP:      [" << sendJpMsg.transpose() << "]\n";
             // std::cout << " FOLLOWER -> :  " << theirJp.transpose() << "\n\n";
-            // std::cout << "  -> leader ExtTrq:  [" << sendExtTorqueMsg.transpose() << "]\n";
-            // std::cout << "  -> leader control: [" << compute_control(theirJp, theirJv, theirExtTorque, wamJP, wamJV, extTorque, wamGrav, wamDyn) << "]\n\n";
+            std::cout << "  -> leader ExtTrq:  [" << sendExtTorqueMsg.transpose() << "]\n";
+            std::cout << "  -> leader control: [" << compute_control(theirJp, theirJv, theirExtTorque, wamJP, wamJV, extTorque, wamGrav, wamDyn) << "]\n\n";
             // std::cout << "  -> TX JV:      [" << sendJvMsg.transpose() << "]\n";
-            // std::cout << "  -> TX MeasTrq: [" << sendMeasTorqueMsg.transpose() << "]\n";
             // std::cout << "  -> TX GrpVel:  " << desired_gripper_vel.load() << "\n";
             // std::cout << "  -> Their wrist:  " << theirWristJp.transpose() << "\n";
             // std::cout << "  -> My wrist:  " << wristJP.transpose() << "\n\n";
@@ -291,7 +288,8 @@ class Leader : public barrett::systems::System {
                             const jt_type& cur_grav, const jt_type& cur_dyn) {
 
         jt_type u1 = 0.0 * cur_extTorque;                        // zero FF (P-P + g-comp only if you add it)
-        jt_type u2 = cur_dyn - cur_grav;                          // P-P with dynamic comp (your comment)
+        // jt_type u2 = cur_dyn - cur_grav;                          // P-P with dynamic comp (your comment)
+        jt_type u2 = - cur_grav;                          // P-P with dynamic comp (your comment)
         jt_type u3 = -0.5 * ref_extTorque;                        // PF-PF (ref ext torque FF)
         jt_type u4 = -0.1 * ref_extTorque + cur_dyn - cur_grav;   // PF-PF + dyn comp (Lawrence ideal)
         jt_type u5 = -0.5 * ref_extTorque - 0.15 * (ref_extTorque + cur_extTorque);
@@ -302,6 +300,6 @@ class Leader : public barrett::systems::System {
         jt_type u8 = -0.25 * (ref_extTorque + cur_extTorque);
 
         // Default: u4 as you had
-        return u1;
+        return u2;
     };
 };

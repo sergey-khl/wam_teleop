@@ -6,7 +6,7 @@
 
 template <size_t DOF>
 FollowerUDPHandler<DOF>::FollowerUDPHandler(const std::string& leader_host, int teleop_send, int teleop_recv,
-                                              bool recording,
+                                              bool policy_send_active,
                                               const std::string& policy_host, int policy_send, int policy_recv)
     : stop_threads(false)
     , teleop_send_socket(io_context, boost::asio::ip::udp::v4())
@@ -15,11 +15,8 @@ FollowerUDPHandler<DOF>::FollowerUDPHandler(const std::string& leader_host, int 
     , policy_recv_socket(io_context, boost::asio::ip::udp::endpoint(boost::asio::ip::udp::v4(), policy_recv))
     , leader_endpoint(boost::asio::ip::make_address(leader_host), teleop_send)
     , policy_endpoint(boost::asio::ip::make_address(policy_host), policy_send)
-    , recording(recording)
-    , inference_active(false)
+    , policy_send_active(policy_send_active)
     , policy_recv_port(policy_recv) {
-
-    policy_send_active = recording;
 
     teleop_recv_thread = std::thread(&FollowerUDPHandler::teleopReceiveLoop, this);
     teleop_send_thread = std::thread(&FollowerUDPHandler::teleopSendLoop, this);
@@ -57,45 +54,6 @@ void FollowerUDPHandler<DOF>::stop() {
     if (policy_recv_thread.joinable()) policy_recv_thread.join();
     if (teleop_send_thread.joinable()) teleop_send_thread.join();
     if (policy_send_thread.joinable()) policy_send_thread.join();
-}
-
-template <size_t DOF>
-void FollowerUDPHandler<DOF>::enableInference() {
-    std::lock_guard<std::mutex> lock(inference_state_mutex);
-    if (inference_active) return;
-
-    // policy_recv_thread = std::thread(&FollowerUDPHandler::policyReceiveLoop, this);
-
-    inference_active = true;
-    {
-        std::lock_guard<std::mutex> send_lock(policy_send_mutex);
-        policy_send_active = recording || inference_active;
-    }
-}
-
-template <size_t DOF>
-void FollowerUDPHandler<DOF>::disableInference() {
-    {
-        std::lock_guard<std::mutex> lock(inference_state_mutex);
-        if (!inference_active) return;
-
-        // if (policy_recv_socket.is_open()) {
-        //     policy_recv_socket.cancel();
-        //     policy_recv_socket.close();
-        // }
-        //
-        inference_active = false;
-        {
-            std::lock_guard<std::mutex> send_lock(policy_send_mutex);
-            policy_send_active = recording || inference_active;
-        }
-
-        std::lock_guard<std::mutex> state_lock(state_mutex);
-        latest_policy_received = boost::none;
-    }
-    // if (policy_recv_thread.joinable()) {
-    //     policy_recv_thread.join();
-    // }
 }
 
 template <size_t DOF>
@@ -156,16 +114,10 @@ std::deque<PolicyReceivedData> FollowerUDPHandler<DOF>::interpolateChunk(
         }
         rd.gripper_cmd = a.gripper_cmd + alpha * (b.gripper_cmd - a.gripper_cmd);
 
-        // if (pos >= 2) { // avoiding overflow
-        // rd.timestamp = inference_timestamp_ns + static_cast<uint64_t>(pos * policy_dt_ns - 2 * policy_dt_ns);
-        // } else {
-        //     rd.timestamp = inference_timestamp_ns;
-        // }
         rd.timestamp = inference_timestamp_ns + static_cast<uint64_t>(pos * policy_dt_ns) - static_cast<uint64_t>(2 * policy_dt_ns);
 
 
         // only add an action if it is around the current time or in the future.
-        // Note, as part of the actions we include the n_obs_dim for better interpoltation so this if check handles this case
         if (frac > 0.4) {
             // std::cout << "  adding " << rd.jp.transpose() << " | at frac " << frac << " | setting offset: " << static_cast<uint64_t>(rd.timestamp - now_ns) / 1e9 << std::endl;
             queue.push_back(rd);

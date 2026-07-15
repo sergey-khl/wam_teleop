@@ -7,7 +7,7 @@ network:
   policy_host: "127.0.0.1"
   policy_send: 6554
   policy_recv: 6666
-  recording: true
+  policy_send_active: true
 
 sync_mapping:
   scales:  [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]

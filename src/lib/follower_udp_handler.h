@@ -23,7 +23,7 @@ public:
     using TeleopReceivedData = FollowerReceivedData<DOF>;
 
     FollowerUDPHandler(const std::string& leader_host, int teleop_send, int teleop_recv,
-                        bool recording,
+                        bool policy_send_active,
                         const std::string& policy_host = "127.0.0.1", int policy_send = 6000, int policy_recv = 6001);
     ~FollowerUDPHandler();
 
@@ -46,9 +46,6 @@ public:
                        double gripper_pos, double gripper_vel, double gripper_torque,
                        uint64_t timestamp);
 
-    void enableInference();
-    void disableInference();
-
 private:
     static constexpr double CHUNK_DURATION_SEC = 1.5;
     static constexpr double INTERP_HZ = 500.0;
@@ -66,10 +63,8 @@ private:
     boost::asio::ip::udp::endpoint leader_endpoint;
     boost::asio::ip::udp::endpoint policy_endpoint;
 
-    bool recording;
-    bool inference_active;
+    bool policy_send_active;
     int policy_recv_port;
-    std::mutex inference_state_mutex;
 
     std::thread teleop_recv_thread;
     std::thread policy_recv_thread;
@@ -85,7 +80,6 @@ private:
 
     PolicyPacketType pending_policy_packet;
     bool new_policy_data = false;
-    bool policy_send_active = false;   // recording || inference_active
 
     boost::optional<TeleopReceivedData> latest_teleop_received;
     boost::optional<PolicyReceivedData> latest_policy_received;

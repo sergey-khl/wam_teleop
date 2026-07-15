@@ -154,14 +154,15 @@ int wam_main(int argc, char **argv, ProductManager &pm, systems::Wam<DOF> &wam) 
 
     systems::connect(wam.jpOutput, leader.wamJPIn);
     systems::connect(wam.jvOutput, leader.wamJVIn);
+    systems::connect(extFilter.output, leader.extTorqueIn);
     // systems::connect(dynamicExtFilter.output, leader.extTorqueIn);
-    systems::connect(dynamicExternalTorque.wamExternalTorqueOut, leader.extTorqueIn);
+    // systems::connect(dynamicExternalTorque.wamExternalTorqueOut, leader.extTorqueIn);
 
     systems::connect(wam.jpOutput, leaderDynamics.jpInputDynamics);
     systems::connect(wam.jvOutput, leaderDynamics.jvInputDynamics);
     // systems::connect(zeroAcceleration.output, leaderDynamics.jaInputDynamics);
 
-    systems::connect(leader.wamJPOutput, customjtSum.getInput(0));
+    systems::connect(leader.wamJTOutput, customjtSum.getInput(0));
     systems::connect(wam.gravity.output, customjtSum.getInput(1));
     systems::connect(wam.supervisoryController.output, customjtSum.getInput(2));
 
@@ -175,6 +176,7 @@ int wam_main(int argc, char **argv, ProductManager &pm, systems::Wam<DOF> &wam) 
     } else {
         systems::connect(leaderDynamics.dynamicsFeedFWD, dynamicExternalTorque.wamDynamicsIn);
         systems::connect(dynamicExternalTorque.wamExternalTorqueOut, dynamicExtFilter.input);
+        systems::connect(customjtSum.output, extFilter.input);
     }
 
     systems::connect(wam.gravity.output, leader.wamGravIn);
@@ -190,7 +192,7 @@ int wam_main(int argc, char **argv, ProductManager &pm, systems::Wam<DOF> &wam) 
 
     // Optional prints (leave commented to avoid loop jitter)
     // systems::connect(dynamicExternalTorque.wamExternalTorqueOut, printdynamicextTorque.input);
-    systems::connect(extFilter.output, printextTorque.input);
+    // systems::connect(extFilter.output, printextTorque.input);
     // systems::connect(dynamicExtFilter.output, printextTorque.input);
     // systems::connect(wam.supervisoryController.output, printSC.input);
     // systems::connect(leaderDynamics.dynamicsFeedFWD, printdynamicoutput.input);
@@ -222,7 +224,7 @@ int wam_main(int argc, char **argv, ProductManager &pm, systems::Wam<DOF> &wam) 
                 if (leader.isLinked()) {
                     // Track peer’s arm joints (Leader publishes them)
                     wam.trackReferenceSignal(leader.theirJPOutput);
-                    connect(leader.wamJPOutput, wam.input);
+                    connect(leader.wamJTOutput, wam.input);
                     printf("Linked with remote WAM.\n");
                 } else {
                     printf("WARNING: Linking was unsuccessful.\n");

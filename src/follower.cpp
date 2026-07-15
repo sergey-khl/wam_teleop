@@ -331,7 +331,8 @@ template <size_t DOF> int wam_main(int argc, char **argv, ProductManager &pm, sy
 
         default:
             printf("\n");
-            printf("    'l'  start/stop (teleop in mode 0, teleop in mode 1 (with data recording), inference in mode 2 (with data recording)\n");
+            printf("    'l'  start/stop teleop linking. press enter for both robots after they are in linking position\n");
+            printf("    'p'  start/stop policy on follower\n");
             printf("    't'  tune control gains\n");
             printf("    'x'  exit\n");
             printf("\n");

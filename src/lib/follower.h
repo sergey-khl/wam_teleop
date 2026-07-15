@@ -65,7 +65,7 @@ class Follower : public barrett::systems::System {
         , policyToolTorqueOutput(this, &policyToolTorqueValue)
         , policyJpOutput(this, &policyJpOutputValue)
         , udp_handler(config.network.leader_host, config.network.teleop_recv, config.network.teleop_send, 
-                      config.network.recording, config.network.policy_host, config.network.policy_send, config.network.policy_recv)
+                      config.network.policy_send_active, config.network.policy_host, config.network.policy_send, config.network.policy_recv)
         , gripper(gripper)
         , target_gripper_vel(0.0f)
         , current_gripper_pos(0.0f)
@@ -108,14 +108,12 @@ class Follower : public barrett::systems::System {
             BARRETT_SCOPED_LOCK(this->getEmMutex());
             inference_enabled.store(true);
         }
-        udp_handler.enableInference();
     }
     void disableInference() {
         {
             BARRETT_SCOPED_LOCK(this->getEmMutex());
             inference_enabled.store(false);
         }
-        udp_handler.disableInference();
     }
 
   protected:
@@ -252,7 +250,8 @@ class Follower : public barrett::systems::System {
             jtOutputValue->setData(&control);
             policyJpOutputValue->setData(&wamJP);
         } else if (isLinked()) { // teleop only
-            control = compute_teleop_control(theirJp, theirJv, theirExtTorque, wamJP, wamJV, extTorque, wamGrav, wamDyn);
+            // control = compute_teleop_control(theirJp, theirJv, theirExtTorque, wamJP, wamJV, extTorque, wamGrav, wamDyn);
+            control.setZero();
             jtOutputValue->setData(&control);
             policyJpOutputValue->setData(&wamJP);
         } else if (isInference()) { // inference only
@@ -298,11 +297,11 @@ class Follower : public barrett::systems::System {
                       // << " ms | UDP Rx Age: " << udp_rx_age 
                       // << " ms | UDP Send latency: " << send_dt << " ms\n";
 
-            std::cout << "  -> FOLLOWER JP:      [" << sendJpMsg.transpose() << "]\n";
+            // std::cout << "  -> FOLLOWER JP:      [" << sendJpMsg.transpose() << "]\n";
             // std::cout << "  -> LEADER JP:  " << theirJp.transpose() << "\n\n";
             // std::cout << "  -> TX JV:      [" << sendJvMsg.transpose() << "]\n";
-            // std::cout << "  -> TX ExtTrq:  [" << sendExtTorqueMsg.transpose() << "]\n";
-            // std::cout << "  -> control: [" << compute_teleop_control(theirJp, theirJv, theirExtTorque, wamJP, wamJV, extTorque, wamGrav, wamDyn) << "]\n\n";
+            std::cout << "  -> TX ExtTrq:  [" << sendExtTorqueMsg.transpose() << "]\n";
+            std::cout << "  -> control: [" << compute_teleop_control(theirJp, theirJv, theirExtTorque, wamJP, wamJV, extTorque, wamGrav, wamDyn) << "]\n\n";
             // std::cout << "  -> applied: [" << (sendExtTorqueMsg + compute_teleop_control(theirJp, theirJv, theirExtTorque, wamJP, wamJV, extTorque, wamGrav, wamDyn)).transpose() << "]\n\n";
             // std::cout << "  -> TX MeasTrq: [" << control << "]\n";
             // std::cout << "  -> inf: [" << isInference() << "]\n";
@@ -411,9 +410,6 @@ class Follower : public barrett::systems::System {
 
         jt_type u = u2;
 
-        // for (size_t i = 4; i < 7; ++i) {
-        //     u[i] = 0.0;
-        // }
         return u;
     };
 };

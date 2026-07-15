@@ -13,7 +13,7 @@ struct NetworkConfig {
     std::string policy_host;
     int policy_send;
     int policy_recv;
-    bool recording;
+    bool policy_send_active;
 };
 
 struct HapticsConfig {
@@ -49,7 +49,7 @@ template<> struct convert<NetworkConfig> {
         c.policy_host = node["policy_host"].as<std::string>();
         c.policy_send = node["policy_send"].as<int>();
         c.policy_recv = node["policy_recv"].as<int>();
-        c.recording = node["recording"].as<bool>();
+        c.policy_send_active = node["policy_send_active"].as<bool>();
         return true;
     }
 };
