@@ -220,25 +220,28 @@ class Follower : public barrett::systems::System {
             timeout_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(INFERENCE_TIMEOUT_DURATION).count();
             double udp_policy_age = 0.0;
             if (policy_data) {
-                bool policy_within_limits = true;
+                jp_type clipped_jp;
+                clipped_jp << policy_data->jp;
+
+                bool was_clipped = false;
                 for (size_t i = 0; i < DOF; ++i) {
-                    if (std::abs(policy_data->jp[i] - wamJP[i]) > 0.05) {
-                        policy_within_limits = false;
-                        break;
+                    double delta = policy_data->jp[i] - wamJP[i];
+                    if (delta > 0.03) {
+                        clipped_jp[i] = wamJP[i] + 0.03;
+                        was_clipped = true;
+                    } else if (delta < -0.03) {
+                        clipped_jp[i] = wamJP[i] - 0.03;
+                        was_clipped = true;
                     }
                 }
 
-                if (policy_within_limits) {
-                    // from inference we directly get the tool force and tool torque. Calculated in openpi policy repo
-                    // policyToolForce << policy_data->cart_pos.x(), policy_data->cart_pos.y(), policy_data->cart_pos.z();
-                    // policyToolTorque << policy_data->cart_rot.x(), policy_data->cart_rot.y(), policy_data->cart_rot.z();
-                    policyJp << policy_data->jp;
+                std::cout << (was_clipped ? "  CLIPPED " : "  EXECUTING ") << clipped_jp.transpose() << " | diff: " << static_cast<uint64_t>(now_ns - policy_data->timestamp) / 1e9 << std::endl;
 
-                    policy_gripper_cmd.store(static_cast<double>(policy_data->gripper_cmd));
-                }
+                policyJp << clipped_jp;
+                policy_gripper_cmd.store(static_cast<double>(policy_data->gripper_cmd));
             } else {
-                // udp_policy_age = static_cast<double>(now_ns - policy_data->timestamp) / 1000000.0;
-                // std::cout << "No action for policy " << policy_data->jp.transpose() << ". diff: " << udp_policy_age << " | " << now_ns << " | " << policy_data->timestamp << std::endl;
+                udp_policy_age = static_cast<double>(now_ns - policy_data->timestamp) / 1000000.0;
+                std::cout << "No action for policy " << policy_data->jp.transpose() << ". diff: " << udp_policy_age << " | " << now_ns << " | " << policy_data->timestamp << std::endl;
             }
         }
 
@@ -295,10 +298,10 @@ class Follower : public barrett::systems::System {
                       // << " ms | UDP Rx Age: " << udp_rx_age 
                       // << " ms | UDP Send latency: " << send_dt << " ms\n";
 
-            // std::cout << "  -> FOLLOWER JP:      [" << sendJpMsg.transpose() << "]\n";
+            std::cout << "  -> FOLLOWER JP:      [" << sendJpMsg.transpose() << "]\n";
             // std::cout << "  -> LEADER JP:  " << theirJp.transpose() << "\n\n";
             // std::cout << "  -> TX JV:      [" << sendJvMsg.transpose() << "]\n";
-            std::cout << "  -> TX ExtTrq:  [" << sendExtTorqueMsg.transpose() << "]\n";
+            // std::cout << "  -> TX ExtTrq:  [" << sendExtTorqueMsg.transpose() << "]\n";
             // std::cout << "  -> control: [" << compute_teleop_control(theirJp, theirJv, theirExtTorque, wamJP, wamJV, extTorque, wamGrav, wamDyn) << "]\n\n";
             // std::cout << "  -> applied: [" << (sendExtTorqueMsg + compute_teleop_control(theirJp, theirJv, theirExtTorque, wamJP, wamJV, extTorque, wamGrav, wamDyn)).transpose() << "]\n\n";
             // std::cout << "  -> TX MeasTrq: [" << control << "]\n";

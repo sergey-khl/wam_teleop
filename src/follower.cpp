@@ -134,8 +134,6 @@ template <size_t DOF> int wam_main(int argc, char **argv, ProductManager &pm, sy
     systems::PrintToStream<jt_type> printFOR(pm.getExecutionManager(), "FOR: ");
     systems::PrintToStream<jt_type> printTOQ(pm.getExecutionManager(), "TOQ: ");
 
-    // systems::PrintToStream<jt_type> printcustomjtSum(pm.getExecutionManager(), "customjtSum: ");
-
     double h_omega_p = 25.0;
     barrett::systems::FirstOrderFilter<jv_type> hp1;
     hp1.setHighPass(jv_type(h_omega_p), jv_type(h_omega_p));

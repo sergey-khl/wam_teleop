@@ -166,7 +166,7 @@ std::deque<PolicyReceivedData> FollowerUDPHandler<DOF>::interpolateChunk(
 
         // only add an action if it is around the current time or in the future.
         // Note, as part of the actions we include the n_obs_dim for better interpoltation so this if check handles this case
-        if (frac > 0.0) {
+        if (frac > 0.4) {
             // std::cout << "  adding " << rd.jp.transpose() << " | at frac " << frac << " | setting offset: " << static_cast<uint64_t>(rd.timestamp - now_ns) / 1e9 << std::endl;
             queue.push_back(rd);
         } else {
