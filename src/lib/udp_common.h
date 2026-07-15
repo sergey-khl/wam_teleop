@@ -3,7 +3,7 @@
 #include <cstddef>
 #include <Eigen/Dense>
 
-static constexpr size_t ACTION_HORIZON = 8;
+static constexpr size_t ACTION_HORIZON = 16;
 
 // tightly packed layouts
 #pragma pack(push, 1)
@@ -51,7 +51,7 @@ struct RawAction {
 };
 
 struct PolicyActionChunkPacket {
-    uint64_t chunk_timestamp_ns;   // when the policy produced this chunk (informational)
+    uint64_t inference_timestamp_ns;   // when the policy produced this chunk (informational)
     RawAction actions[ACTION_HORIZON];
 };
 

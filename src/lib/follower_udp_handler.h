@@ -50,8 +50,9 @@ public:
     void disableInference();
 
 private:
-    static constexpr double CHUNK_DURATION_SEC = 20.0;
+    static constexpr double CHUNK_DURATION_SEC = 10.0;
     static constexpr double INTERP_HZ = 500.0;
+    static constexpr double UNINTERP_HZ = 10.0;
     static constexpr size_t NUM_INTERP_SAMPLES = static_cast<size_t>(INTERP_HZ * CHUNK_DURATION_SEC);
 
     std::atomic<bool> stop_threads;
@@ -97,6 +98,6 @@ private:
     void policySendLoop();
 
     static TeleopReceivedData unpackTeleopPacket(const TeleopRecvPacket& pkt);
-    static std::deque<PolicyReceivedData> interpolateChunk(const PolicyActionChunkPacket& pkt, uint64_t recv_time_ns);
+    static std::deque<PolicyReceivedData> interpolateChunk( const RawAction (&actions)[ACTION_HORIZON], uint64_t inference_timestamp_ns);
     static PolicyReceivedData zeroAction();
 };

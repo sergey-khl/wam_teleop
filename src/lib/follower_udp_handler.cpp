@@ -1,5 +1,6 @@
 #include "follower_udp_handler.h"
 #include <boost/system/error_code.hpp>
+#include <cstdint>
 #include <cstring>
 #include <iostream>
 
@@ -128,34 +129,42 @@ typename FollowerUDPHandler<DOF>::TeleopReceivedData FollowerUDPHandler<DOF>::un
 
 template <size_t DOF>
 std::deque<PolicyReceivedData> FollowerUDPHandler<DOF>::interpolateChunk(
-    const PolicyActionChunkPacket& pkt, uint64_t recv_time_ns) {
-
+    const RawAction (&actions)[ACTION_HORIZON], uint64_t inference_timestamp_ns) {
     std::deque<PolicyReceivedData> queue;
-    const uint64_t dt_ns = static_cast<uint64_t>(1e9 / INTERP_HZ);
+
+    const double policy_dt_ns = 1e9 / UNINTERP_HZ;
+
+    const uint64_t now_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
 
     for (size_t j = 0; j < NUM_INTERP_SAMPLES; ++j) {
         // map sample j -> fractional position across the horizon waypoints
-        double frac = (NUM_INTERP_SAMPLES > 1)
-            ? static_cast<double>(j) / static_cast<double>(NUM_INTERP_SAMPLES - 1)
-            : 0.0;
+        double frac = static_cast<double>(j) / static_cast<double>(NUM_INTERP_SAMPLES - 1);
         double pos = frac * static_cast<double>(ACTION_HORIZON - 1);
+        // the idx are the floor and ceiling of the continuous pos
         size_t idx0 = static_cast<size_t>(pos);
         size_t idx1 = std::min(idx0 + 1, ACTION_HORIZON - 1);
         double alpha = pos - static_cast<double>(idx0);
 
-        const RawAction& a = pkt.actions[idx0];
-        const RawAction& b = pkt.actions[idx1];
+        const RawAction& a = actions[idx0];
+        const RawAction& b = actions[idx1];
 
         PolicyReceivedData rd;
-        for (int k = 0; k < 7; ++k) {
+        for (size_t k = 0; k < DOF; ++k) {
             // rd.cart_pos[k] = a.cart_pos[k] + alpha * (b.cart_pos[k] - a.cart_pos[k]);
             // rd.cart_rot[k] = a.cart_rot[k] + alpha * (b.cart_rot[k] - a.cart_rot[k]);
             rd.jp[k] = a.jp[k] + alpha * (b.jp[k] - a.jp[k]);
         }
         rd.gripper_cmd = a.gripper_cmd + alpha * (b.gripper_cmd - a.gripper_cmd);
-        rd.timestamp = recv_time_ns;
 
-        queue.push_back(rd);
+        rd.timestamp = inference_timestamp_ns + static_cast<uint64_t>(pos * policy_dt_ns - 2 * policy_dt_ns);
+
+
+        // std::cout << "  policy jp:  " << rd.jp.transpose() << " | " << rd.timestamp << " | " << now_ns << " | " << rd.timestamp - now_ns << std::endl;
+        // only add an action if it is around the current time or in the future.
+        // Note, as part of the actions we include the n_obs_dim for better interpoltation so this if check handles this case
+        if (rd.timestamp > now_ns) {
+            queue.push_back(rd);
+        }
     }
     return queue;
 }
@@ -192,10 +201,7 @@ void FollowerUDPHandler<DOF>::policyReceiveLoop() {
         if (ec == boost::asio::error::operation_aborted || len != sizeof(PolicyActionChunkPacket))
             continue;
 
-        uint64_t recv_time_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(
-            std::chrono::steady_clock::now().time_since_epoch()).count();
-
-        std::deque<PolicyReceivedData> new_queue = interpolateChunk(pkt, recv_time_ns);
+        std::deque<PolicyReceivedData> new_queue = interpolateChunk(pkt.actions, pkt.inference_timestamp_ns);
 
         std::lock_guard<std::mutex> lock(state_mutex);
         // a new chunk supersedes whatever's left of the old one

@@ -93,8 +93,8 @@ template <size_t DOF> int wam_main(int argc, char **argv, ProductManager &pm, sy
     barrett::systems::Summer<jt_type, 2> policyJtSum;
     pm.getExecutionManager()->startManaging(policyJtSum);
 
-    TrajectorySmoother<DOF> filter(2.0, 2.0, 0.0);
-    pm.getExecutionManager()->startManaging(filter);
+    TrajectorySmoother<DOF> policyFilter(2.0, 2.0, 0.0);
+    pm.getExecutionManager()->startManaging(policyFilter);
 
     FollowerDynamics<DOF> followerDynamics(pm.getExecutionManager());
     ExternalTorque<DOF> externalTorque(pm.getExecutionManager());
@@ -207,13 +207,13 @@ template <size_t DOF> int wam_main(int argc, char **argv, ProductManager &pm, sy
 
     systems::connect(policyJtSum.output, follower.policyJtIn);
 
-    systems::connect(follower.policyJpOutput, filter.input);
+    systems::connect(follower.policyJpOutput, policyFilter.input);
 
     // systems::connect(extFilter.output, printdynamicextTorque.input);
     // systems::connect(dynamicExternalTorque.wamExternalTorqueOut, printdynamicextTorque.input);
     // systems::connect(wam.supervisoryController.output, printSC.input);
     // systems::connect(extFilter.output, printcustomjtSum.input);
-    systems::connect(filter.output, printPOS.input);
+    systems::connect(policyFilter.output, printPOS.input);
 
     wam.gravityCompensate();
 
@@ -262,7 +262,7 @@ template <size_t DOF> int wam_main(int argc, char **argv, ProductManager &pm, sy
 
                 btsleep(0.3); // wait an execution cycle or two
                 if (follower.isInference()) {
-                    wam.trackReferenceSignal(filter.output);
+                    wam.trackReferenceSignal(policyFilter.output);
                     systems::connect(follower.wamJTOutput, wam.input);
                     printf("Running policy.\n");
                 } else {

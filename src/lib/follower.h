@@ -174,10 +174,12 @@ class Follower : public barrett::systems::System {
 
         policyToolForce << 0.0, 0.0, 0.0;
         policyToolTorque << 0.0, 0.0, 0.0;
+        policyJp << wamJP;
 
         sendJpMsg << wamJP;
         sendJvMsg << wamJV;
         sendExtTorqueMsg << extTorque;
+
 
         const cp_type& toolPos  = boost::get<0>(wamTP);
         const Eigen::Quaterniond& toolQ = boost::get<1>(wamTP);
@@ -218,13 +220,25 @@ class Follower : public barrett::systems::System {
             timeout_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(INFERENCE_TIMEOUT_DURATION).count();
             double udp_policy_age = 0.0;
             if (policy_data && (now_ns >= policy_data->timestamp) && (now_ns - policy_data->timestamp <= timeout_ns)) {
+                bool policy_within_limits = true;
+                for (size_t i = 0; i < DOF; ++i) {
+                    if (std::abs(policy_data->jp[i] - wamJP[i]) > 0.1) {
+                        policy_within_limits = false;
+                        break;
+                    }
+                }
 
-                // from inference we directly get the tool force and tool torque. Calculated in openpi policy repo
-                // policyToolForce << policy_data->cart_pos.x(), policy_data->cart_pos.y(), policy_data->cart_pos.z();
-                // policyToolTorque << policy_data->cart_rot.x(), policy_data->cart_rot.y(), policy_data->cart_rot.z();
-                policyJp << policy_data->jp;
+                if (policy_within_limits) {
+                    // from inference we directly get the tool force and tool torque. Calculated in openpi policy repo
+                    // policyToolForce << policy_data->cart_pos.x(), policy_data->cart_pos.y(), policy_data->cart_pos.z();
+                    // policyToolTorque << policy_data->cart_rot.x(), policy_data->cart_rot.y(), policy_data->cart_rot.z();
+                    policyJp << policy_data->jp;
 
-                policy_gripper_cmd.store(static_cast<double>(policy_data->gripper_cmd));
+                    policy_gripper_cmd.store(static_cast<double>(policy_data->gripper_cmd));
+                }
+            } else {
+                // udp_policy_age = static_cast<double>(now_ns - policy_data->timestamp) / 1000000.0;
+                // std::cout << "No action for policy. diff: " << udp_policy_age << " | " << now_ns << " | " << policy_data->timestamp << std::endl;
             }
         }
 
@@ -274,14 +288,14 @@ class Follower : public barrett::systems::System {
         auto send_end = std::chrono::steady_clock::now();
         double send_dt = std::chrono::duration<double, std::milli>(send_end - send_start).count();
 
-        if (++loop_counter % 500 == 0) {
+        if (++loop_counter % 50 == 0) {
             std::cout << std::fixed << std::setprecision(3);
 
             // std::cout << "[FOLLOWER] Loop dt: " << loop_dt
                       // << " ms | UDP Rx Age: " << udp_rx_age 
                       // << " ms | UDP Send latency: " << send_dt << " ms\n";
 
-            // std::cout << "  -> FOLLOWER JP:      [" << sendJpMsg.transpose() << "]\n";
+            std::cout << "  -> FOLLOWER JP:      [" << sendJpMsg.transpose() << "]\n";
             // std::cout << "  -> LEADER JP:  " << theirJp.transpose() << "\n\n";
             // std::cout << "  -> TX JV:      [" << sendJvMsg.transpose() << "]\n";
             // std::cout << "  -> TX ExtTrq:  [" << sendExtTorqueMsg.transpose() << "]\n";
@@ -295,7 +309,7 @@ class Follower : public barrett::systems::System {
             // std::cout << "  -> ref:  " << theirExtTorque.transpose() << "\n\n";
             // std::cout << "  -> P control:      [" << policyControl.transpose() << "]\n";
             // std::cout << "  -> P JT:      [" << policyJt.transpose() << "]\n";
-            // std::cout << "  -> P JP:      [" << policyJp.transpose() << "]\n";
+            // std::cout << "  -> P JP:      [" << policyJp.transpose() << "]\nn";
             // std::cout << "  -> P T Force:      [" << policyToolForce.transpose() << "]\n\n";
             // std::cout << "  -> P T Torque:      [" << policyToolTorque.transpose() << "]\n\n";
             // std::cout << "  -> P G:      [" << policy_gripper_pos.load() << "]\n\n";
@@ -346,7 +360,7 @@ class Follower : public barrett::systems::System {
     jp_type joint_positions;
     FollowerUDPHandler<DOF> udp_handler;
     const std::chrono::milliseconds TELEOP_TIMEOUT_DURATION = std::chrono::milliseconds(10); // this needs to be larger than 2ms becuse of warmup on policy startup
-    const std::chrono::milliseconds INFERENCE_TIMEOUT_DURATION = std::chrono::milliseconds(3000); // dont take action on packets recieved longer than 3s ago
+    const std::chrono::milliseconds INFERENCE_TIMEOUT_DURATION = std::chrono::milliseconds(1000); // dont take action on packets recieved longer than 3s ago
     const Eigen::Matrix<double, DOF, 1> kp;
     const Eigen::Matrix<double, DOF, 1> kd;
 
