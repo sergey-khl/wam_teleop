@@ -168,8 +168,8 @@ template <size_t DOF> int wam_main(int argc, char **argv, ProductManager &pm, sy
 
     systems::connect(wam.jpOutput, follower.wamJPIn);
     systems::connect(wam.jvOutput, follower.wamJVIn);
-    // systems::connect(extFilter.output, follower.extTorqueIn);
-    systems::connect(dynamicExternalTorque.wamExternalTorqueOut, follower.extTorqueIn);
+    systems::connect(extFilter.output, follower.extTorqueIn);
+    // systems::connect(dynamicExternalTorque.wamExternalTorqueOut, follower.extTorqueIn);
 
     systems::connect(wam.jpOutput, followerDynamics.jpInputDynamics);
     systems::connect(wam.jvOutput, followerDynamics.jvInputDynamics);
@@ -193,7 +193,8 @@ template <size_t DOF> int wam_main(int argc, char **argv, ProductManager &pm, sy
         systems::connect(followerDynamics.dynamicsFeedFWD, follower.wamDynIn);
     }
 
-    systems::connect(dynamicExternalTorque.wamExternalTorqueOut, extFilter.input);
+    // systems::connect(dynamicExternalTorque.wamExternalTorqueOut, extFilter.input);
+    systems::connect(customjtSum.output, extFilter.input);
 
     systems::connect(wam.toolPose.output, follower.wamTPIn);
 
@@ -212,8 +213,9 @@ template <size_t DOF> int wam_main(int argc, char **argv, ProductManager &pm, sy
     // systems::connect(extFilter.output, printdynamicextTorque.input);
     // systems::connect(dynamicExternalTorque.wamExternalTorqueOut, printdynamicextTorque.input);
     // systems::connect(wam.supervisoryController.output, printSC.input);
-    // systems::connect(extFilter.output, printcustomjtSum.input);
-    systems::connect(policyFilter.output, printPOS.input);
+    // systems::connect(customjtSum.output, printTOQ.input);
+    // systems::connect(followerDynamics.dynamicsFeedFWD, printTOQ.input);
+    // systems::connect(policyFilter.output, printPOS.input);
 
     wam.gravityCompensate();
 
@@ -263,7 +265,6 @@ template <size_t DOF> int wam_main(int argc, char **argv, ProductManager &pm, sy
                 btsleep(0.3); // wait an execution cycle or two
                 if (follower.isInference()) {
                     wam.trackReferenceSignal(policyFilter.output);
-                    systems::connect(follower.wamJTOutput, wam.input);
                     printf("Running policy.\n");
                 } else {
                     printf("WARNING: inference was unsuccessful.\n");
