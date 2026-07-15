@@ -156,14 +156,21 @@ std::deque<PolicyReceivedData> FollowerUDPHandler<DOF>::interpolateChunk(
         }
         rd.gripper_cmd = a.gripper_cmd + alpha * (b.gripper_cmd - a.gripper_cmd);
 
-        rd.timestamp = inference_timestamp_ns + static_cast<uint64_t>(pos * policy_dt_ns - 2 * policy_dt_ns);
+        // if (pos >= 2) { // avoiding overflow
+        // rd.timestamp = inference_timestamp_ns + static_cast<uint64_t>(pos * policy_dt_ns - 2 * policy_dt_ns);
+        // } else {
+        //     rd.timestamp = inference_timestamp_ns;
+        // }
+        rd.timestamp = inference_timestamp_ns + static_cast<uint64_t>(pos * policy_dt_ns) - static_cast<uint64_t>(2 * policy_dt_ns);
 
 
-        // std::cout << "  policy jp:  " << rd.jp.transpose() << " | " << rd.timestamp << " | " << now_ns << " | " << rd.timestamp - now_ns << std::endl;
         // only add an action if it is around the current time or in the future.
         // Note, as part of the actions we include the n_obs_dim for better interpoltation so this if check handles this case
-        if (rd.timestamp > now_ns) {
+        if (frac > 0.0) {
+            // std::cout << "  adding " << rd.jp.transpose() << " | at frac " << frac << " | setting offset: " << static_cast<uint64_t>(rd.timestamp - now_ns) / 1e9 << std::endl;
             queue.push_back(rd);
+        } else {
+            // std::cout << "  ignoring " << rd.jp.transpose() << " | at frac " << frac << " | setting offset: " << static_cast<uint64_t>(rd.timestamp - now_ns) / 1e9 <<std::endl;
         }
     }
     return queue;

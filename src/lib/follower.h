@@ -219,10 +219,10 @@ class Follower : public barrett::systems::System {
             now_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
             timeout_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(INFERENCE_TIMEOUT_DURATION).count();
             double udp_policy_age = 0.0;
-            if (policy_data && (now_ns >= policy_data->timestamp) && (now_ns - policy_data->timestamp <= timeout_ns)) {
+            if (policy_data) {
                 bool policy_within_limits = true;
                 for (size_t i = 0; i < DOF; ++i) {
-                    if (std::abs(policy_data->jp[i] - wamJP[i]) > 0.1) {
+                    if (std::abs(policy_data->jp[i] - wamJP[i]) > 0.05) {
                         policy_within_limits = false;
                         break;
                     }
@@ -235,10 +235,12 @@ class Follower : public barrett::systems::System {
                     policyJp << policy_data->jp;
 
                     policy_gripper_cmd.store(static_cast<double>(policy_data->gripper_cmd));
+                } else {
+                    std::cout << "  out of limit " << policy_data->jp.transpose() << " | diff: " << static_cast<uint64_t>(now_ns - policy_data->timestamp) / 1e9 <<std::endl;
                 }
             } else {
-                // udp_policy_age = static_cast<double>(now_ns - policy_data->timestamp) / 1000000.0;
-                // std::cout << "No action for policy. diff: " << udp_policy_age << " | " << now_ns << " | " << policy_data->timestamp << std::endl;
+                udp_policy_age = static_cast<double>(now_ns - policy_data->timestamp) / 1000000.0;
+                std::cout << "No action for policy " << policy_data->jp.transpose() << ". diff: " << udp_policy_age << " | " << now_ns << " | " << policy_data->timestamp << std::endl;
             }
         }
 
@@ -288,7 +290,7 @@ class Follower : public barrett::systems::System {
         auto send_end = std::chrono::steady_clock::now();
         double send_dt = std::chrono::duration<double, std::milli>(send_end - send_start).count();
 
-        if (++loop_counter % 50 == 0) {
+        if (++loop_counter % 100 == 0) {
             std::cout << std::fixed << std::setprecision(3);
 
             // std::cout << "[FOLLOWER] Loop dt: " << loop_dt
