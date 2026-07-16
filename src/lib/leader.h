@@ -211,7 +211,7 @@ class Leader : public barrett::systems::System {
         auto send_end = std::chrono::steady_clock::now();
         double send_dt = std::chrono::duration<double, std::milli>(send_end - send_start).count();
 
-        if (++loop_counter % 500 == 0) {
+        if (++loop_counter % 100 == 0) {
             std::cout << std::fixed << std::setprecision(3);
 
             // std::cout << "[LEADER] Loop dt: " << loop_dt 
@@ -220,8 +220,8 @@ class Leader : public barrett::systems::System {
                
             // std::cout << "  -> LEADER JP:      [" << sendJpMsg.transpose() << "]\n";
             // std::cout << " FOLLOWER -> :  " << theirJp.transpose() << "\n\n";
-            std::cout << "  -> leader ExtTrq:  [" << sendExtTorqueMsg.transpose() << "]\n";
-            std::cout << "  -> leader control: [" << compute_control(theirJp, theirJv, theirExtTorque, wamJP, wamJV, extTorque, wamGrav, wamDyn) << "]\n\n";
+            // std::cout << "  -> leader ExtTrq:  [" << sendExtTorqueMsg.transpose() << "]\n";
+            // std::cout << "  -> leader control: [" << compute_control(theirJp, theirJv, theirExtTorque, wamJP, wamJV, extTorque, wamGrav, wamDyn) << "]\n\n";
             // std::cout << "  -> TX JV:      [" << sendJvMsg.transpose() << "]\n";
             // std::cout << "  -> TX GrpVel:  " << desired_gripper_vel.load() << "\n";
             // std::cout << "  -> Their wrist:  " << theirWristJp.transpose() << "\n";
@@ -287,8 +287,7 @@ class Leader : public barrett::systems::System {
                             const jt_type& cur_grav, const jt_type& cur_dyn) {
 
         jt_type u1 = 0.0 * cur_extTorque;                        // zero FF (P-P + g-comp only if you add it)
-        // jt_type u2 = cur_dyn - cur_grav;                          // P-P with dynamic comp (your comment)
-        jt_type u2 = - cur_grav;                          // P-P with dynamic comp (your comment)
+        jt_type u2 = cur_dyn - cur_grav;                          // P-P with dynamic comp (your comment)
         jt_type u3 = -0.5 * ref_extTorque;                        // PF-PF (ref ext torque FF)
         jt_type u4 = -0.1 * ref_extTorque + cur_dyn - cur_grav;   // PF-PF + dyn comp (Lawrence ideal)
         jt_type u5 = -0.5 * ref_extTorque - 0.15 * (ref_extTorque + cur_extTorque);

@@ -27,7 +27,8 @@
 
 #include "lib/follower.h"
 #include "lib/background_state_publisher.h"
-#include "lib/follower_dynamics.h"
+#include "lib/follower_dynamics_4dof.h"
+// #include "lib/follower_dynamics_7dof.h"
 #include "lib/dynamic_external_torque.h"
 #include "lib/follower_vertical_dynamics.h"
 #include "lib/trajectory_smoother.h"
@@ -166,9 +167,9 @@ template <size_t DOF> int wam_main(int argc, char **argv, ProductManager &pm, sy
 
     systems::connect(wam.jpOutput, follower.wamJPIn);
     systems::connect(wam.jvOutput, follower.wamJVIn);
-    systems::connect(extFilter.output, follower.extTorqueIn);
+    // systems::connect(extFilter.output, follower.extTorqueIn);
     // systems::connect(customjtSum.output, follower.extTorqueIn);
-    // systems::connect(dynamicExternalTorque.wamExternalTorqueOut, follower.extTorqueIn);
+    systems::connect(dynamicExternalTorque.wamExternalTorqueOut, follower.extTorqueIn);
 
     systems::connect(wam.jpOutput, followerDynamics.jpInputDynamics);
     systems::connect(wam.jvOutput, followerDynamics.jvInputDynamics);
@@ -245,7 +246,7 @@ template <size_t DOF> int wam_main(int argc, char **argv, ProductManager &pm, sy
                 btsleep(0.1); // wait an execution cycle or two
                 if (follower.isLinked()) {
                     wam.trackReferenceSignal(follower.theirJPOutput);
-                    // systems::connect(follower.wamJTOutput, wam.input); // CAREFUL WITH THIS. CAN BE IN BOTH LINK AND IN INFERENCE
+                    systems::connect(follower.wamJTOutput, wam.input); // CAREFUL WITH THIS. CAN BE IN BOTH LINK AND IN INFERENCE
                     printf("Linked with remote WAM.\n");
                 } else {
                     printf("WARNING: Linking was unsuccessful.\n");

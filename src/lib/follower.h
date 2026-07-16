@@ -266,8 +266,6 @@ class Follower : public barrett::systems::System {
             // policyControl[6] = 0;
             // policyControl << 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0;
             // jtOutputValue->setData(&policyControl);
-            control = compute_teleop_control(theirJp, theirJv, theirExtTorque, wamJP, wamJV, extTorque, wamGrav, wamDyn);
-            jtOutputValue->setData(&control);
             policyControl << policyJp;
             policyJpOutputValue->setData(&policyControl);
         } else {
@@ -301,15 +299,15 @@ class Follower : public barrett::systems::System {
             // std::cout << "  -> FOLLOWER JP:      [" << sendJpMsg.transpose() << "]\n";
             // std::cout << "  -> LEADER JP:  " << theirJp.transpose() << "\n\n";
             // std::cout << "  -> TX JV:      [" << sendJvMsg.transpose() << "]\n";
-            std::cout << "  -> TX ExtTrq:  [" << sendExtTorqueMsg.transpose() << "]\n";
-            // std::cout << "  -> control: [" << compute_teleop_control(theirJp, theirJv, theirExtTorque, wamJP, wamJV, extTorque, wamGrav, wamDyn) << "]\n\n";
+            std::cout << "  -> FOLLOWER EXT TOQ:  [" << sendExtTorqueMsg.transpose() << "]\n";
+            // std::cout << "  -> LEADER EXT TOQ:  " << theirExtTorque.transpose() << "\n";
+            std::cout << "  -> control: [" << compute_teleop_control(theirJp, theirJv, theirExtTorque, wamJP, wamJV, extTorque, wamGrav, wamDyn) << "]\n\n";
             // std::cout << "  -> applied: [" << (sendExtTorqueMsg + compute_teleop_control(theirJp, theirJv, theirExtTorque, wamJP, wamJV, extTorque, wamGrav, wamDyn)).transpose() << "]\n\n";
             // std::cout << "  -> TX MeasTrq: [" << control << "]\n";
             // std::cout << "  -> inf: [" << isInference() << "]\n";
             // std::cout << "  -> teleop: [" << isLinked() << "]\n\n";
             // std::cout << "  -> TX GrpTrq:  " << current_gripper_torque.load() << "\n\n";
             // std::cout << "  -> TX GrpPos:  " << current_gripper_pos.load() << "\n\n";
-            // std::cout << "  -> ref:  " << theirExtTorque.transpose() << "\n\n";
             // std::cout << "  -> P control:      [" << policyControl.transpose() << "]\n";
             // std::cout << "  -> P JT:      [" << policyJt.transpose() << "]\n";
             // std::cout << "  -> P JP:      [" << policyJp.transpose() << "]\nn";
@@ -388,7 +386,7 @@ class Follower : public barrett::systems::System {
 
         jt_type u3 = -0.5 * ref_extTorque; // PF-PF with ref external torque feedback
 
-        jt_type u4 = -0.1 * ref_extTorque + cur_dyn - cur_grav; // PF-PF with ref external torque feedback and dynamic compensation (Lawrence's perfect transparency architecture);
+        jt_type u4 = 0.1 * ref_extTorque + cur_dyn - cur_grav; // PF-PF with ref external torque feedback and dynamic compensation (Lawrence's perfect transparency architecture);
 
 
         jt_type u5 = -0.5 * ref_extTorque -0.15 * (ref_extTorque + cur_extTorque); // PF-PF with ref external torque and cur external torque feedback

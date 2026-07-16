@@ -8,9 +8,8 @@
 #include <barrett/units.h>
 #include <barrett/systems.h>
 #include <barrett/math/kinematics.h> 
-#include "leader_beta_zeus_7dof.h"
-// #include "leader_beta_ares_link.h"
-#include "regressor_W.h"
+#include "leader_beta_zeus_hand.h"
+#include "regressor_W_4dof.h"
 
 using namespace barrett;
 
@@ -46,23 +45,21 @@ protected:
 	jp_type tmp_theta_pos;
 	jv_type tmp_theta_vel;
 	ja_type tmp_theta_acc;
-	Eigen::Matrix<double, 7, 57> W;
-	Eigen::Matrix<double, 57, 1> beta;
-	Eigen::Matrix<double, 7, 1> ThetaInput;
-	Eigen::Matrix<double, 7, 1> ThetadotInput;
-	Eigen::Matrix<double, 7, 1> ThetaddotInput;
-	Eigen::Matrix<double, 7, 1> FeedFwd;
+	Eigen::Matrix<double, 4, 30> W;
+	Eigen::Matrix<double, 30, 1> beta;
+	Eigen::Matrix<double, 4, 1> ThetaInput;
+	Eigen::Matrix<double, 4, 1> ThetadotInput;
+	Eigen::Matrix<double, 4, 1> ThetaddotInput;
+	Eigen::Matrix<double, 4, 1> FeedFwd;
 	jt_type dynFeedFWD;
 
 	virtual void operate() {
 		tmp_theta_pos = this->jpInputDynamics.getValue();
-		// ThetaInput << tmp_theta_pos[0], tmp_theta_pos[1], tmp_theta_pos[2], tmp_theta_pos[3];
-		ThetaInput << tmp_theta_pos;
+		ThetaInput << tmp_theta_pos[0], tmp_theta_pos[1], tmp_theta_pos[2], tmp_theta_pos[3];
 		tmp_theta_vel = this->jvInputDynamics.getValue();
-		// ThetadotInput << tmp_theta_vel[0], tmp_theta_vel[1], tmp_theta_vel[2], tmp_theta_vel[3];
-		ThetadotInput << tmp_theta_vel;
+		ThetadotInput << tmp_theta_vel[0], tmp_theta_vel[1], tmp_theta_vel[2], tmp_theta_vel[3];
 		tmp_theta_acc = this->jaInputDynamics.getValue();
-		ThetaddotInput << 0.14 * tmp_theta_acc[0], 0.14 * tmp_theta_acc[1],  0.14 * tmp_theta_acc[2], 0.14 * tmp_theta_acc[3], 0.14 * tmp_theta_acc[4], 0.14 * tmp_theta_acc[5], 0.14 * tmp_theta_acc[6];
+		ThetaddotInput << 0.25 * tmp_theta_acc[0], 0.25 * tmp_theta_acc[1],  0.25 * tmp_theta_acc[2], 0.25 * tmp_theta_acc[3];
 		W = calculate_W_eigen(ThetaInput, ThetadotInput, ThetaddotInput);
 
 		beta = initialize_leader_beta();

@@ -28,7 +28,8 @@
 #include <haptic_wrist/handle.h>
 #include "lib/leader.h"
 #include "lib/background_state_publisher.h"
-#include "lib/leader_dynamics.h"
+#include "lib/leader_dynamics_4dof.h"
+// #include "lib/leader_dynamics_7dof.h"
 #include "lib/dynamic_external_torque.h"
 #include "lib/leader_vertical_dynamics.h"
 
@@ -155,9 +156,9 @@ int wam_main(int argc, char **argv, ProductManager &pm, systems::Wam<DOF> &wam) 
     systems::connect(wam.jpOutput, leader.wamJPIn);
     systems::connect(wam.jvOutput, leader.wamJVIn);
     // systems::connect(extFilter.output, leader.extTorqueIn);
-    systems::connect(customjtSum.output, leader.extTorqueIn);
+    // systems::connect(customjtSum.output, leader.extTorqueIn);
     // systems::connect(dynamicExtFilter.output, leader.extTorqueIn);
-    // systems::connect(dynamicExternalTorque.wamExternalTorqueOut, leader.extTorqueIn);
+    systems::connect(dynamicExternalTorque.wamExternalTorqueOut, leader.extTorqueIn);
 
     systems::connect(wam.jpOutput, leaderDynamics.jpInputDynamics);
     systems::connect(wam.jvOutput, leaderDynamics.jvInputDynamics);
@@ -192,10 +193,10 @@ int wam_main(int argc, char **argv, ProductManager &pm, systems::Wam<DOF> &wam) 
 
 
     // Optional prints (leave commented to avoid loop jitter)
-    // systems::connect(dynamicExternalTorque.wamExternalTorqueOut, printdynamicextTorque.input);
+    systems::connect(dynamicExternalTorque.wamExternalTorqueOut, printdynamicextTorque.input);
     // systems::connect(extFilter.output, printextTorque.input);
-    // systems::connect(dynamicExtFilter.output, printextTorque.input);
-    systems::connect(wam.supervisoryController.output, printSC.input);
+    systems::connect(customjtSum.output, printextTorque.input);
+    // systems::connect(wam.supervisoryController.output, printSC.input);
     // systems::connect(leaderDynamics.dynamicsFeedFWD, printdynamicoutput.input);
 
     wam.gravityCompensate();
@@ -225,7 +226,7 @@ int wam_main(int argc, char **argv, ProductManager &pm, systems::Wam<DOF> &wam) 
                 if (leader.isLinked()) {
                     // Track peer’s arm joints (Leader publishes them)
                     wam.trackReferenceSignal(leader.theirJPOutput);
-                    // connect(leader.wamJTOutput, wam.input);
+                    connect(leader.wamJTOutput, wam.input);
                     printf("Linked with remote WAM.\n");
                 } else {
                     printf("WARNING: Linking was unsuccessful.\n");

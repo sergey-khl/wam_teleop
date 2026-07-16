@@ -44,8 +44,6 @@ struct PolicyPacket {
 };
 
 struct RawAction {
-    // double cart_pos[3];   // x, y, z
-    // double cart_rot[3];   // roll, pitch, yaw
     double jp[7];   // x, y, z
     double gripper_cmd;
 };
@@ -77,8 +75,6 @@ struct FollowerReceivedData {
 };
 
 struct PolicyReceivedData {
-    // Eigen::Vector3d cart_pos;   // x, y, z
-    // Eigen::Vector3d cart_rot;   // roll, pitch, yaw
     Eigen::Matrix<double, 7, 1> jp;
     double gripper_cmd;
     uint64_t timestamp;
