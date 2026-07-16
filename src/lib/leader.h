@@ -193,12 +193,11 @@ class Leader : public barrett::systems::System {
 
         // State machine
         if (isLinked()) {
-            // control = compute_control(
-            //     theirJp, theirJv, theirExtTorque,
-            //     wamJP,   wamJV,   extTorque,
-            //     wamGrav, wamDyn
-            // );
-            control.setZero();
+            control = compute_control(
+                theirJp, theirJv, theirExtTorque,
+                wamJP,   wamJV,   extTorque,
+                wamGrav, wamDyn
+            );
             jtOutputValue->setData(&control);
         } else {
             control.setZero();

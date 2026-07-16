@@ -167,6 +167,7 @@ template <size_t DOF> int wam_main(int argc, char **argv, ProductManager &pm, sy
     systems::connect(wam.jpOutput, follower.wamJPIn);
     systems::connect(wam.jvOutput, follower.wamJVIn);
     systems::connect(extFilter.output, follower.extTorqueIn);
+    // systems::connect(customjtSum.output, follower.extTorqueIn);
     // systems::connect(dynamicExternalTorque.wamExternalTorqueOut, follower.extTorqueIn);
 
     systems::connect(wam.jpOutput, followerDynamics.jpInputDynamics);
@@ -191,8 +192,8 @@ template <size_t DOF> int wam_main(int argc, char **argv, ProductManager &pm, sy
         systems::connect(followerDynamics.dynamicsFeedFWD, follower.wamDynIn);
     }
 
-    // systems::connect(dynamicExternalTorque.wamExternalTorqueOut, extFilter.input);
-    systems::connect(customjtSum.output, extFilter.input);
+    systems::connect(dynamicExternalTorque.wamExternalTorqueOut, extFilter.input);
+    // systems::connect(customjtSum.output, extFilter.input);
 
     systems::connect(wam.toolPose.output, follower.wamTPIn);
 
@@ -241,10 +242,10 @@ template <size_t DOF> int wam_main(int argc, char **argv, ProductManager &pm, sy
                 waitForEnter();
                 follower.tryLink();
 
-                btsleep(0.3); // wait an execution cycle or two
+                btsleep(0.1); // wait an execution cycle or two
                 if (follower.isLinked()) {
                     wam.trackReferenceSignal(follower.theirJPOutput);
-                    systems::connect(follower.wamJTOutput, wam.input); // CAREFUL WITH THIS. CAN BE IN BOTH LINK AND IN INFERENCE
+                    // systems::connect(follower.wamJTOutput, wam.input); // CAREFUL WITH THIS. CAN BE IN BOTH LINK AND IN INFERENCE
                     printf("Linked with remote WAM.\n");
                 } else {
                     printf("WARNING: Linking was unsuccessful.\n");
@@ -260,7 +261,7 @@ template <size_t DOF> int wam_main(int argc, char **argv, ProductManager &pm, sy
             } else {
                 follower.enableInference();
 
-                btsleep(0.3); // wait an execution cycle or two
+                btsleep(0.1); // wait an execution cycle or two
                 if (follower.isInference()) {
                     wam.trackReferenceSignal(policyFilter.output);
                     printf("Running policy.\n");

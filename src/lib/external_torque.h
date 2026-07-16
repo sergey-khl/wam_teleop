@@ -25,7 +25,7 @@ class ExternalTorque : public barrett::systems::System {
             em->startManaging(*this);
         }
     }
-
+    
     virtual ~ExternalTorque() {
         this->mandatoryCleanUp();
     }

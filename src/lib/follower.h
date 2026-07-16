@@ -238,8 +238,8 @@ class Follower : public barrett::systems::System {
                 policyJp << clipped_jp;
                 policy_gripper_cmd.store(static_cast<double>(policy_data->gripper_cmd));
             } else {
-                udp_policy_age = static_cast<double>(now_ns - policy_data->timestamp) / 1000000.0;
-                std::cout << "No action for policy " << policy_data->jp.transpose() << ". diff: " << udp_policy_age << " | " << now_ns << " | " << policy_data->timestamp << std::endl;
+                // udp_policy_age = static_cast<double>(now_ns - policy_data->timestamp) / 1000000.0;
+                // std::cout << "No action for policy " << policy_data->jp.transpose() << ". diff: " << udp_policy_age << " | " << now_ns << " | " << policy_data->timestamp << std::endl;
             }
         }
 
@@ -250,8 +250,7 @@ class Follower : public barrett::systems::System {
             jtOutputValue->setData(&control);
             policyJpOutputValue->setData(&wamJP);
         } else if (isLinked()) { // teleop only
-            // control = compute_teleop_control(theirJp, theirJv, theirExtTorque, wamJP, wamJV, extTorque, wamGrav, wamDyn);
-            control.setZero();
+            control = compute_teleop_control(theirJp, theirJv, theirExtTorque, wamJP, wamJV, extTorque, wamGrav, wamDyn);
             jtOutputValue->setData(&control);
             policyJpOutputValue->setData(&wamJP);
         } else if (isInference()) { // inference only
@@ -267,6 +266,8 @@ class Follower : public barrett::systems::System {
             // policyControl[6] = 0;
             // policyControl << 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0;
             // jtOutputValue->setData(&policyControl);
+            control = compute_teleop_control(theirJp, theirJv, theirExtTorque, wamJP, wamJV, extTorque, wamGrav, wamDyn);
+            jtOutputValue->setData(&control);
             policyControl << policyJp;
             policyJpOutputValue->setData(&policyControl);
         } else {
@@ -301,7 +302,7 @@ class Follower : public barrett::systems::System {
             // std::cout << "  -> LEADER JP:  " << theirJp.transpose() << "\n\n";
             // std::cout << "  -> TX JV:      [" << sendJvMsg.transpose() << "]\n";
             std::cout << "  -> TX ExtTrq:  [" << sendExtTorqueMsg.transpose() << "]\n";
-            std::cout << "  -> control: [" << compute_teleop_control(theirJp, theirJv, theirExtTorque, wamJP, wamJV, extTorque, wamGrav, wamDyn) << "]\n\n";
+            // std::cout << "  -> control: [" << compute_teleop_control(theirJp, theirJv, theirExtTorque, wamJP, wamJV, extTorque, wamGrav, wamDyn) << "]\n\n";
             // std::cout << "  -> applied: [" << (sendExtTorqueMsg + compute_teleop_control(theirJp, theirJv, theirExtTorque, wamJP, wamJV, extTorque, wamGrav, wamDyn)).transpose() << "]\n\n";
             // std::cout << "  -> TX MeasTrq: [" << control << "]\n";
             // std::cout << "  -> inf: [" << isInference() << "]\n";
@@ -383,8 +384,7 @@ class Follower : public barrett::systems::System {
 
         jt_type u1 = 0.0 * cur_extTorque; // zero feedforward (equal to default P-P with gravity compensation)
 
-        // jt_type u2 = cur_dyn - cur_grav; // P-P with dynamic compensation
-        jt_type u2 = - cur_grav; // P-P with dynamic compensation
+        jt_type u2 = cur_dyn - cur_grav; // P-P with dynamic compensation
 
         jt_type u3 = -0.5 * ref_extTorque; // PF-PF with ref external torque feedback
 
