@@ -8,7 +8,7 @@
 #include <barrett/units.h>
 #include <barrett/systems.h>
 #include <barrett/math/kinematics.h> 
-#include "leader_beta_zeus_hand.h"
+#include "leader_beta_zeus_bwrist_4dof.h"
 #include "regressor_W_4dof.h"
 
 using namespace barrett;
@@ -66,7 +66,7 @@ protected:
 		
 		FeedFwd = W * beta;
 
-		dynFeedFWD << FeedFwd;
+		dynFeedFWD << FeedFwd[0], FeedFwd[1], FeedFwd[2], FeedFwd[3], 0, 0, 0;
 
 		this->dynamicsFeedFWDValue->setData(&dynFeedFWD);
 

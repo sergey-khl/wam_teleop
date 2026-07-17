@@ -220,7 +220,7 @@ class Leader : public barrett::systems::System {
                
             // std::cout << "  -> LEADER JP:      [" << sendJpMsg.transpose() << "]\n";
             // std::cout << " FOLLOWER -> :  " << theirJp.transpose() << "\n\n";
-            // std::cout << "  -> leader ExtTrq:  [" << sendExtTorqueMsg.transpose() << "]\n";
+            std::cout << "  -> leader ExtTrq:  [" << sendExtTorqueMsg.transpose() << "]\n";
             // std::cout << "  -> leader control: [" << compute_control(theirJp, theirJv, theirExtTorque, wamJP, wamJV, extTorque, wamGrav, wamDyn) << "]\n\n";
             // std::cout << "  -> TX JV:      [" << sendJvMsg.transpose() << "]\n";
             // std::cout << "  -> TX GrpVel:  " << desired_gripper_vel.load() << "\n";
@@ -297,7 +297,12 @@ class Leader : public barrett::systems::System {
         jt_type u7 = -0.5 * cur_extTorque;
         jt_type u8 = -0.25 * (ref_extTorque + cur_extTorque);
 
-        // Default: u4 as you had
-        return u2;
+        jt_type u = u2;
+
+        // for (size_t i = 4; i < 7; ++i) {
+        //     u[i] = 0.0;
+        // }
+        //
+        return u;
     };
 };

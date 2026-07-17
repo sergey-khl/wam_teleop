@@ -289,7 +289,7 @@ class Follower : public barrett::systems::System {
         auto send_end = std::chrono::steady_clock::now();
         double send_dt = std::chrono::duration<double, std::milli>(send_end - send_start).count();
 
-        if (++loop_counter % 100 == 0) {
+        if (++loop_counter % 50 == 0) {
             std::cout << std::fixed << std::setprecision(3);
 
             // std::cout << "[FOLLOWER] Loop dt: " << loop_dt
@@ -301,7 +301,7 @@ class Follower : public barrett::systems::System {
             // std::cout << "  -> TX JV:      [" << sendJvMsg.transpose() << "]\n";
             std::cout << "  -> FOLLOWER EXT TOQ:  [" << sendExtTorqueMsg.transpose() << "]\n";
             // std::cout << "  -> LEADER EXT TOQ:  " << theirExtTorque.transpose() << "\n";
-            std::cout << "  -> control: [" << compute_teleop_control(theirJp, theirJv, theirExtTorque, wamJP, wamJV, extTorque, wamGrav, wamDyn) << "]\n\n";
+            // std::cout << "  -> control: [" << compute_teleop_control(theirJp, theirJv, theirExtTorque, wamJP, wamJV, extTorque, wamGrav, wamDyn) << "]\n\n";
             // std::cout << "  -> applied: [" << (sendExtTorqueMsg + compute_teleop_control(theirJp, theirJv, theirExtTorque, wamJP, wamJV, extTorque, wamGrav, wamDyn)).transpose() << "]\n\n";
             // std::cout << "  -> TX MeasTrq: [" << control << "]\n";
             // std::cout << "  -> inf: [" << isInference() << "]\n";
@@ -386,7 +386,7 @@ class Follower : public barrett::systems::System {
 
         jt_type u3 = -0.5 * ref_extTorque; // PF-PF with ref external torque feedback
 
-        jt_type u4 = 0.1 * ref_extTorque + cur_dyn - cur_grav; // PF-PF with ref external torque feedback and dynamic compensation (Lawrence's perfect transparency architecture);
+        jt_type u4 = -0.1 * ref_extTorque + cur_dyn - cur_grav; // PF-PF with ref external torque feedback and dynamic compensation (Lawrence's perfect transparency architecture);
 
 
         jt_type u5 = -0.5 * ref_extTorque -0.15 * (ref_extTorque + cur_extTorque); // PF-PF with ref external torque and cur external torque feedback
@@ -407,6 +407,10 @@ class Follower : public barrett::systems::System {
         jt_type u10 = -0.5 * ref_extTorque;
 
         jt_type u = u2;
+
+        // for (size_t i = 4; i < 7; ++i) {
+        //     u[i] = 0.0;
+        // }
 
         return u;
     };

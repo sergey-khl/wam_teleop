@@ -8,7 +8,7 @@
 #include <barrett/units.h>
 #include <barrett/systems.h>
 #include <barrett/math/kinematics.h> 
-#include "follower_beta_slax_skid_hand.h"
+#include "follower_beta_slax_skid_hand_7dof.h"
 #include "regressor_W_7dof.h"
 
 using namespace barrett;
@@ -68,8 +68,7 @@ protected:
 		
 		FeedFwd = W * beta;
 
-		// dynFeedFWD <<  FeedFwd;
-		dynFeedFWD << FeedFwd[0], FeedFwd[1], FeedFwd[2], FeedFwd[3], 0, 0, 0;
+		dynFeedFWD <<  FeedFwd;
 
 		this->dynamicsFeedFWDValue->setData(&dynFeedFWD);
 

@@ -28,8 +28,8 @@
 #include <haptic_wrist/handle.h>
 #include "lib/leader.h"
 #include "lib/background_state_publisher.h"
-#include "lib/leader_dynamics_4dof.h"
-// #include "lib/leader_dynamics_7dof.h"
+// #include "lib/leader_dynamics_4dof.h"
+#include "lib/leader_dynamics_7dof.h"
 #include "lib/dynamic_external_torque.h"
 #include "lib/leader_vertical_dynamics.h"
 
@@ -193,9 +193,9 @@ int wam_main(int argc, char **argv, ProductManager &pm, systems::Wam<DOF> &wam) 
 
 
     // Optional prints (leave commented to avoid loop jitter)
-    systems::connect(dynamicExternalTorque.wamExternalTorqueOut, printdynamicextTorque.input);
+    // systems::connect(dynamicExternalTorque.wamExternalTorqueOut, printdynamicextTorque.input);
     // systems::connect(extFilter.output, printextTorque.input);
-    systems::connect(customjtSum.output, printextTorque.input);
+    // systems::connect(customjtSum.output, printextTorque.input);
     // systems::connect(wam.supervisoryController.output, printSC.input);
     // systems::connect(leaderDynamics.dynamicsFeedFWD, printdynamicoutput.input);
 
@@ -226,7 +226,7 @@ int wam_main(int argc, char **argv, ProductManager &pm, systems::Wam<DOF> &wam) 
                 if (leader.isLinked()) {
                     // Track peer’s arm joints (Leader publishes them)
                     wam.trackReferenceSignal(leader.theirJPOutput);
-                    connect(leader.wamJTOutput, wam.input);
+                    // connect(leader.wamJTOutput, wam.input);
                     printf("Linked with remote WAM.\n");
                 } else {
                     printf("WARNING: Linking was unsuccessful.\n");
