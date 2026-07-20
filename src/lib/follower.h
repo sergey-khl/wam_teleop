@@ -220,15 +220,16 @@ class Follower : public barrett::systems::System {
             if (policy_data) {
                 jp_type clipped_jp;
                 clipped_jp << policy_data->jp;
+                float clip_val = 0.1;
 
                 bool was_clipped = false;
                 for (size_t i = 0; i < DOF; ++i) {
                     double delta = policy_data->jp[i] - wamJP[i];
-                    if (delta > 0.03) {
-                        clipped_jp[i] = wamJP[i] + 0.03;
+                    if (delta > clip_val) {
+                        clipped_jp[i] = wamJP[i] + clip_val;
                         was_clipped = true;
-                    } else if (delta < -0.03) {
-                        clipped_jp[i] = wamJP[i] - 0.03;
+                    } else if (delta < -clip_val) {
+                        clipped_jp[i] = wamJP[i] - clip_val;
                         was_clipped = true;
                     }
                 }
