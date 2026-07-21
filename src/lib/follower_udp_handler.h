@@ -47,9 +47,6 @@ public:
                        uint64_t timestamp);
 
 private:
-    static constexpr double CHUNK_DURATION_SEC = 1.5;
-    static constexpr double INTERP_HZ = 500.0;
-    static constexpr double UNINTERP_HZ = 10.0;
     static constexpr size_t NUM_INTERP_SAMPLES = static_cast<size_t>(INTERP_HZ * CHUNK_DURATION_SEC);
 
     std::atomic<bool> stop_threads;
@@ -93,5 +90,4 @@ private:
 
     static TeleopReceivedData unpackTeleopPacket(const TeleopRecvPacket& pkt);
     static std::deque<PolicyReceivedData> interpolateChunk( const RawAction (&actions)[ACTION_HORIZON], uint64_t inference_timestamp_ns);
-    static PolicyReceivedData zeroAction();
 };

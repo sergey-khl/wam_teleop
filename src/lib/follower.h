@@ -220,16 +220,17 @@ class Follower : public barrett::systems::System {
             if (policy_data) {
                 jp_type clipped_jp;
                 clipped_jp << policy_data->jp;
-                float clip_val = 0.1;
+                jp_type clip_val;
+                clip_val << 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05;
 
                 bool was_clipped = false;
                 for (size_t i = 0; i < DOF; ++i) {
                     double delta = policy_data->jp[i] - wamJP[i];
-                    if (delta > clip_val) {
-                        clipped_jp[i] = wamJP[i] + clip_val;
+                    if (delta > clip_val[i]) {
+                        clipped_jp[i] = wamJP[i] + clip_val[i];
                         was_clipped = true;
-                    } else if (delta < -clip_val) {
-                        clipped_jp[i] = wamJP[i] - clip_val;
+                    } else if (delta < -clip_val[i]) {
+                        clipped_jp[i] = wamJP[i] - clip_val[i];
                         was_clipped = true;
                     }
                 }
@@ -300,7 +301,7 @@ class Follower : public barrett::systems::System {
             // std::cout << "  -> FOLLOWER JP:      [" << sendJpMsg.transpose() << "]\n";
             // std::cout << "  -> LEADER JP:  " << theirJp.transpose() << "\n\n";
             // std::cout << "  -> TX JV:      [" << sendJvMsg.transpose() << "]\n";
-            std::cout << "  -> FOLLOWER EXT TOQ:  [" << sendExtTorqueMsg.transpose() << "]\n";
+            // std::cout << "  -> FOLLOWER EXT TOQ:  [" << sendExtTorqueMsg.transpose() << "]\n";
             // std::cout << "  -> LEADER EXT TOQ:  " << theirExtTorque.transpose() << "\n";
             // std::cout << "  -> control: [" << compute_teleop_control(theirJp, theirJv, theirExtTorque, wamJP, wamJV, extTorque, wamGrav, wamDyn) << "]\n\n";
             // std::cout << "  -> applied: [" << (sendExtTorqueMsg + compute_teleop_control(theirJp, theirJv, theirExtTorque, wamJP, wamJV, extTorque, wamGrav, wamDyn)).transpose() << "]\n\n";
@@ -311,7 +312,7 @@ class Follower : public barrett::systems::System {
             // std::cout << "  -> TX GrpPos:  " << current_gripper_pos.load() << "\n\n";
             // std::cout << "  -> P control:      [" << policyControl.transpose() << "]\n";
             // std::cout << "  -> P JT:      [" << policyJt.transpose() << "]\n";
-            // std::cout << "  -> P JP:      [" << policyJp.transpose() << "]\nn";
+            std::cout << "  -> P JP:      [" << policyJp.transpose() << "]\nn";
             // std::cout << "  -> P T Force:      [" << policyToolForce.transpose() << "]\n\n";
             // std::cout << "  -> P T Torque:      [" << policyToolTorque.transpose() << "]\n\n";
             // std::cout << "  -> P G:      [" << policy_gripper_pos.load() << "]\n\n";

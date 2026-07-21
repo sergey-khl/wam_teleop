@@ -118,7 +118,7 @@ std::deque<PolicyReceivedData> FollowerUDPHandler<DOF>::interpolateChunk(
 
 
         // only add an action if it is around the current time or in the future.
-        if (frac > 0.4) {
+        if (frac > 0.0) {
             // std::cout << "  adding " << rd.jp.transpose() << " | at frac " << frac << " | setting offset: " << static_cast<uint64_t>(rd.timestamp - now_ns) / 1e9 << std::endl;
             queue.push_back(rd);
         } else {
@@ -164,7 +164,10 @@ void FollowerUDPHandler<DOF>::policyReceiveLoop() {
 
         std::lock_guard<std::mutex> lock(state_mutex);
         // a new chunk supersedes whatever's left of the old one
-        policy_action_queue = std::move(new_queue);
+        // policy_action_queue = std::move(new_queue);
+        policy_action_queue.insert(policy_action_queue.end(),
+                            std::make_move_iterator(new_queue.begin()),
+                            std::make_move_iterator(new_queue.end()));
     }
     policy_recv_socket.close();
 }
@@ -246,7 +249,7 @@ void FollowerUDPHandler<DOF>::policySendLoop() {
             if (stop_threads) break;
 
             pkt_to_send = pending_policy_packet;
-            should_send = policy_send_active;
+            should_send = policy_send_active && static_cast<double>(policy_action_queue.size()) / static_cast<double>(NUM_INTERP_SAMPLES) == 0.0;
             new_policy_data = false;
         }
 
