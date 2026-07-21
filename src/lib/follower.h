@@ -221,9 +221,10 @@ class Follower : public barrett::systems::System {
                 jp_type clipped_jp;
                 clipped_jp << policy_data->jp;
                 jp_type clip_val;
-                clip_val << 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05;
+                clip_val << 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.1;
 
                 bool was_clipped = false;
+                std::string clipped_joints_str = "";
                 for (size_t i = 0; i < DOF; ++i) {
                     double delta = policy_data->jp[i] - wamJP[i];
                     if (delta > clip_val[i]) {
@@ -235,7 +236,27 @@ class Follower : public barrett::systems::System {
                     }
                 }
 
-                std::cout << (was_clipped ? "  CLIPPED " : "  EXECUTING ") << clipped_jp.transpose() << " | diff: " << static_cast<uint64_t>(now_ns - policy_data->timestamp) / 1e9 << std::endl;
+                for (size_t i = 0; i < DOF; ++i) {
+                    double delta = policy_data->jp[i] - wamJP[i];
+                    bool joint_clipped = false;
+                    
+                    if (delta > clip_val[i]) {
+                        clipped_jp[i] = wamJP[i] + clip_val[i];
+                        joint_clipped = true;
+                    } else if (delta < -clip_val[i]) {
+                        clipped_jp[i] = wamJP[i] - clip_val[i];
+                        joint_clipped = true;
+                    }
+                    
+                    if (joint_clipped) {
+                        was_clipped = true;
+                        if (!clipped_joints_str.empty()) clipped_joints_str += ", ";
+                        clipped_joints_str += std::to_string(i);
+                    }
+                }
+
+                // std::cout << (was_clipped ? "  CLIPPED " : "  EXECUTING ") << clipped_jp.transpose() << " | diff: " << static_cast<uint64_t>(now_ns - policy_data->timestamp) / 1e9 << std::endl;
+                std::cout << (was_clipped ? "  CLIPPED [joints: " + clipped_joints_str + "] " : "  EXECUTING ") << clipped_jp.transpose() << std::endl;
 
                 policyJp << clipped_jp;
                 policy_gripper_cmd.store(static_cast<double>(policy_data->gripper_cmd));
@@ -256,18 +277,6 @@ class Follower : public barrett::systems::System {
             jtOutputValue->setData(&control);
             policyJpOutputValue->setData(&wamJP);
         } else if (isInference()) { // inference only
-            // roughly torque maxes we want: [0.15]
-            // ext when sitting at home: [-0.005 -3.734  0.473  1.878  0.019 -0.785  0.017]
-            // for (size_t i = 0; i < DOF; ++i) {
-            //     policyControl[i] = std::max(-2.0, std::min(2.0, policyJt[i]));
-            // }
-            // // policyControl[1] *= 2;
-            // // policyControl[3] /= 2;
-            // policyControl[4] = 0;
-            // policyControl[5] = 0;
-            // policyControl[6] = 0;
-            // policyControl << 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0;
-            // jtOutputValue->setData(&policyControl);
             policyControl << policyJp;
             policyJpOutputValue->setData(&policyControl);
         } else {
@@ -339,10 +348,13 @@ class Follower : public barrett::systems::System {
                 gripper->setVelocity(local_gripper_vel);
                 gripper->controlLoopCallback();
             } else if (isInference()) { // inference only
-                // float local_gripper_pos = policy_gripper_pos.load();
-                // gripper->setPosition(local_gripper_pos);
-                // gripper->controlLoopCallback();
-                gripper->setVelocity(0.0f);
+                float local_gripper_cmd = policy_gripper_cmd.load();
+                if (local_gripper_cmd > 0) {
+                    gripper->setPosition(gripper_max_pos);
+                } else {
+                    gripper->setPosition(gripper_min_pos);
+                }
+                gripper->controlLoopCallback();
             } else {
                 gripper->setVelocity(0.0f);
             }

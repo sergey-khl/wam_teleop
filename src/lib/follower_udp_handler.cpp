@@ -108,22 +108,13 @@ std::deque<PolicyReceivedData> FollowerUDPHandler<DOF>::interpolateChunk(
 
         PolicyReceivedData rd;
         for (size_t k = 0; k < DOF; ++k) {
-            // rd.cart_pos[k] = a.cart_pos[k] + alpha * (b.cart_pos[k] - a.cart_pos[k]);
-            // rd.cart_rot[k] = a.cart_rot[k] + alpha * (b.cart_rot[k] - a.cart_rot[k]);
             rd.jp[k] = a.jp[k] + alpha * (b.jp[k] - a.jp[k]);
         }
         rd.gripper_cmd = a.gripper_cmd + alpha * (b.gripper_cmd - a.gripper_cmd);
 
         rd.timestamp = inference_timestamp_ns + static_cast<uint64_t>(pos * policy_dt_ns) - static_cast<uint64_t>(2 * policy_dt_ns);
 
-
-        // only add an action if it is around the current time or in the future.
-        if (frac > 0.0) {
-            // std::cout << "  adding " << rd.jp.transpose() << " | at frac " << frac << " | setting offset: " << static_cast<uint64_t>(rd.timestamp - now_ns) / 1e9 << std::endl;
-            queue.push_back(rd);
-        } else {
-            // std::cout << "  ignoring " << rd.jp.transpose() << " | at frac " << frac << " | setting offset: " << static_cast<uint64_t>(rd.timestamp - now_ns) / 1e9 <<std::endl;
-        }
+        queue.push_back(rd);
     }
     return queue;
 }
@@ -164,7 +155,6 @@ void FollowerUDPHandler<DOF>::policyReceiveLoop() {
 
         std::lock_guard<std::mutex> lock(state_mutex);
         // a new chunk supersedes whatever's left of the old one
-        // policy_action_queue = std::move(new_queue);
         policy_action_queue.insert(policy_action_queue.end(),
                             std::make_move_iterator(new_queue.begin()),
                             std::make_move_iterator(new_queue.end()));
@@ -249,7 +239,8 @@ void FollowerUDPHandler<DOF>::policySendLoop() {
             if (stop_threads) break;
 
             pkt_to_send = pending_policy_packet;
-            should_send = policy_send_active && static_cast<double>(policy_action_queue.size()) / static_cast<double>(NUM_INTERP_SAMPLES) == 0.0;
+            // for creating a seamless policy loop, we start inference when x% of our actions are left
+            should_send = policy_send_active && static_cast<double>(policy_action_queue.size()) / static_cast<double>(NUM_INTERP_SAMPLES) <= 0.0;
             new_policy_data = false;
         }
 
