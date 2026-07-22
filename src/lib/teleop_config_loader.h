@@ -15,6 +15,13 @@ struct NetworkConfig {
     int policy_recv;
     bool policy_send_active;
 };
+struct PolicyConfig {
+    std::vector<double> kp;
+    std::vector<double> ki;
+    std::vector<double> kd;
+    std::vector<double> control_signal_limit;
+    std::vector<double> integrator_limit;
+};
 
 struct HapticsConfig {
     double torque_scaling;
@@ -34,6 +41,7 @@ struct RobotTeleopConfig {
 
 struct TeleopConfig {
     NetworkConfig network;
+    PolicyConfig policy;
     SyncMapping sync_mapping;
     RobotTeleopConfig leader, follower;
 };
@@ -65,6 +73,17 @@ template<> struct convert<HapticsConfig> {
     }
 };
 
+template<> struct convert<PolicyConfig> {
+    static bool decode(const Node& node, PolicyConfig& c) {
+        c.kp = node["kp"].as<std::vector<double>>();
+        c.ki = node["ki"].as<std::vector<double>>();
+        c.kd = node["kd"].as<std::vector<double>>();
+        c.control_signal_limit = node["control_signal_limit"].as<std::vector<double>>();
+        c.integrator_limit = node["integrator_limit"].as<std::vector<double>>();
+        return true;
+    }
+};
+
 template<> struct convert<SyncMapping> {
     static bool decode(const Node& node, SyncMapping& c) {
         c.scales = node["scales"].as<std::vector<double>>();
@@ -87,6 +106,7 @@ template<> struct convert<RobotTeleopConfig> {
 template<> struct convert<TeleopConfig> {
     static bool decode(const Node& node, TeleopConfig& c) {
         c.network = node["network"].as<NetworkConfig>();
+        c.policy = node["policy"].as<PolicyConfig>();
         c.sync_mapping = node["sync_mapping"].as<SyncMapping>();
         c.leader = node["leader"].as<RobotTeleopConfig>();
         c.follower = node["follower"].as<RobotTeleopConfig>();

@@ -76,6 +76,9 @@ class Follower : public barrett::systems::System {
         , linked(false)
         , inference_enabled (false) {
 
+        // kp << 750, 1000, 400, 200, 10, 10, 2.5;
+        // kd << 8.3, 8, 3.3, 0.8, 0.5, 0.5, 0.05;
+
         last_op_time = std::chrono::steady_clock::now();
 
         gripper_max_pos = gripper->getGripperClosePos();
@@ -227,17 +230,6 @@ class Follower : public barrett::systems::System {
                 std::string clipped_joints_str = "";
                 for (size_t i = 0; i < DOF; ++i) {
                     double delta = policy_data->jp[i] - wamJP[i];
-                    if (delta > clip_val[i]) {
-                        clipped_jp[i] = wamJP[i] + clip_val[i];
-                        was_clipped = true;
-                    } else if (delta < -clip_val[i]) {
-                        clipped_jp[i] = wamJP[i] - clip_val[i];
-                        was_clipped = true;
-                    }
-                }
-
-                for (size_t i = 0; i < DOF; ++i) {
-                    double delta = policy_data->jp[i] - wamJP[i];
                     bool joint_clipped = false;
                     
                     if (delta > clip_val[i]) {
@@ -256,7 +248,7 @@ class Follower : public barrett::systems::System {
                 }
 
                 // std::cout << (was_clipped ? "  CLIPPED " : "  EXECUTING ") << clipped_jp.transpose() << " | diff: " << static_cast<uint64_t>(now_ns - policy_data->timestamp) / 1e9 << std::endl;
-                std::cout << (was_clipped ? "  CLIPPED [joints: " + clipped_joints_str + "] " : "  EXECUTING ") << clipped_jp.transpose() << std::endl;
+                // std::cout << (was_clipped ? "  CLIPPED [joints: " + clipped_joints_str + "] " : "  EXECUTING ") << clipped_jp.transpose() << std::endl;
 
                 policyJp << clipped_jp;
                 policy_gripper_cmd.store(static_cast<double>(policy_data->gripper_cmd));
@@ -277,6 +269,8 @@ class Follower : public barrett::systems::System {
             jtOutputValue->setData(&control);
             policyJpOutputValue->setData(&wamJP);
         } else if (isInference()) { // inference only
+            control.setZero();
+            jtOutputValue->setData(&control);
             policyControl << policyJp;
             policyJpOutputValue->setData(&policyControl);
         } else {
@@ -321,7 +315,7 @@ class Follower : public barrett::systems::System {
             // std::cout << "  -> TX GrpPos:  " << current_gripper_pos.load() << "\n\n";
             // std::cout << "  -> P control:      [" << policyControl.transpose() << "]\n";
             // std::cout << "  -> P JT:      [" << policyJt.transpose() << "]\n";
-            std::cout << "  -> P JP:      [" << policyJp.transpose() << "]\nn";
+            // std::cout << "  -> P JP:      [" << policyJp.transpose() << "]\nn";
             // std::cout << "  -> P T Force:      [" << policyToolForce.transpose() << "]\n\n";
             // std::cout << "  -> P T Torque:      [" << policyToolTorque.transpose() << "]\n\n";
             // std::cout << "  -> P G:      [" << policy_gripper_pos.load() << "]\n\n";
@@ -349,11 +343,12 @@ class Follower : public barrett::systems::System {
                 gripper->controlLoopCallback();
             } else if (isInference()) { // inference only
                 float local_gripper_cmd = policy_gripper_cmd.load();
-                if (local_gripper_cmd > 0) {
-                    gripper->setPosition(gripper_max_pos);
-                } else {
-                    gripper->setPosition(gripper_min_pos);
-                }
+                // if (local_gripper_cmd > 0) {
+                //     gripper->setPosition(gripper_max_pos);
+                // } else {
+                //     gripper->setPosition(gripper_min_pos);
+                // }
+                gripper->setPosition(local_gripper_cmd);
                 gripper->controlLoopCallback();
             } else {
                 gripper->setVelocity(0.0f);
@@ -420,7 +415,7 @@ class Follower : public barrett::systems::System {
 
         jt_type u10 = -0.5 * ref_extTorque;
 
-        jt_type u = u2;
+        jt_type u = u1;
 
         // for (size_t i = 4; i < 7; ++i) {
         //     u[i] = 0.0;

@@ -10,6 +10,7 @@
 // A version of 7-DOF follower.
 
 #include "lib/external_torque.h"
+#include <barrett/systems/pid_controller.h>
 #include <barrett/systems/tool_torque_to_joint_torques.h>
 #include <iostream>
 #include <string>
@@ -50,6 +51,19 @@ bool validate_args(int argc, char** argv) {
         return false;
     }
     return true;
+}
+
+template <size_t DOF>
+barrett::math::Matrix<DOF, 1> toBarrettVec(const std::vector<double>& v) {
+    if (v.size() != DOF) {
+        throw std::runtime_error("Config vector size (" + std::to_string(v.size()) +
+                                  ") does not match DOF (" + std::to_string(DOF) + ")");
+    }
+    barrett::math::Matrix<DOF, 1> out;
+    for (size_t i = 0; i < DOF; ++i) {
+        out[i] = v[i];
+    }
+    return out;
 }
 
 template <size_t DOF> int wam_main(int argc, char **argv, ProductManager &pm, systems::Wam<DOF> &wam) {
@@ -96,6 +110,13 @@ template <size_t DOF> int wam_main(int argc, char **argv, ProductManager &pm, sy
 
     TrajectorySmoother<DOF> policyFilter(2.0, 2.0, 0.0);
     pm.getExecutionManager()->startManaging(policyFilter);
+
+    barrett::systems::PIDController<jp_type, jt_type> policy_controller;
+    policy_controller.setKp(toBarrettVec<DOF>(config.policy.kp));
+    policy_controller.setKi(toBarrettVec<DOF>(config.policy.ki));
+    policy_controller.setKd(toBarrettVec<DOF>(config.policy.kd));
+    policy_controller.setIntegratorLimit(toBarrettVec<DOF>(config.policy.integrator_limit));
+    policy_controller.setControlSignalLimit(toBarrettVec<DOF>(config.policy.control_signal_limit));
 
     FollowerDynamics<DOF> followerDynamics(pm.getExecutionManager());
     ExternalTorque<DOF> externalTorque(pm.getExecutionManager());
@@ -210,12 +231,16 @@ template <size_t DOF> int wam_main(int argc, char **argv, ProductManager &pm, sy
 
     systems::connect(follower.policyJpOutput, policyFilter.input);
 
+    systems::connect(follower.policyJpOutput, policy_controller.referenceInput);
+    systems::connect(follower.wamJPOutput, policy_controller.feedbackInput);
+
     // systems::connect(extFilter.output, printdynamicextTorque.input);
     // systems::connect(dynamicExternalTorque.wamExternalTorqueOut, printdynamicextTorque.input);
     // systems::connect(wam.supervisoryController.output, printSC.input);
     // systems::connect(customjtSum.output, printTOQ.input);
     // systems::connect(followerDynamics.dynamicsFeedFWD, printTOQ.input);
     // systems::connect(policyFilter.output, printPOS.input);
+    systems::connect(policy_controller.controlOutput, printTOQ.input);
 
     wam.gravityCompensate();
 
@@ -264,7 +289,8 @@ template <size_t DOF> int wam_main(int argc, char **argv, ProductManager &pm, sy
 
                 btsleep(0.1); // wait an execution cycle or two
                 if (follower.isInference()) {
-                    wam.trackReferenceSignal(policyFilter.output);
+                    // wam.trackReferenceSignal(policyFilter.output);
+                    systems::connect(policy_controller.controlOutput, wam.input);
                     printf("Running policy.\n");
                 } else {
                     printf("WARNING: inference was unsuccessful.\n");
