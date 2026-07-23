@@ -76,9 +76,6 @@ class Follower : public barrett::systems::System {
         , linked(false)
         , inference_enabled (false) {
 
-        // kp << 750, 1000, 400, 200, 10, 10, 2.5;
-        // kd << 8.3, 8, 3.3, 0.8, 0.5, 0.5, 0.05;
-
         last_op_time = std::chrono::steady_clock::now();
 
         gripper_max_pos = gripper->getGripperClosePos();
@@ -263,7 +260,8 @@ class Follower : public barrett::systems::System {
             // TOOD: make this actually work
             control.setZero();
             jtOutputValue->setData(&control);
-            policyJpOutputValue->setData(&wamJP);
+            policyControl << policyJp;
+            policyJpOutputValue->setData(&policyControl);
         } else if (isLinked()) { // teleop only
             control = compute_teleop_control(theirJp, theirJv, theirExtTorque, wamJP, wamJV, extTorque, wamGrav, wamDyn);
             jtOutputValue->setData(&control);
@@ -301,7 +299,7 @@ class Follower : public barrett::systems::System {
                       // << " ms | UDP Rx Age: " << udp_rx_age 
                       // << " ms | UDP Send latency: " << send_dt << " ms\n";
 
-            // std::cout << "  -> FOLLOWER JP:      [" << sendJpMsg.transpose() << "]\n";
+            std::cout << "  -> FOLLOWER JP:      [" << sendJpMsg.transpose() << "]\n";
             // std::cout << "  -> LEADER JP:  " << theirJp.transpose() << "\n\n";
             // std::cout << "  -> TX JV:      [" << sendJvMsg.transpose() << "]\n";
             // std::cout << "  -> FOLLOWER EXT TOQ:  [" << sendExtTorqueMsg.transpose() << "]\n";
@@ -315,7 +313,7 @@ class Follower : public barrett::systems::System {
             // std::cout << "  -> TX GrpPos:  " << current_gripper_pos.load() << "\n\n";
             // std::cout << "  -> P control:      [" << policyControl.transpose() << "]\n";
             // std::cout << "  -> P JT:      [" << policyJt.transpose() << "]\n";
-            // std::cout << "  -> P JP:      [" << policyJp.transpose() << "]\nn";
+            std::cout << "  -> P JP:      [" << policyJp.transpose() << "]\nn";
             // std::cout << "  -> P T Force:      [" << policyToolForce.transpose() << "]\n\n";
             // std::cout << "  -> P T Torque:      [" << policyToolTorque.transpose() << "]\n\n";
             // std::cout << "  -> P G:      [" << policy_gripper_pos.load() << "]\n\n";
@@ -335,8 +333,10 @@ class Follower : public barrett::systems::System {
     void pollGripper() {
         while (io_running.load()) {
             if (isLinked() && isInference()) { // shared control
-                // TOOD: make this actually work
+                float local_gripper_cmd = policy_gripper_cmd.load();
+                // gripper->setPosition(local_gripper_cmd);
                 gripper->setVelocity(0.0f);
+                gripper->controlLoopCallback();
             } else if (isLinked()) { // teleop only
                 float local_gripper_vel = target_gripper_vel.load();
                 gripper->setVelocity(local_gripper_vel);
@@ -348,7 +348,8 @@ class Follower : public barrett::systems::System {
                 // } else {
                 //     gripper->setPosition(gripper_min_pos);
                 // }
-                gripper->setPosition(local_gripper_cmd);
+                // gripper->setPosition(local_gripper_cmd);
+                gripper->setVelocity(0.0f);
                 gripper->controlLoopCallback();
             } else {
                 gripper->setVelocity(0.0f);
@@ -367,12 +368,9 @@ class Follower : public barrett::systems::System {
   private:
     DISALLOW_COPY_AND_ASSIGN(Follower);
     std::mutex state_mutex;
-    jp_type joint_positions;
     FollowerUDPHandler<DOF> udp_handler;
     const std::chrono::milliseconds TELEOP_TIMEOUT_DURATION = std::chrono::milliseconds(10); // this needs to be larger than 2ms becuse of warmup on policy startup
     const std::chrono::milliseconds INFERENCE_TIMEOUT_DURATION = std::chrono::milliseconds(1000); // dont take action on packets recieved longer than 3s ago
-    const Eigen::Matrix<double, DOF, 1> kp;
-    const Eigen::Matrix<double, DOF, 1> kd;
 
     GeckoGripper* gripper;
     std::thread io_thread;

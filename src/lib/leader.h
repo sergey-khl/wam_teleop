@@ -297,7 +297,7 @@ class Leader : public barrett::systems::System {
         jt_type u7 = -0.5 * cur_extTorque;
         jt_type u8 = -0.25 * (ref_extTorque + cur_extTorque);
 
-        jt_type u = u2;
+        jt_type u = u1;
 
         // for (size_t i = 4; i < 7; ++i) {
         //     u[i] = 0.0;

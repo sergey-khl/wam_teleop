@@ -232,6 +232,7 @@ template <size_t DOF> int wam_main(int argc, char **argv, ProductManager &pm, sy
     systems::connect(follower.policyJpOutput, policyFilter.input);
 
     systems::connect(follower.policyJpOutput, policy_controller.referenceInput);
+    // systems::connect(policyFilter.output, policy_controller.referenceInput);
     systems::connect(follower.wamJPOutput, policy_controller.feedbackInput);
 
     // systems::connect(extFilter.output, printdynamicextTorque.input);
@@ -240,7 +241,7 @@ template <size_t DOF> int wam_main(int argc, char **argv, ProductManager &pm, sy
     // systems::connect(customjtSum.output, printTOQ.input);
     // systems::connect(followerDynamics.dynamicsFeedFWD, printTOQ.input);
     // systems::connect(policyFilter.output, printPOS.input);
-    systems::connect(policy_controller.controlOutput, printTOQ.input);
+    // systems::connect(policy_controller.controlOutput, printTOQ.input);
 
     wam.gravityCompensate();
 
