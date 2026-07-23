@@ -8,7 +8,7 @@
 #include <barrett/units.h>
 #include <barrett/systems.h>
 #include <barrett/math/kinematics.h> 
-#include "follower_beta_slax_skid_hand_4dof.h"
+#include "follower_beta_zeus_4dof.h"
 #include "regressor_W_4dof.h"
 
 using namespace barrett;

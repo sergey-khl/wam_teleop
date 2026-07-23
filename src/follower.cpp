@@ -28,8 +28,8 @@
 
 #include "lib/follower.h"
 #include "lib/background_state_publisher.h"
-// #include "lib/follower_dynamics_4dof.h"
-#include "lib/follower_dynamics_7dof.h"
+#include "lib/follower_dynamics_4dof.h"
+// #include "lib/follower_dynamics_7dof.h"
 #include "lib/dynamic_external_torque.h"
 #include "lib/follower_vertical_dynamics.h"
 #include "lib/trajectory_smoother.h"
@@ -102,7 +102,7 @@ template <size_t DOF> int wam_main(int argc, char **argv, ProductManager &pm, sy
     ros::init(argc, argv, "follower");
     BackgroundStatePublisher<DOF> state_publisher(pm.getExecutionManager(), wam);
 
-    barrett::systems::Summer<jt_type, 3> customjtSum;
+    barrett::systems::Summer<jt_type, 4> customjtSum;
     pm.getExecutionManager()->startManaging(customjtSum);
 
     barrett::systems::Summer<jt_type, 2> policyJtSum;
@@ -199,6 +199,7 @@ template <size_t DOF> int wam_main(int argc, char **argv, ProductManager &pm, sy
     systems::connect(follower.wamJTOutput, customjtSum.getInput(0));
     systems::connect(wam.gravity.output, customjtSum.getInput(1));
     systems::connect(wam.supervisoryController.output, customjtSum.getInput(2));
+    systems::connect(policy_controller.controlOutput, customjtSum.getInput(3));
 
     systems::connect(customjtSum.output, dynamicExternalTorque.wamTorqueSumIn);
     if (config.follower.vertical) {
@@ -236,7 +237,7 @@ template <size_t DOF> int wam_main(int argc, char **argv, ProductManager &pm, sy
     systems::connect(follower.wamJPOutput, policy_controller.feedbackInput);
 
     // systems::connect(extFilter.output, printdynamicextTorque.input);
-    // systems::connect(dynamicExternalTorque.wamExternalTorqueOut, printdynamicextTorque.input);
+    systems::connect(dynamicExternalTorque.wamExternalTorqueOut, printdynamicextTorque.input);
     // systems::connect(wam.supervisoryController.output, printSC.input);
     // systems::connect(customjtSum.output, printTOQ.input);
     // systems::connect(followerDynamics.dynamicsFeedFWD, printTOQ.input);

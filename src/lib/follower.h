@@ -299,7 +299,7 @@ class Follower : public barrett::systems::System {
                       // << " ms | UDP Rx Age: " << udp_rx_age 
                       // << " ms | UDP Send latency: " << send_dt << " ms\n";
 
-            std::cout << "  -> FOLLOWER JP:      [" << sendJpMsg.transpose() << "]\n";
+            // std::cout << "  -> FOLLOWER JP:      [" << sendJpMsg.transpose() << "]\n";
             // std::cout << "  -> LEADER JP:  " << theirJp.transpose() << "\n\n";
             // std::cout << "  -> TX JV:      [" << sendJvMsg.transpose() << "]\n";
             // std::cout << "  -> FOLLOWER EXT TOQ:  [" << sendExtTorqueMsg.transpose() << "]\n";
@@ -313,7 +313,7 @@ class Follower : public barrett::systems::System {
             // std::cout << "  -> TX GrpPos:  " << current_gripper_pos.load() << "\n\n";
             // std::cout << "  -> P control:      [" << policyControl.transpose() << "]\n";
             // std::cout << "  -> P JT:      [" << policyJt.transpose() << "]\n";
-            std::cout << "  -> P JP:      [" << policyJp.transpose() << "]\nn";
+            // std::cout << "  -> P JP:      [" << policyJp.transpose() << "]\nn";
             // std::cout << "  -> P T Force:      [" << policyToolForce.transpose() << "]\n\n";
             // std::cout << "  -> P T Torque:      [" << policyToolTorque.transpose() << "]\n\n";
             // std::cout << "  -> P G:      [" << policy_gripper_pos.load() << "]\n\n";
@@ -333,9 +333,8 @@ class Follower : public barrett::systems::System {
     void pollGripper() {
         while (io_running.load()) {
             if (isLinked() && isInference()) { // shared control
-                float local_gripper_cmd = policy_gripper_cmd.load();
-                // gripper->setPosition(local_gripper_cmd);
-                gripper->setVelocity(0.0f);
+                float local_gripper_vel = target_gripper_vel.load();
+                gripper->setVelocity(local_gripper_vel);
                 gripper->controlLoopCallback();
             } else if (isLinked()) { // teleop only
                 float local_gripper_vel = target_gripper_vel.load();
@@ -413,7 +412,7 @@ class Follower : public barrett::systems::System {
 
         jt_type u10 = -0.5 * ref_extTorque;
 
-        jt_type u = u1;
+        jt_type u = u2;
 
         // for (size_t i = 4; i < 7; ++i) {
         //     u[i] = 0.0;

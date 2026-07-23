@@ -28,8 +28,8 @@
 #include <haptic_wrist/handle.h>
 #include "lib/leader.h"
 #include "lib/background_state_publisher.h"
-// #include "lib/leader_dynamics_4dof.h"
-#include "lib/leader_dynamics_7dof.h"
+#include "lib/leader_dynamics_4dof.h"
+// #include "lib/leader_dynamics_7dof.h"
 #include "lib/dynamic_external_torque.h"
 #include "lib/leader_vertical_dynamics.h"
 
