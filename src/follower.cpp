@@ -31,6 +31,7 @@
 #include "lib/follower_dynamics_4dof.h"
 // #include "lib/follower_dynamics_7dof.h"
 #include "lib/dynamic_external_torque.h"
+#include "lib/policy_external_torque.h"
 #include "lib/follower_vertical_dynamics.h"
 #include "lib/trajectory_smoother.h"
 
@@ -53,6 +54,7 @@ bool validate_args(int argc, char** argv) {
     return true;
 }
 
+// TODO: this is gross. fix later
 template <size_t DOF>
 barrett::math::Matrix<DOF, 1> toBarrettVec(const std::vector<double>& v) {
     if (v.size() != DOF) {
@@ -105,8 +107,8 @@ template <size_t DOF> int wam_main(int argc, char **argv, ProductManager &pm, sy
     barrett::systems::Summer<jt_type, 4> customjtSum;
     pm.getExecutionManager()->startManaging(customjtSum);
 
-    barrett::systems::Summer<jt_type, 2> policyJtSum;
-    pm.getExecutionManager()->startManaging(policyJtSum);
+    // barrett::systems::Summer<jt_type, 2> policyJtSum;
+    // pm.getExecutionManager()->startManaging(policyJtSum);
 
     TrajectorySmoother<DOF> policyFilter(2.0, 2.0, 0.0);
     pm.getExecutionManager()->startManaging(policyFilter);
@@ -121,6 +123,7 @@ template <size_t DOF> int wam_main(int argc, char **argv, ProductManager &pm, sy
     FollowerDynamics<DOF> followerDynamics(pm.getExecutionManager());
     ExternalTorque<DOF> externalTorque(pm.getExecutionManager());
     DynamicExternalTorque<DOF> dynamicExternalTorque(pm.getExecutionManager());
+    PolicyExternalTorque<DOF> policyExternalTorque(pm.getExecutionManager());
 
     FollowerDynamics<DOF>* horizontalGravity = nullptr;
     FollowerVerticalDynamics<DOF>* followerVerticalDynamics = nullptr;
@@ -220,15 +223,15 @@ template <size_t DOF> int wam_main(int argc, char **argv, ProductManager &pm, sy
 
     systems::connect(wam.toolPose.output, follower.wamTPIn);
 
-    systems::connect(wam.kinematicsBase.kinOutput, tf2jt.kinInput);
-    systems::connect(wam.kinematicsBase.kinOutput, tt2jt.kinInput);
-    systems::connect(follower.policyToolForceOutput, tf2jt.input);
-    systems::connect(follower.policyToolTorqueOutput, tt2jt.input);
+    // systems::connect(wam.kinematicsBase.kinOutput, tf2jt.kinInput);
+    // systems::connect(wam.kinematicsBase.kinOutput, tt2jt.kinInput);
+    // systems::connect(follower.policyToolForceOutput, tf2jt.input);
+    // systems::connect(follower.policyToolTorqueOutput, tt2jt.input);
+    //
+    // systems::connect(tf2jt.output, policyJtSum.getInput(0));
+    // systems::connect(tt2jt.output, policyJtSum.getInput(1));
+    // systems::connect(policyJtSum.output, follower.policyJtIn);
 
-    systems::connect(tf2jt.output, policyJtSum.getInput(0));
-    systems::connect(tt2jt.output, policyJtSum.getInput(1));
-
-    systems::connect(policyJtSum.output, follower.policyJtIn);
 
     systems::connect(follower.policyJpOutput, policyFilter.input);
 
@@ -236,13 +239,21 @@ template <size_t DOF> int wam_main(int argc, char **argv, ProductManager &pm, sy
     // systems::connect(policyFilter.output, policy_controller.referenceInput);
     systems::connect(follower.wamJPOutput, policy_controller.feedbackInput);
 
+    systems::connect(dynamicExternalTorque.wamExternalTorqueOut, policyExternalTorque.wamCompTorqIn);
+    systems::connect(policy_controller.controlOutput, policyExternalTorque.policyTorqueIn);
+    systems::connect(follower.policyJtScaleOutput, policyExternalTorque.policyTorqueScaleIn);
+
+    systems::connect(policyExternalTorque.output, follower.policyJtIn);
+
     // systems::connect(extFilter.output, printdynamicextTorque.input);
-    systems::connect(dynamicExternalTorque.wamExternalTorqueOut, printdynamicextTorque.input);
+    // systems::connect(dynamicExternalTorque.wamExternalTorqueOut, printdynamicextTorque.input);
     // systems::connect(wam.supervisoryController.output, printSC.input);
     // systems::connect(customjtSum.output, printTOQ.input);
     // systems::connect(followerDynamics.dynamicsFeedFWD, printTOQ.input);
     // systems::connect(policyFilter.output, printPOS.input);
     // systems::connect(policy_controller.controlOutput, printTOQ.input);
+    // systems::connect(policyExternalTorque.output, printTOQ.input);
+    // systems::connect(follower.policyJtScaleOutput, printTOQ.input);
 
     wam.gravityCompensate();
 
@@ -292,7 +303,7 @@ template <size_t DOF> int wam_main(int argc, char **argv, ProductManager &pm, sy
                 btsleep(0.1); // wait an execution cycle or two
                 if (follower.isInference()) {
                     // wam.trackReferenceSignal(policyFilter.output);
-                    systems::connect(policy_controller.controlOutput, wam.input);
+                    systems::connect(policyExternalTorque.output, wam.input);
                     printf("Running policy.\n");
                 } else {
                     printf("WARNING: inference was unsuccessful.\n");
