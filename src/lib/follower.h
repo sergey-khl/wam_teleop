@@ -315,7 +315,7 @@ class Follower : public barrett::systems::System {
         auto send_end = std::chrono::steady_clock::now();
         double send_dt = std::chrono::duration<double, std::milli>(send_end - send_start).count();
 
-        if (++loop_counter % 50 == 0) {
+        if (++loop_counter % 100 == 0) {
             std::cout << std::fixed << std::setprecision(3);
 
             // std::cout << "[FOLLOWER] Loop dt: " << loop_dt
@@ -335,8 +335,8 @@ class Follower : public barrett::systems::System {
             // std::cout << "  -> TX GrpTrq:  " << current_gripper_torque.load() << "\n\n";
             // std::cout << "  -> TX GrpPos:  " << current_gripper_pos.load() << "\n\n";
             // std::cout << "  -> P control:      [" << policyControl.transpose() << "]\n";
-            std::cout << "  -> P JT:      [" << policyJt.transpose() << "]\n";
-            std::cout << "  -> P scales:      [" << policyJtScale.transpose() << "]\n\n";
+            // std::cout << "  -> P JT:      [" << policyJt.transpose() << "]\n";
+            // std::cout << "  -> P scales:      [" << policyJtScale.transpose() << "]\n\n";
             // std::cout << "  -> P JP:      [" << policyJp.transpose() << "]\nn";
             // std::cout << "  -> P T Force:      [" << policyToolForce.transpose() << "]\n\n";
             // std::cout << "  -> P T Torque:      [" << policyToolTorque.transpose() << "]\n\n";
@@ -439,9 +439,9 @@ class Follower : public barrett::systems::System {
 
         jt_type u = u2;
 
-        // for (size_t i = 4; i < 7; ++i) {
-        //     u[i] = 0.0;
-        // }
+        for (size_t i = 4; i < 7; ++i) {
+            u[i] = 0.0;
+        }
 
         return u;
     };

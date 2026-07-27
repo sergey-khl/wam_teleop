@@ -8,7 +8,7 @@
 #include <barrett/units.h>
 #include <barrett/systems.h>
 #include <barrett/math/kinematics.h> 
-#include "leader_beta_ares_4dof.h"
+#include "leader_beta_zeus_bwrist_4dof.h"
 #include "regressor_W_4dof.h"
 
 using namespace barrett;
