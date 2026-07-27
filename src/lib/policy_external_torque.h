@@ -11,17 +11,17 @@ class PolicyExternalTorque : public barrett::systems::System {
     BARRETT_UNITS_TEMPLATE_TYPEDEFS(DOF);
 
   public:
-    Input<jt_type> wamCompTorqIn;
+    Input<ja_type> policyJaIn;
     Input<jt_type> policyTorqueIn;
-    Input<jt_type> policyTorqueScaleIn;
-    Output<jt_type> output;
+    // Input<jt_type> policyTorqueScaleIn;
+    Output<ja_type> output;
 
     explicit PolicyExternalTorque(barrett::systems::ExecutionManager* em, const std::string& sysName = "PolicyExternalTorque")
         : System(sysName)
-        , wamCompTorqIn(this)
+        , policyJaIn(this)
         , policyTorqueIn(this)
-        , policyTorqueScaleIn(this)
-        , output(this, &jtOutputValue) {
+        // , policyTorqueScaleIn(this)
+        , output(this, &outputValue) {
 
         if (em != NULL) {
             em->startManaging(*this);
@@ -33,19 +33,20 @@ class PolicyExternalTorque : public barrett::systems::System {
     }
 
   protected:
-    typename Output<jt_type>::Value* jtOutputValue;
-    jt_type compTorque;
-    jt_type policyTorque;
-    jt_type policyTorqueScale;
-    jt_type externalTorque;
+    typename Output<ja_type>::Value* outputValue;
+    ja_type policyJa;
+    ja_type policyTorque;
+    // jt_type policyTorqueScale;
+    ja_type externalTorque;
 
     virtual void operate() {
-        compTorque = wamCompTorqIn.getValue();
-        policyTorque = policyTorqueIn.getValue();
-        policyTorqueScale = policyTorqueScaleIn.getValue();
+        policyJa = policyJaIn.getValue();
+        policyTorque << policyTorqueIn.getValue();
+        // policyTorqueScale = policyTorqueScaleIn.getValue();
         // externalTorque = compTorque - policyTorque + policyTorqueScale.asDiagonal() * policyTorque;
-        externalTorque = policyTorqueScale.asDiagonal() * policyTorque;
-        jtOutputValue->setData(&externalTorque);
+        externalTorque = policyTorque + policyJa;
+        // externalTorque = compTorque - policyTorqueScale.asDiagonal() * policyTorque;
+        outputValue->setData(&externalTorque);
     }
 
   private:

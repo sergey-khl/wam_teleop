@@ -25,6 +25,7 @@ struct FollowerToLeaderPacket {
     double jp[DOF];
     double jv[DOF];
     double extTorque[DOF];
+    double policyTorque[DOF];
     double gripper_torque;
     uint64_t timestamp;
 };
@@ -64,6 +65,7 @@ struct LeaderReceivedData {
     Eigen::Matrix<double, DOF, 1> jp;
     Eigen::Matrix<double, DOF, 1> jv;
     Eigen::Matrix<double, DOF, 1> extTorque;
+    Eigen::Matrix<double, DOF, 1> policyTorque;
     double gripper_torque;
     uint64_t timestamp;
 };
@@ -79,6 +81,8 @@ struct FollowerReceivedData {
 
 struct PolicyReceivedData {
     Eigen::Matrix<double, 7, 1> jp;
+    Eigen::Matrix<double, 7, 1> jv;
+    Eigen::Matrix<double, 7, 1> ja;
     double gripper_cmd;
     uint64_t timestamp;
 };

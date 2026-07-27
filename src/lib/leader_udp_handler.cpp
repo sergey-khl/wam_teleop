@@ -49,6 +49,7 @@ typename LeaderUDPHandler<DOF>::TeleopReceivedData LeaderUDPHandler<DOF>::unpack
     std::memcpy(rd.jp.data(), pkt.jp, sizeof(double) * DOF);
     std::memcpy(rd.jv.data(), pkt.jv, sizeof(double) * DOF);
     std::memcpy(rd.extTorque.data(), pkt.extTorque, sizeof(double) * DOF);
+    std::memcpy(rd.policyTorque.data(), pkt.policyTorque, sizeof(double) * DOF);
     rd.gripper_torque = pkt.gripper_torque;
     rd.timestamp = pkt.timestamp;
     return rd;

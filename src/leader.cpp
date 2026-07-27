@@ -157,8 +157,8 @@ int wam_main(int argc, char **argv, ProductManager &pm, systems::Wam<DOF> &wam) 
     systems::connect(wam.jvOutput, leader.wamJVIn);
     // systems::connect(extFilter.output, leader.extTorqueIn);
     // systems::connect(customjtSum.output, leader.extTorqueIn);
-    // systems::connect(dynamicExtFilter.output, leader.extTorqueIn);
-    systems::connect(dynamicExternalTorque.wamExternalTorqueOut, leader.extTorqueIn);
+    systems::connect(dynamicExtFilter.output, leader.extTorqueIn);
+    // systems::connect(dynamicExternalTorque.wamExternalTorqueOut, leader.extTorqueIn);
 
     systems::connect(wam.jpOutput, leaderDynamics.jpInputDynamics);
     systems::connect(wam.jvOutput, leaderDynamics.jvInputDynamics);
@@ -227,6 +227,7 @@ int wam_main(int argc, char **argv, ProductManager &pm, systems::Wam<DOF> &wam) 
                     // Track peer’s arm joints (Leader publishes them)
                     wam.trackReferenceSignal(leader.theirJPOutput);
                     connect(leader.wamJTOutput, wam.input);
+                    // connect(leader.policyJTOutput, wam.input);
                     printf("Linked with remote WAM.\n");
                 } else {
                     printf("WARNING: Linking was unsuccessful.\n");

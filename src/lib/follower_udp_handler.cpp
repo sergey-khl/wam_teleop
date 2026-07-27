@@ -89,31 +89,61 @@ template <size_t DOF>
 std::deque<PolicyReceivedData> FollowerUDPHandler<DOF>::interpolateChunk(
     const RawAction (&actions)[ACTION_HORIZON], uint64_t inference_timestamp_ns) {
     std::deque<PolicyReceivedData> queue;
-
     const double policy_dt_ns = 1e9 / UNINTERP_HZ;
+    const double dt_s = policy_dt_ns * 1e-9; // seconds between consecutive raw waypoints
 
-    const uint64_t now_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
+    // Catmull-Rom cubic position/velocity/acceleration between p1 and p2 (p0/p3 = outer support points).
+    // t in [0,1] is the fractional position between p1 and p2 (i.e. "alpha").
+    // Derivatives are returned w.r.t. t (NOT w.r.t. real time) — caller must rescale by dt.
+    struct CRResult { double pos, dpos_dt, d2pos_dt2; };
+    auto catmullRom = [](double p0, double p1, double p2, double p3, double t) -> CRResult {
+        const double t2 = t * t;
+        // coefficients of the cubic in t
+        const double c1 = (-p0 + p2);
+        const double c2 = (2.0 * p0 - 5.0 * p1 + 4.0 * p2 - p3);
+        const double c3 = (-p0 + 3.0 * p1 - 3.0 * p2 + p3);
+
+        CRResult r;
+        r.pos       = 0.5 * (2.0 * p1 + c1 * t + c2 * t2 + c3 * t2 * t);
+        r.dpos_dt   = 0.5 * (c1 + 2.0 * c2 * t + 3.0 * c3 * t2);
+        r.d2pos_dt2 = 0.5 * (2.0 * c2 + 6.0 * c3 * t);
+        return r;
+    };
 
     for (size_t j = 0; j < NUM_INTERP_SAMPLES; ++j) {
         // map sample j -> fractional position across the horizon waypoints
         double frac = static_cast<double>(j) / static_cast<double>(NUM_INTERP_SAMPLES - 1);
         double pos = frac * static_cast<double>(ACTION_HORIZON - 1);
-        // the idx are the floor and ceiling of the continuous pos
-        size_t idx0 = static_cast<size_t>(pos);
-        size_t idx1 = std::min(idx0 + 1, ACTION_HORIZON - 1);
-        double alpha = pos - static_cast<double>(idx0);
 
-        const RawAction& a = actions[idx0];
-        const RawAction& b = actions[idx1];
+        // idx1/idx2 bracket pos (equivalent to old idx0/idx1);
+        // idx0/idx3 are outer support points used to estimate local tangents/curvature.
+        size_t idx1 = static_cast<size_t>(pos);
+        size_t idx2 = std::min(idx1 + 1, ACTION_HORIZON - 1);
+        size_t idx0 = (idx1 == 0) ? idx1 : idx1 - 1;
+        size_t idx3 = std::min(idx2 + 1, ACTION_HORIZON - 1);
+        double alpha = pos - static_cast<double>(idx1);
+
+        const RawAction& a0 = actions[idx0];
+        const RawAction& a1 = actions[idx1];
+        const RawAction& a2 = actions[idx2];
+        const RawAction& a3 = actions[idx3];
 
         PolicyReceivedData rd;
         for (size_t k = 0; k < DOF; ++k) {
-            rd.jp[k] = a.jp[k] + alpha * (b.jp[k] - a.jp[k]);
+            CRResult r = catmullRom(a0.jp[k], a1.jp[k], a2.jp[k], a3.jp[k], alpha);
+            rd.jp[k] = r.pos;
+            rd.jv[k] = r.dpos_dt / dt_s;             // chain rule: d/dtime = d/dalpha * dalpha/dtime
+            rd.ja[k] = r.d2pos_dt2 / (dt_s * dt_s);  // d^2/dtime^2 = d^2/dalpha^2 * (dalpha/dtime)^2
         }
-        rd.gripper_cmd = a.gripper_cmd + alpha * (b.gripper_cmd - a.gripper_cmd);
+
+        {
+            CRResult rg = catmullRom(a0.gripper_cmd, a1.gripper_cmd, a2.gripper_cmd, a3.gripper_cmd, alpha);
+            rd.gripper_cmd = rg.pos;
+            // if PolicyReceivedData tracks gripper velocity too, uncomment:
+            // rd.gripper_vel = rg.dpos_dt / dt_s;
+        }
 
         rd.timestamp = inference_timestamp_ns + static_cast<uint64_t>(pos * policy_dt_ns) - static_cast<uint64_t>(2 * policy_dt_ns);
-
         queue.push_back(rd);
     }
     return queue;
@@ -163,13 +193,14 @@ void FollowerUDPHandler<DOF>::policyReceiveLoop() {
 }
 
 template <size_t DOF>
-void FollowerUDPHandler<DOF>::send(const jp_type& jp, const jv_type& jv, const jt_type& extTorque,
+void FollowerUDPHandler<DOF>::send(const jp_type& jp, const jv_type& jv, const jt_type& extTorque, const jt_type& policyTorque,
                                      double gripper_torque, uint64_t timestamp) {
     {
         std::lock_guard<std::mutex> lock(teleop_send_mutex);
         std::memcpy(pending_teleop_packet.jp, jp.data(), sizeof(double) * DOF);
         std::memcpy(pending_teleop_packet.jv, jv.data(), sizeof(double) * DOF);
         std::memcpy(pending_teleop_packet.extTorque, extTorque.data(), sizeof(double) * DOF);
+        std::memcpy(pending_teleop_packet.policyTorque, policyTorque.data(), sizeof(double) * DOF);
         pending_teleop_packet.gripper_torque = gripper_torque;
         pending_teleop_packet.timestamp = timestamp;
         new_teleop_data = true;

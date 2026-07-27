@@ -36,7 +36,7 @@ public:
     boost::optional<PolicyReceivedData> getLatestPolicyReceived();
 
     // Queue a FollowerToLeaderPacket to be sent to the leader.
-    void send(const jp_type& jp, const jv_type& jv, const jt_type& extTorque,
+    void send(const jp_type& jp, const jv_type& jv, const jt_type& extTorque, const jt_type& policyTorque,
               double gripper_torque, uint64_t timestamp);
 
     // Queue a PolicyPacket to be sent to the policy.

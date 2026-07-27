@@ -9,6 +9,10 @@
 //
 
 // Include files
+#ifndef CALCULATE_W_H_
+#define CALCULATE_W_H_
+
+#pragma once
 #include <eigen3/Eigen/Dense>
 #include <array>
 #include <cmath>
@@ -587,3 +591,4 @@ Eigen::MatrixXd calculate_W_eigen(const Eigen::VectorXd& q,
 }
 
 // End of code generation (regressor_W.h)
+#endif /* CALCULATE_W_H_ */

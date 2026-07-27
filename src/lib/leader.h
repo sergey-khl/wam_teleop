@@ -34,6 +34,7 @@ class Leader : public barrett::systems::System {
     // Outputs (same as your first file)
     Output<jt_type> wamJTOutput;      // control torque command for the WAM arm (DOF)
     Output<jp_type> theirJPOutput;    // peer arm JP (DOF) for logging/monitoring
+    Output<jt_type> policyJTOutput;      // control torque command for the WAM arm (DOF)
 
     std::atomic<bool> linked;
 
@@ -55,6 +56,7 @@ class Leader : public barrett::systems::System {
         , wamDynIn(this)
         , wamJTOutput(this, &jtOutputValue)
         , theirJPOutput(this, &theirJPOutputValue)
+        , policyJTOutput(this, &policyJTOutputValue)
         , udp_handler(config.network.follower_host, config.network.teleop_send, config.network.teleop_recv)
         , handle(handle)
     	, bumper(0.0f)
@@ -95,6 +97,7 @@ class Leader : public barrett::systems::System {
   protected:
     typename Output<jt_type>::Value* jtOutputValue;
     typename Output<jp_type>::Value* theirJPOutputValue;
+    typename Output<jt_type>::Value* policyJTOutputValue;
 
     TeleopConfig config;
 
@@ -149,6 +152,8 @@ class Leader : public barrett::systems::System {
             extTorque.setZero();
         }
 
+        policyTorque << 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0;
+
 
         // Receive (non-blocking)
         boost::optional<TeleopReceivedData> received_data = udp_handler.getLatestTeleopReceived();
@@ -159,6 +164,7 @@ class Leader : public barrett::systems::System {
             theirJp        = received_data->jp.template head<DOF>();
             theirJv        = received_data->jv.template head<DOF>();
             theirExtTorque = received_data->extTorque.template head<DOF>();
+            policyTorque = received_data->policyTorque.template head<DOF>();
             remote_gripper_torque.store(static_cast<double>(received_data->gripper_torque));
 
 
@@ -172,6 +178,7 @@ class Leader : public barrett::systems::System {
 
             // Publish peer arm JP (as before)
             theirJPOutputValue->setData(&theirJp);
+            policyJTOutputValue->setData(&policyTorque);
         } else {
             if (isLinked()) {
                 udp_teleop_age = static_cast<double>(now_ns - received_data->timestamp) / 1000000.0;
@@ -196,7 +203,7 @@ class Leader : public barrett::systems::System {
             control = compute_control(
                 theirJp, theirJv, theirExtTorque,
                 wamJP,   wamJV,   extTorque,
-                wamGrav, wamDyn
+                wamGrav, policyTorque
             );
             jtOutputValue->setData(&control);
         } else {
@@ -221,7 +228,8 @@ class Leader : public barrett::systems::System {
             // std::cout << "  -> LEADER JP:      [" << sendJpMsg.transpose() << "]\n";
             // std::cout << " FOLLOWER -> :  " << theirJp.transpose() << "\n";
             std::cout << "  -> leader ExtTrq:  [" << sendExtTorqueMsg.transpose() << "]\n";
-            // std::cout << "  -> leader control: [" << compute_control(theirJp, theirJv, theirExtTorque, wamJP, wamJV, extTorque, wamGrav, wamDyn) << "]\n\n";
+            std::cout << "  -> policy:  [" << policyTorque.transpose() << "]\n";
+            std::cout << "  -> leader control: [" << compute_control(theirJp, theirJv, theirExtTorque, wamJP, wamJV, extTorque, wamGrav, policyTorque) << "]\n\n";
             // std::cout << "  -> TX JV:      [" << sendJvMsg.transpose() << "]\n";
             // std::cout << "  -> TX GrpVel:  " << desired_gripper_vel.load() << "\n";
             // std::cout << "  -> Their wrist:  " << theirWristJp.transpose() << "\n";
@@ -237,6 +245,7 @@ class Leader : public barrett::systems::System {
     jp_type theirJp;
     jv_type theirJv;
     jt_type theirExtTorque;
+    jt_type policyTorque;
     jt_type control;
     std::thread io_thread;
     std::atomic<bool> io_running;
