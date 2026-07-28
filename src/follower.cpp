@@ -198,8 +198,8 @@ template <size_t DOF> int wam_main(int argc, char **argv, ProductManager &pm, sy
     // systems::connect(dynamicExternalTorque.wamExternalTorqueOut, follower.extTorqueIn);
 
     systems::connect(wam.jpOutput, followerDynamics.jpInputDynamics);
-    // systems::connect(wam.jvOutput, followerDynamics.jvInputDynamics);
-    systems::connect(zeroVelocity.output, followerDynamics.jvInputDynamics);
+    systems::connect(wam.jvOutput, followerDynamics.jvInputDynamics);
+    // systems::connect(zeroVelocity.output, followerDynamics.jvInputDynamics);
     systems::connect(zeroAcceleration.output, followerDynamics.jaInputDynamics);
 
     systems::connect(follower.wamJTOutput, customjtSum.getInput(0));
