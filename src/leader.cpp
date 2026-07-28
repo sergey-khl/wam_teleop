@@ -140,8 +140,8 @@ int wam_main(int argc, char **argv, ProductManager &pm, systems::Wam<DOF> &wam) 
     // === Wiring (same as your original "no-wrist" main) ===
     systems::connect(wam.jvOutput, hp1.input);
     systems::connect(hp1.output, jaWAM.input);
-    systems::connect(jaWAM.output, jaFilter.input);
-    systems::connect(jaFilter.output, leaderDynamics.jaInputDynamics);
+    // systems::connect(jaWAM.output, jaFilter.input);
+    // systems::connect(jaFilter.output, leaderDynamics.jaInputDynamics);
 
     if (config.leader.vertical) {
         systems::connect(wam.jpOutput, horizontalGravity->jpInputDynamics);
@@ -161,8 +161,9 @@ int wam_main(int argc, char **argv, ProductManager &pm, systems::Wam<DOF> &wam) 
     // systems::connect(dynamicExternalTorque.wamExternalTorqueOut, leader.extTorqueIn);
 
     systems::connect(wam.jpOutput, leaderDynamics.jpInputDynamics);
-    systems::connect(wam.jvOutput, leaderDynamics.jvInputDynamics);
-    // systems::connect(zeroAcceleration.output, leaderDynamics.jaInputDynamics);
+    // systems::connect(wam.jvOutput, leaderDynamics.jvInputDynamics);
+    systems::connect(zeroVelocity.output, leaderDynamics.jvInputDynamics);
+    systems::connect(zeroAcceleration.output, leaderDynamics.jaInputDynamics);
 
     systems::connect(leader.wamJTOutput, customjtSum.getInput(0));
     systems::connect(wam.gravity.output, customjtSum.getInput(1));
@@ -226,6 +227,7 @@ int wam_main(int argc, char **argv, ProductManager &pm, systems::Wam<DOF> &wam) 
                 if (leader.isLinked()) {
                     // Track peer’s arm joints (Leader publishes them)
                     wam.trackReferenceSignal(leader.theirJPOutput);
+                    // wam.trackReferenceSignal(wam.jpOutput);
                     connect(leader.wamJTOutput, wam.input);
                     // connect(leader.policyJTOutput, wam.input);
                     printf("Linked with remote WAM.\n");

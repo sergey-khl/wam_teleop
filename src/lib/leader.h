@@ -203,7 +203,7 @@ class Leader : public barrett::systems::System {
             control = compute_control(
                 theirJp, theirJv, theirExtTorque,
                 wamJP,   wamJV,   extTorque,
-                wamGrav, policyTorque
+                wamGrav, wamDyn
             );
             jtOutputValue->setData(&control);
         } else {
@@ -222,14 +222,15 @@ class Leader : public barrett::systems::System {
             std::cout << std::fixed << std::setprecision(3);
 
             // std::cout << "[LEADER] Loop dt: " << loop_dt 
-            //           // << " ms | UDP teleop Age: " << udp_teleop_age 
-            //           << " ms | UDP Send latency: " << send_dt << " ms\n";
+                      // << " ms | UDP teleop Age: " << udp_teleop_age 
+                      // << " ms | UDP Send latency: " << send_dt << " ms\n";
                
             // std::cout << "  -> LEADER JP:      [" << sendJpMsg.transpose() << "]\n";
             // std::cout << " FOLLOWER -> :  " << theirJp.transpose() << "\n";
-            std::cout << "  -> leader ExtTrq:  [" << sendExtTorqueMsg.transpose() << "]\n";
-            std::cout << "  -> policy:  [" << policyTorque.transpose() << "]\n";
-            std::cout << "  -> leader control: [" << compute_control(theirJp, theirJv, theirExtTorque, wamJP, wamJV, extTorque, wamGrav, policyTorque) << "]\n\n";
+            // std::cout << "  -> leader ExtTrq:  [" << sendExtTorqueMsg.transpose() << "]\n";
+            // std::cout << "  -> policy:  [" << policyTorque.transpose() << "]\n";
+            std::cout << "  -> leader control: [" << compute_control(theirJp, theirJv, theirExtTorque, wamJP, wamJV, extTorque, wamGrav, wamDyn) << "]\n";
+            std::cout << "  -> dyn: [" << wamDyn.transpose() << "]\n\n";
             // std::cout << "  -> TX JV:      [" << sendJvMsg.transpose() << "]\n";
             // std::cout << "  -> TX GrpVel:  " << desired_gripper_vel.load() << "\n";
             // std::cout << "  -> Their wrist:  " << theirWristJp.transpose() << "\n";

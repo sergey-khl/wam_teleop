@@ -124,7 +124,6 @@ template <size_t DOF> int wam_main(int argc, char **argv, ProductManager &pm, sy
     FollowerDynamics<DOF> followerDynamics(pm.getExecutionManager());
     ExternalTorque<DOF> externalTorque(pm.getExecutionManager());
     DynamicExternalTorque<DOF> dynamicExternalTorque(pm.getExecutionManager());
-    LeaderDynamics<DOF> policyDynamics(pm.getExecutionManager());
     PolicyExternalTorque<DOF> policyExternalTorque(pm.getExecutionManager());
 
     FollowerDynamics<DOF>* horizontalGravity = nullptr;
@@ -179,8 +178,8 @@ template <size_t DOF> int wam_main(int argc, char **argv, ProductManager &pm, sy
 
     systems::connect(wam.jvOutput, hp1.input);
     systems::connect(hp1.output, jaWAM.input);
-    systems::connect(jaWAM.output, jaFilter.input);
-    systems::connect(jaFilter.output, followerDynamics.jaInputDynamics);
+    // systems::connect(jaWAM.output, jaFilter.input);
+    // systems::connect(jaFilter.output, followerDynamics.jaInputDynamics);
 
     if (config.follower.vertical) {
         systems::connect(wam.jpOutput, horizontalGravity->jpInputDynamics);
@@ -199,8 +198,9 @@ template <size_t DOF> int wam_main(int argc, char **argv, ProductManager &pm, sy
     // systems::connect(dynamicExternalTorque.wamExternalTorqueOut, follower.extTorqueIn);
 
     systems::connect(wam.jpOutput, followerDynamics.jpInputDynamics);
-    systems::connect(wam.jvOutput, followerDynamics.jvInputDynamics);
-    // systems::connect(zeroAcceleration.output, followerDynamics.jaInputDynamics);
+    // systems::connect(wam.jvOutput, followerDynamics.jvInputDynamics);
+    systems::connect(zeroVelocity.output, followerDynamics.jvInputDynamics);
+    systems::connect(zeroAcceleration.output, followerDynamics.jaInputDynamics);
 
     systems::connect(follower.wamJTOutput, customjtSum.getInput(0));
     systems::connect(wam.gravity.output, customjtSum.getInput(1));
@@ -243,17 +243,13 @@ template <size_t DOF> int wam_main(int argc, char **argv, ProductManager &pm, sy
     // systems::connect(follower.wamJPOutput, policy_controller.feedbackInput);
     systems::connect(follower.theirJPOutput, policy_controller.feedbackInput);
 
-    systems::connect(follower.theirJPOutput, policyDynamics.jpInputDynamics);
-    systems::connect(follower.theirJVOutput, policyDynamics.jvInputDynamics);
-    systems::connect(policyExternalTorque.output, policyDynamics.jaInputDynamics);
-
     // systems::connect(dynamicExternalTorque.wamExternalTorqueOut, policyExternalTorque.wamCompTorqIn);
     // systems::connect(follower.theirExtTorqueOutput, policyExternalTorque.wamCompTorqIn);
-    systems::connect(follower.policyJaOutput, policyExternalTorque.policyJaIn);
-    systems::connect(policy_controller.controlOutput, policyExternalTorque.policyTorqueIn);
+    // systems::connect(follower.policyJaOutput, policyExternalTorque.policyJaIn);
+    // systems::connect(policy_controller.controlOutput, policyExternalTorque.policyTorqueIn);
     // systems::connect(follower.policyJtScaleOutput, policyExternalTorque.policyTorqueScaleIn);
 
-    systems::connect(policyDynamics.dynamicsFeedFWD, follower.policyJtIn);
+    systems::connect(policy_controller.controlOutput, follower.policyJtIn);
     // systems::connect(policyExternalTorque.output, follower.policyJtIn);
     // systems::connect(policy_controller.controlOutput, follower.policyJtIn);
 
@@ -263,7 +259,7 @@ template <size_t DOF> int wam_main(int argc, char **argv, ProductManager &pm, sy
     // systems::connect(customjtSum.output, printTOQ.input);
     // systems::connect(followerDynamics.dynamicsFeedFWD, printTOQ.input);
     // systems::connect(policyFilter.output, printPOS.input);
-    systems::connect(policy_controller.controlOutput, printTOQ.input);
+    // systems::connect(policy_controller.controlOutput, printTOQ.input);
     // systems::connect(policyExternalTorque.output, printTOQ.input);
     // systems::connect(follower.policyJtScaleOutput, printTOQ.input);
     // systems::connect(follower.policyJaOutput, printACC.input);

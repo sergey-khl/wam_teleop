@@ -4,7 +4,7 @@
 #include <Eigen/Dense>
 
 static constexpr size_t ACTION_HORIZON = 200;
-static constexpr double CHUNK_DURATION_SEC = 40.0;
+static constexpr double CHUNK_DURATION_SEC = 20.0;
 static constexpr double INTERP_HZ = 500.0;
 static constexpr double UNINTERP_HZ = 10.0;
 
