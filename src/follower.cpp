@@ -9,7 +9,6 @@
 
 // A version of 7-DOF follower.
 
-#include "lib/external_torque.h"
 #include <barrett/systems/pid_controller.h>
 #include <barrett/systems/tool_torque_to_joint_torques.h>
 #include <iostream>
@@ -122,7 +121,6 @@ template <size_t DOF> int wam_main(int argc, char **argv, ProductManager &pm, sy
     policy_controller.setControlSignalLimit(toBarrettVec<DOF>(config.policy.control_signal_limit));
 
     FollowerDynamics<DOF> followerDynamics(pm.getExecutionManager());
-    ExternalTorque<DOF> externalTorque(pm.getExecutionManager());
     DynamicExternalTorque<DOF> dynamicExternalTorque(pm.getExecutionManager());
     PolicyExternalTorque<DOF> policyExternalTorque(pm.getExecutionManager());
 
@@ -178,8 +176,8 @@ template <size_t DOF> int wam_main(int argc, char **argv, ProductManager &pm, sy
 
     systems::connect(wam.jvOutput, hp1.input);
     systems::connect(hp1.output, jaWAM.input);
-    // systems::connect(jaWAM.output, jaFilter.input);
-    // systems::connect(jaFilter.output, followerDynamics.jaInputDynamics);
+    systems::connect(jaWAM.output, jaFilter.input);
+    systems::connect(jaFilter.output, followerDynamics.jaInputDynamics);
 
     if (config.follower.vertical) {
         systems::connect(wam.jpOutput, horizontalGravity->jpInputDynamics);
@@ -200,7 +198,7 @@ template <size_t DOF> int wam_main(int argc, char **argv, ProductManager &pm, sy
     systems::connect(wam.jpOutput, followerDynamics.jpInputDynamics);
     systems::connect(wam.jvOutput, followerDynamics.jvInputDynamics);
     // systems::connect(zeroVelocity.output, followerDynamics.jvInputDynamics);
-    systems::connect(zeroAcceleration.output, followerDynamics.jaInputDynamics);
+    // systems::connect(zeroAcceleration.output, followerDynamics.jaInputDynamics);
 
     systems::connect(follower.wamJTOutput, customjtSum.getInput(0));
     systems::connect(wam.gravity.output, customjtSum.getInput(1));
@@ -293,6 +291,7 @@ template <size_t DOF> int wam_main(int argc, char **argv, ProductManager &pm, sy
                 btsleep(0.1); // wait an execution cycle or two
                 if (follower.isLinked()) {
                     wam.trackReferenceSignal(follower.theirJPOutput);
+                    // wam.trackReferenceSignal(wam.jpOutput);
                     systems::connect(follower.wamJTOutput, wam.input); // CAREFUL WITH THIS. CAN BE IN BOTH LINK AND IN INFERENCE
                     printf("Linked with remote WAM.\n");
                 } else {

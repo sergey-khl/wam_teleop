@@ -10,7 +10,6 @@
 
 // This a version of 7dof-7dof control
 
-#include "lib/external_torque.h"
 #include <iostream>
 #include <string>
 
@@ -86,7 +85,6 @@ int wam_main(int argc, char **argv, ProductManager &pm, systems::Wam<DOF> &wam) 
     pm.getExecutionManager()->startManaging(customjtSum);
 
     LeaderDynamics<DOF> leaderDynamics(pm.getExecutionManager());
-    ExternalTorque<DOF> externalTorque(pm.getExecutionManager());
     DynamicExternalTorque<DOF> dynamicExternalTorque(pm.getExecutionManager());
 
     LeaderDynamics<DOF>* horizontalGravity = nullptr;
@@ -140,8 +138,8 @@ int wam_main(int argc, char **argv, ProductManager &pm, systems::Wam<DOF> &wam) 
     // === Wiring (same as your original "no-wrist" main) ===
     systems::connect(wam.jvOutput, hp1.input);
     systems::connect(hp1.output, jaWAM.input);
-    // systems::connect(jaWAM.output, jaFilter.input);
-    // systems::connect(jaFilter.output, leaderDynamics.jaInputDynamics);
+    systems::connect(jaWAM.output, jaFilter.input);
+    systems::connect(jaFilter.output, leaderDynamics.jaInputDynamics);
 
     if (config.leader.vertical) {
         systems::connect(wam.jpOutput, horizontalGravity->jpInputDynamics);
@@ -163,15 +161,11 @@ int wam_main(int argc, char **argv, ProductManager &pm, systems::Wam<DOF> &wam) 
     systems::connect(wam.jpOutput, leaderDynamics.jpInputDynamics);
     systems::connect(wam.jvOutput, leaderDynamics.jvInputDynamics);
     // systems::connect(zeroVelocity.output, leaderDynamics.jvInputDynamics);
-    systems::connect(zeroAcceleration.output, leaderDynamics.jaInputDynamics);
+    // systems::connect(zeroAcceleration.output, leaderDynamics.jaInputDynamics);
 
     systems::connect(leader.wamJTOutput, customjtSum.getInput(0));
     systems::connect(wam.gravity.output, customjtSum.getInput(1));
     systems::connect(wam.supervisoryController.output, customjtSum.getInput(2));
-
-    // systems::connect(wam.gravity.output, externalTorque.wamGravityIn);
-    // systems::connect(customjtSum.output, externalTorque.wamTorqueSumIn);
-    // systems::connect(externalTorque.wamExternalTorqueOut, extFilter.input);
 
     systems::connect(customjtSum.output, dynamicExternalTorque.wamTorqueSumIn);
     if (config.leader.vertical) {
