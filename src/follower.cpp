@@ -28,10 +28,10 @@
 #include "lib/follower.h"
 #include "lib/background_state_publisher.h"
 #include "lib/follower_dynamics_4dof.h"
-#include "lib/leader_dynamics_4dof.h"
+// #include "lib/leader_dynamics_4dof.h"
 // #include "lib/follower_dynamics_7dof.h"
 #include "lib/dynamic_external_torque.h"
-#include "lib/policy_external_torque.h"
+// #include "lib/policy_external_torque.h"
 #include "lib/follower_vertical_dynamics.h"
 #include "lib/trajectory_smoother.h"
 
@@ -102,16 +102,13 @@ template <size_t DOF> int wam_main(int argc, char **argv, ProductManager &pm, sy
 
 
     ros::init(argc, argv, "follower");
-    BackgroundStatePublisher<DOF> state_publisher(pm.getExecutionManager(), wam);
+    // BackgroundStatePublisher<DOF> state_publisher(pm.getExecutionManager(), wam);
 
     barrett::systems::Summer<jt_type, 3> customjtSum;
     pm.getExecutionManager()->startManaging(customjtSum);
 
-    // barrett::systems::Summer<jt_type, 2> policyJtSum;
-    // pm.getExecutionManager()->startManaging(policyJtSum);
-
-    TrajectorySmoother<DOF> policyFilter(2.0, 2.0, 0.0);
-    pm.getExecutionManager()->startManaging(policyFilter);
+    // TrajectorySmoother<DOF> policyFilter(2.0, 2.0, 0.0);
+    // pm.getExecutionManager()->startManaging(policyFilter);
 
     barrett::systems::PIDController<jp_type, jt_type> policy_controller;
     policy_controller.setKp(toBarrettVec<DOF>(config.policy.kp));
@@ -122,7 +119,7 @@ template <size_t DOF> int wam_main(int argc, char **argv, ProductManager &pm, sy
 
     FollowerDynamics<DOF> followerDynamics(pm.getExecutionManager());
     DynamicExternalTorque<DOF> dynamicExternalTorque(pm.getExecutionManager());
-    PolicyExternalTorque<DOF> policyExternalTorque(pm.getExecutionManager());
+    // PolicyExternalTorque<DOF> policyExternalTorque(pm.getExecutionManager());
 
     FollowerDynamics<DOF>* horizontalGravity = nullptr;
     FollowerVerticalDynamics<DOF>* followerVerticalDynamics = nullptr;
@@ -171,8 +168,8 @@ template <size_t DOF> int wam_main(int argc, char **argv, ProductManager &pm, sy
     pm.getExecutionManager()->startManaging(jaFilter);
 
     // convert VLA actions to joint torques
-    systems::ToolForceToJointTorques<DOF> tf2jt;
-    systems::ToolTorqueToJointTorques<DOF> tt2jt;
+    // systems::ToolForceToJointTorques<DOF> tf2jt;
+    // systems::ToolTorqueToJointTorques<DOF> tt2jt;
 
     systems::connect(wam.jvOutput, hp1.input);
     systems::connect(hp1.output, jaWAM.input);
@@ -191,8 +188,7 @@ template <size_t DOF> int wam_main(int argc, char **argv, ProductManager &pm, sy
 
     systems::connect(wam.jpOutput, follower.wamJPIn);
     systems::connect(wam.jvOutput, follower.wamJVIn);
-    systems::connect(extFilter.output, follower.extTorqueIn);
-    // systems::connect(customjtSum.output, follower.extTorqueIn);
+    // systems::connect(extFilter.output, follower.extTorqueIn);
     // systems::connect(dynamicExternalTorque.wamExternalTorqueOut, follower.extTorqueIn);
 
     systems::connect(wam.jpOutput, followerDynamics.jpInputDynamics);
@@ -203,7 +199,6 @@ template <size_t DOF> int wam_main(int argc, char **argv, ProductManager &pm, sy
     systems::connect(follower.wamJTOutput, customjtSum.getInput(0));
     systems::connect(wam.gravity.output, customjtSum.getInput(1));
     systems::connect(wam.supervisoryController.output, customjtSum.getInput(2));
-    // systems::connect(policy_controller.controlOutput, customjtSum.getInput(3));
 
     systems::connect(customjtSum.output, dynamicExternalTorque.wamTorqueSumIn);
     if (config.follower.vertical) {
@@ -219,37 +214,14 @@ template <size_t DOF> int wam_main(int argc, char **argv, ProductManager &pm, sy
         systems::connect(followerDynamics.dynamicsFeedFWD, follower.wamDynIn);
     }
 
-    systems::connect(dynamicExternalTorque.wamExternalTorqueOut, extFilter.input);
-    // systems::connect(customjtSum.output, extFilter.input);
+    // systems::connect(dynamicExternalTorque.wamExternalTorqueOut, extFilter.input);
 
     systems::connect(wam.toolPose.output, follower.wamTPIn);
 
-    // systems::connect(wam.kinematicsBase.kinOutput, tf2jt.kinInput);
-    // systems::connect(wam.kinematicsBase.kinOutput, tt2jt.kinInput);
-    // systems::connect(follower.policyToolForceOutput, tf2jt.input);
-    // systems::connect(follower.policyToolTorqueOutput, tt2jt.input);
-    //
-    // systems::connect(tf2jt.output, policyJtSum.getInput(0));
-    // systems::connect(tt2jt.output, policyJtSum.getInput(1));
-    // systems::connect(policyJtSum.output, follower.policyJtIn);
-
-
-    systems::connect(follower.policyJpOutput, policyFilter.input);
-
     systems::connect(follower.policyJpOutput, policy_controller.referenceInput);
-    // systems::connect(policyFilter.output, policy_controller.referenceInput);
-    // systems::connect(follower.wamJPOutput, policy_controller.feedbackInput);
     systems::connect(follower.theirJPOutput, policy_controller.feedbackInput);
 
-    // systems::connect(dynamicExternalTorque.wamExternalTorqueOut, policyExternalTorque.wamCompTorqIn);
-    // systems::connect(follower.theirExtTorqueOutput, policyExternalTorque.wamCompTorqIn);
-    // systems::connect(follower.policyJaOutput, policyExternalTorque.policyJaIn);
-    // systems::connect(policy_controller.controlOutput, policyExternalTorque.policyTorqueIn);
-    // systems::connect(follower.policyJtScaleOutput, policyExternalTorque.policyTorqueScaleIn);
-
     systems::connect(policy_controller.controlOutput, follower.policyJtIn);
-    // systems::connect(policyExternalTorque.output, follower.policyJtIn);
-    // systems::connect(policy_controller.controlOutput, follower.policyJtIn);
 
     // systems::connect(extFilter.output, printdynamicextTorque.input);
     // systems::connect(dynamicExternalTorque.wamExternalTorqueOut, printdynamicextTorque.input);
@@ -278,21 +250,17 @@ template <size_t DOF> int wam_main(int argc, char **argv, ProductManager &pm, sy
             if (follower.isLinked()) {
                 follower.unlink();
                 printf("unlinked");
-            } else if (follower.isInference()) {
-                follower.disableInference();
-                printf("disabled inference");
             } else {
                 wam.moveTo(SYNC_POS, true);
 
                 printf("Press [Enter] to link with the other WAM.");
                 waitForEnter();
                 follower.tryLink();
+                wam.trackReferenceSignal(follower.theirJPOutput);
+                systems::connect(follower.wamJTOutput, wam.input); // CAREFUL WITH THIS. CAN BE IN BOTH LINK AND IN INFERENCE
 
                 btsleep(0.1); // wait an execution cycle or two
                 if (follower.isLinked()) {
-                    wam.trackReferenceSignal(follower.theirJPOutput);
-                    // wam.trackReferenceSignal(wam.jpOutput);
-                    systems::connect(follower.wamJTOutput, wam.input); // CAREFUL WITH THIS. CAN BE IN BOTH LINK AND IN INFERENCE
                     printf("Linked with remote WAM.\n");
                 } else {
                     printf("WARNING: Linking was unsuccessful.\n");
@@ -310,7 +278,6 @@ template <size_t DOF> int wam_main(int argc, char **argv, ProductManager &pm, sy
 
                 btsleep(0.1); // wait an execution cycle or two
                 if (follower.isInference()) {
-                    // wam.trackReferenceSignal(policyFilter.output);
                     // systems::connect(policyExternalTorque.output, wam.input);
                     printf("Running policy.\n");
                 } else {
@@ -391,7 +358,6 @@ template <size_t DOF> int wam_main(int argc, char **argv, ProductManager &pm, sy
     }
 
     gripper.shutdown();
-
 
     pm.getSafetyModule()->waitForMode(SafetyModule::IDLE);
 

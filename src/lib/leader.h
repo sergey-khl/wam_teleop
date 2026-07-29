@@ -1,6 +1,6 @@
 #pragma once
 
-#include <haptic_wrist/handle.h>
+// #include <haptic_wrist/handle.h>
 #include <boost/asio.hpp>
 #include <iostream>
 #include <cmath>
@@ -23,7 +23,6 @@ class Leader : public barrett::systems::System {
     BARRETT_UNITS_TEMPLATE_TYPEDEFS(DOF);
 
   public:
-    // Inputs (same as your first file)
     Input<jp_type> wamJPIn;
     Input<jv_type> wamJVIn;
     Input<boost::tuple<cp_type, Eigen::Quaterniond>> wamTPIn;
@@ -31,14 +30,12 @@ class Leader : public barrett::systems::System {
     Input<jt_type> wamGravIn;
     Input<jt_type> wamDynIn;
 
-    // Outputs (same as your first file)
     Output<jt_type> wamJTOutput;      // control torque command for the WAM arm (DOF)
     Output<jp_type> theirJPOutput;    // peer arm JP (DOF) for logging/monitoring
     Output<jt_type> policyJTOutput;      // control torque command for the WAM arm (DOF)
 
     std::atomic<bool> linked;
 
-    // we dont actually do inference on the leader but we still record data from it
     explicit Leader(barrett::systems::ExecutionManager* em, haptic_wrist::Handle* handle,
                 const TeleopConfig& config,
                 const std::string& sysName = "Leader")
@@ -101,7 +98,6 @@ class Leader : public barrett::systems::System {
 
     TeleopConfig config;
 
-    // Local copies
     jp_type wamJP;
     jv_type wamJV;
     boost::tuple<cp_type, Eigen::Quaterniond> wamTP;
@@ -127,7 +123,6 @@ class Leader : public barrett::systems::System {
     int loop_counter = 0;
     std::chrono::time_point<std::chrono::steady_clock> last_op_time;
 
-    // Network payloads: arm (DOF)
     Eigen::Matrix<double, DOF, 1> sendJpMsg;
     Eigen::Matrix<double, DOF, 1> sendJvMsg;
     Eigen::Matrix<double, DOF, 1> sendExtTorqueMsg;
@@ -218,17 +213,17 @@ class Leader : public barrett::systems::System {
         auto send_end = std::chrono::steady_clock::now();
         double send_dt = std::chrono::duration<double, std::milli>(send_end - send_start).count();
 
-        if (++loop_counter % 100 == 0) {
+        if (++loop_counter % 50 == 0) {
             std::cout << std::fixed << std::setprecision(3);
 
             // std::cout << "[LEADER] Loop dt: " << loop_dt 
                       // << " ms | UDP teleop Age: " << udp_teleop_age 
                       // << " ms | UDP Send latency: " << send_dt << " ms\n";
                
-            std::cout << "  -> LEADER JP:      [" << sendJpMsg.transpose() << "]\n";
-            std::cout << " FOLLOWER -> :  " << theirJp.transpose() << "\n";
+            // std::cout << "  -> LEADER JP:      [" << sendJpMsg.transpose() << "]\n";
+            // std::cout << " FOLLOWER -> :  " << theirJp.transpose() << "\n";
             // std::cout << "  -> leader ExtTrq:  [" << sendExtTorqueMsg.transpose() << "]\n";
-            // std::cout << "  -> policy:  [" << policyTorque.transpose() << "]\n";
+            std::cout << "  -> policy:  [" << policyTorque.transpose() << "]\n";
             // std::cout << "  -> leader control: [" << compute_control(theirJp, theirJv, theirExtTorque, wamJP, wamJV, extTorque, wamGrav, wamDyn) << "]\n";
             // std::cout << "  -> dyn: [" << wamDyn.transpose() << "]\n\n";
             // std::cout << "  -> TX JV:      [" << sendJvMsg.transpose() << "]\n";
@@ -286,12 +281,6 @@ class Leader : public barrett::systems::System {
     LeaderUDPHandler<DOF> udp_handler;
     const std::chrono::milliseconds TIMEOUT_DURATION = std::chrono::milliseconds(10);
 
-    // Gains you had
-    Eigen::Matrix<double, DOF, 1> kp;
-    Eigen::Matrix<double, DOF, 1> kd;
-    Eigen::Matrix<double, DOF, 1> cf;
-
-    // === Your original control choices preserved ===
     jt_type compute_control(const jp_type& ref_pos, const jv_type& ref_vel, const jt_type& ref_extTorque,
                             const jp_type& cur_pos, const jv_type& cur_vel, const jt_type& cur_extTorque,
                             const jt_type& cur_grav, const jt_type& cur_dyn) {

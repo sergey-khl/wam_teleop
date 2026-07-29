@@ -139,8 +139,6 @@ std::deque<PolicyReceivedData> FollowerUDPHandler<DOF>::interpolateChunk(
         {
             CRResult rg = catmullRom(a0.gripper_cmd, a1.gripper_cmd, a2.gripper_cmd, a3.gripper_cmd, alpha);
             rd.gripper_cmd = rg.pos;
-            // if PolicyReceivedData tracks gripper velocity too, uncomment:
-            // rd.gripper_vel = rg.dpos_dt / dt_s;
         }
 
         rd.timestamp = inference_timestamp_ns + static_cast<uint64_t>(pos * policy_dt_ns) - static_cast<uint64_t>(2 * policy_dt_ns);
@@ -184,7 +182,7 @@ void FollowerUDPHandler<DOF>::policyReceiveLoop() {
         std::deque<PolicyReceivedData> new_queue = interpolateChunk(pkt.actions, pkt.inference_timestamp_ns);
 
         std::lock_guard<std::mutex> lock(state_mutex);
-        // a new chunk supersedes whatever's left of the old one
+        // a new chunk extends what is left in the queue
         policy_action_queue.insert(policy_action_queue.end(),
                             std::make_move_iterator(new_queue.begin()),
                             std::make_move_iterator(new_queue.end()));

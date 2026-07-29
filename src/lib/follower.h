@@ -37,8 +37,6 @@ class Follower : public barrett::systems::System {
     Output<jp_type> theirJPOutput;
     Output<jv_type> theirJVOutput;
     Output<jt_type> theirExtTorqueOutput;
-    // Output<cf_type> policyToolForceOutput;
-    // Output<ct_type> policyToolTorqueOutput;
     Output<jp_type> policyJpOutput;
     Output<jv_type> policyJvOutput;
     Output<ja_type> policyJaOutput;
@@ -46,6 +44,7 @@ class Follower : public barrett::systems::System {
 
     std::atomic<bool> linked;
     std::atomic<bool> inference_enabled;
+    
 
     explicit Follower(barrett::systems::ExecutionManager* em, GeckoGripper* gripper, 
                   const TeleopConfig& config,
@@ -68,8 +67,6 @@ class Follower : public barrett::systems::System {
         , theirJPOutput(this, &theirJPOutputValue)
         , theirJVOutput(this, &theirJVOutputValue)
         , theirExtTorqueOutput(this, &theirExtTorqueOutputValue)
-        // , policyToolForceOutput(this, &policyToolForceValue)
-        // , policyToolTorqueOutput(this, &policyToolTorqueValue)
         , policyJpOutput(this, &policyJpOutputValue)
         , policyJvOutput(this, &policyJvOutputValue)
         , policyJaOutput(this, &policyJaOutputValue)
@@ -82,7 +79,6 @@ class Follower : public barrett::systems::System {
         , current_gripper_vel(0.0f)
         , current_gripper_torque(0.0f)
         , io_running(false)
-        , prevError_(0.0)
         , linked(false)
         , inference_enabled (false) {
 
@@ -132,8 +128,6 @@ class Follower : public barrett::systems::System {
     typename Output<jp_type>::Value* theirJPOutputValue;
     typename Output<jv_type>::Value* theirJVOutputValue;
     typename Output<jt_type>::Value* theirExtTorqueOutputValue;
-    // typename Output<cf_type>::Value* policyToolForceValue;
-    // typename Output<ct_type>::Value* policyToolTorqueValue;
     typename Output<jp_type>::Value* policyJpOutputValue;
     typename Output<jv_type>::Value* policyJvOutputValue;
     typename Output<ja_type>::Value* policyJaOutputValue;
@@ -162,24 +156,24 @@ class Follower : public barrett::systems::System {
 
     using TeleopReceivedData = typename FollowerUDPHandler<DOF>::TeleopReceivedData;
 
-    static std::ofstream& trajectoryLogFile() {
-        static std::ofstream log_file;
-        static bool header_written = false;
-        if (!log_file.is_open()) {
-            log_file.open("trajectory_log.csv", std::ios::out | std::ios::app);
-            if (log_file.is_open() && !header_written) {
-                log_file << "timestamp_ns";
-                for (size_t i = 0; i < DOF; ++i) log_file << ",jp" << i;
-                for (size_t i = 0; i < DOF; ++i) log_file << ",jv" << i;
-                for (size_t i = 0; i < DOF; ++i) log_file << ",ja" << i;
-                log_file << ",jp_clipped,jv_clipped,ja_clipped"
-                          << ",clipped_jp_joints,clipped_jv_joints,clipped_ja_joints"
-                          << "\n";
-                header_written = true;
-            }
-        }
-        return log_file;
-    }
+    // static std::ofstream& trajectoryLogFile() {
+    //     static std::ofstream log_file;
+    //     static bool header_written = false;
+    //     if (!log_file.is_open()) {
+    //         log_file.open("trajectory_log.csv", std::ios::out | std::ios::app);
+    //         if (log_file.is_open() && !header_written) {
+    //             log_file << "timestamp_ns";
+    //             for (size_t i = 0; i < DOF; ++i) log_file << ",jp" << i;
+    //             for (size_t i = 0; i < DOF; ++i) log_file << ",jv" << i;
+    //             for (size_t i = 0; i < DOF; ++i) log_file << ",ja" << i;
+    //             log_file << ",jp_clipped,jv_clipped,ja_clipped"
+    //                       << ",clipped_jp_joints,clipped_jv_joints,clipped_ja_joints"
+    //                       << "\n";
+    //             header_written = true;
+    //         }
+    //     }
+    //     return log_file;
+    // }
 
     virtual void operate() {
         auto now_op = std::chrono::steady_clock::now();
@@ -194,9 +188,7 @@ class Follower : public barrett::systems::System {
 
         if (extTorqueIn.valueDefined()) {
             extTorque = extTorqueIn.getValue();
-            // std::cout << "defined" << std::endl;
         } else {
-            // std::cout << "not defined" << std::endl;
             extTorque << 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0;
         }
 
@@ -206,8 +198,7 @@ class Follower : public barrett::systems::System {
             policyJt << 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0;
         }
 
-        // policyToolForce << 0.0, 0.0, 0.0;
-        // policyToolTorque << 0.0, 0.0, 0.0;
+
         policyJp << theirJp;
         policyJv << theirJv;
         policyJa << 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0;
@@ -220,7 +211,7 @@ class Follower : public barrett::systems::System {
         const cp_type& toolPos  = boost::get<0>(wamTP);
         const Eigen::Quaterniond& toolQ = boost::get<1>(wamTP);
 
-        policyJtScale.setZero();
+        // policyJtScale.setZero();
 
         // teleop
         boost::optional<TeleopReceivedData> teleop_data = udp_handler.getLatestTeleopReceived();
@@ -231,7 +222,7 @@ class Follower : public barrett::systems::System {
             theirJp = teleop_data->jp;
             theirJv = teleop_data->jv;
             theirExtTorque = teleop_data->extTorque;
-            target_gripper_vel.store(static_cast<double>(teleop_data->gripper_cmd));
+            // target_gripper_vel.store(static_cast<double>(teleop_data->gripper_cmd));
 
             // mirror and offset some of the wam joints
             for (size_t i = 0; i < DOF; i++) {
@@ -273,9 +264,9 @@ class Follower : public barrett::systems::System {
                 }
 
                 // this should output something roughly between 0.2 and 1 which i will use to scale my policy control
-                for (size_t i = 0; i < DOF; ++i) {
-                    policyJtScale[i] = 1.0 / (1.0 + std::exp(1.0 * (-normalized_ext_torque[i] + 0.5)));
-                }
+                // for (size_t i = 0; i < DOF; ++i) {
+                //     policyJtScale[i] = 1.0 / (1.0 + std::exp(1.0 * (-normalized_ext_torque[i] + 0.5)));
+                // }
 
                 jp_type clipped_jp;
                 clipped_jp << policy_data->jp;
@@ -305,7 +296,7 @@ class Follower : public barrett::systems::System {
                 for (size_t i = 0; i < DOF; ++i) {
                     double delta = policy_data->jp[i] - theirJp[i];
                     bool joint_clipped = false;
-                    
+
                     if (delta > clip_val[i]) {
                         clipped_jp[i] = theirJp[i] + clip_val[i];
                         joint_clipped = true;
@@ -313,7 +304,7 @@ class Follower : public barrett::systems::System {
                         clipped_jp[i] = theirJp[i] - clip_val[i];
                         joint_clipped = true;
                     }
-                    
+
                     if (joint_clipped) {
                         jp_was_clipped = true;
                         if (!clipped_jp_joints_str.empty()) clipped_jp_joints_str += ", ";
@@ -430,19 +421,14 @@ class Follower : public barrett::systems::System {
             policyJaOutputValue->setData(&wamJA);
         }
 
-        jpOutputValue->setData(&wamJP);
-        // policyToolForceValue->setData(&policyToolForce);
-        // policyToolTorqueValue->setData(&policyToolTorque);
-        policyJtScaleOutputValue->setData(&policyJtScale);
+        // jpOutputValue->setData(&wamJP);
+        // policyJtScaleOutputValue->setData(&policyJtScale);
 
         uint64_t loop_start = std::chrono::duration_cast<std::chrono::nanoseconds>(now_op.time_since_epoch()).count();
-
         auto send_start = std::chrono::steady_clock::now();
-
         // send to leader then send to policy
         udp_handler.send(sendJpMsg, sendJvMsg, sendExtTorqueMsg, policyJt, static_cast<double>(current_gripper_torque.load()), loop_start);
         udp_handler.sendToPolicy(sendJpMsg, sendJvMsg, sendExtTorqueMsg, theirJp, theirJv, theirExtTorque, toolPos, toolQ, static_cast<double>(current_gripper_pos.load()), static_cast<double>(current_gripper_vel.load()), static_cast<double>(current_gripper_torque.load()), loop_start);
-
         auto send_end = std::chrono::steady_clock::now();
         double send_dt = std::chrono::duration<double, std::milli>(send_end - send_start).count();
 
@@ -453,8 +439,8 @@ class Follower : public barrett::systems::System {
                       // << " ms | UDP Rx Age: " << udp_rx_age 
                       // << " ms | UDP Send latency: " << send_dt << " ms\n";
 
-            std::cout << "  -> FOLLOWER JP:      [" << sendJpMsg.transpose() << "]\n";
-            std::cout << "  -> LEADER JP:  " << theirJp.transpose() << "\n\n";
+            // std::cout << "  -> FOLLOWER JP:      [" << sendJpMsg.transpose() << "]\n";
+            // std::cout << "  -> LEADER JP:  " << theirJp.transpose() << "\n\n";
             // std::cout << "  -> TX JV:      [" << sendJvMsg.transpose() << "]\n";
             // std::cout << "  -> FOLLOWER EXT TOQ:  [" << sendExtTorqueMsg.transpose() << "]\n";
             // std::cout << "  -> LEADER EXT TOQ:  " << theirExtTorque.transpose() << "\n";
@@ -466,7 +452,7 @@ class Follower : public barrett::systems::System {
             // std::cout << "  -> TX GrpTrq:  " << current_gripper_torque.load() << "\n\n";
             // std::cout << "  -> TX GrpPos:  " << current_gripper_pos.load() << "\n\n";
             // std::cout << "  -> P control:      [" << policyControl.transpose() << "]\n";
-            // std::cout << "  -> P JT:      [" << policyJt.transpose() << "]\n";
+            std::cout << "  -> P JT:      [" << policyJt.transpose() << "]\n";
             // std::cout << "  -> P scales:      [" << policyJtScale.transpose() << "]\n";
             // std::cout << "  -> P final:      [" << (policyJtScale.asDiagonal() * policyJt).transpose() << "]\n\n";
             // std::cout << "  -> P JP:      [" << policyJp.transpose() << "]\nn";
@@ -479,13 +465,7 @@ class Follower : public barrett::systems::System {
     jp_type theirJp;
     jv_type theirJv;
     jt_type theirExtTorque;
-    cf_type policyToolForce;
-    ct_type policyToolTorque;
     jt_type control;
-    jt_type policyJtScale;
-    // jt_type policyControl;
-    jp_type policyControl;
-    jv_type prevError_;
 
     void pollGripper() {
         while (io_running.load()) {
@@ -498,7 +478,7 @@ class Follower : public barrett::systems::System {
                 gripper->setVelocity(local_gripper_vel);
                 gripper->controlLoopCallback();
             } else if (isInference()) { // inference only
-                float local_gripper_cmd = policy_gripper_cmd.load();
+                // float local_gripper_cmd = policy_gripper_cmd.load();
                 // if (local_gripper_cmd > 0) {
                 //     gripper->setPosition(gripper_max_pos);
                 // } else {
@@ -515,7 +495,7 @@ class Follower : public barrett::systems::System {
             current_gripper_pos.store(gripper_state.position);
             current_gripper_vel.store(gripper_state.velocity);
             current_gripper_torque.store(gripper_state.torque);
-            
+
             std::this_thread::sleep_for(std::chrono::milliseconds(2));
         }
         gripper->setVelocity(0.0f);
