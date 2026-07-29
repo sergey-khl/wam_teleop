@@ -56,8 +56,9 @@ protected:
 	virtual void operate() {
 		tmp_theta_pos = this->jpInputDynamics.getValue();
 		ThetaInput << tmp_theta_pos[0], tmp_theta_pos[1], tmp_theta_pos[2], tmp_theta_pos[3];
+        tmp_theta_vel = this->jvInputDynamics.getValue();
 		ThetadotInput << tmp_theta_vel[0], tmp_theta_vel[1], tmp_theta_vel[2], tmp_theta_vel[3];
-		ThetadotInput << tmp_theta_vel;
+        tmp_theta_acc = this->jaInputDynamics.getValue();
 		ThetaddotInput << 0.25 * tmp_theta_acc[0], 0.25 * tmp_theta_acc[1],  0.25 * tmp_theta_acc[2], 0.25 * tmp_theta_acc[3];
 		W = calculate_W_eigen(ThetaInput, ThetadotInput, ThetaddotInput);
 
