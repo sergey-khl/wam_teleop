@@ -156,7 +156,7 @@ int wam_main(int argc, char **argv, ProductManager &pm, systems::Wam<DOF> &wam) 
     // systems::connect(extFilter.output, leader.extTorqueIn);
     // systems::connect(customjtSum.output, leader.extTorqueIn);
     // systems::connect(dynamicExtFilter.output, leader.extTorqueIn);
-    // systems::connect(dynamicExternalTorque.wamExternalTorqueOut, leader.extTorqueIn);
+    systems::connect(dynamicExternalTorque.wamExternalTorqueOut, leader.extTorqueIn);
 
     systems::connect(wam.jpOutput, leaderDynamics.jpInputDynamics);
     systems::connect(wam.jvOutput, leaderDynamics.jvInputDynamics);

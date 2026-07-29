@@ -189,7 +189,7 @@ template <size_t DOF> int wam_main(int argc, char **argv, ProductManager &pm, sy
     systems::connect(wam.jpOutput, follower.wamJPIn);
     systems::connect(wam.jvOutput, follower.wamJVIn);
     // systems::connect(extFilter.output, follower.extTorqueIn);
-    // systems::connect(dynamicExternalTorque.wamExternalTorqueOut, follower.extTorqueIn);
+    systems::connect(dynamicExternalTorque.wamExternalTorqueOut, follower.extTorqueIn);
 
     systems::connect(wam.jpOutput, followerDynamics.jpInputDynamics);
     systems::connect(wam.jvOutput, followerDynamics.jvInputDynamics);

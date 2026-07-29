@@ -186,12 +186,6 @@ class Follower : public barrett::systems::System {
         wamGrav = wamGravIn.getValue();
         wamDyn = wamDynIn.getValue();
 
-        if (extTorqueIn.valueDefined()) {
-            extTorque = extTorqueIn.getValue();
-        } else {
-            extTorque << 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0;
-        }
-
         if (policyJtIn.valueDefined()) {
             policyJt = policyJtIn.getValue();
         } else {
@@ -205,7 +199,6 @@ class Follower : public barrett::systems::System {
 
         sendJpMsg << wamJP;
         sendJvMsg << wamJV;
-        sendExtTorqueMsg << extTorque;
 
 
         const cp_type& toolPos  = boost::get<0>(wamTP);
@@ -391,6 +384,14 @@ class Follower : public barrett::systems::System {
                 // std::cout << "No action for policy " << policy_data->jp.transpose() << ". diff: " << udp_policy_age << " | " << now_ns << " | " << policy_data->timestamp << std::endl;
             }
         }
+
+        // extTorqueIn.valueDefined() before setting a reference signal can cause bad feeling teleop
+        if (extTorqueIn.valueDefined()) {
+            extTorque = extTorqueIn.getValue();
+        } else {
+            extTorque.setZero();
+        }
+        sendExtTorqueMsg << extTorque;
 
 
         if (isLinked() && isInference()) { // shared control

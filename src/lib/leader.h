@@ -141,11 +141,6 @@ class Leader : public barrett::systems::System {
         wamGrav = wamGravIn.getValue();
         wamDyn  = wamDynIn.getValue();
 
-        if (extTorqueIn.valueDefined()) {
-            extTorque = extTorqueIn.getValue();
-        } else {
-            extTorque.setZero();
-        }
 
         policyTorque << 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0;
 
@@ -171,9 +166,7 @@ class Leader : public barrett::systems::System {
                 theirExtTorque[i] = theirExtTorque[i] / config.sync_mapping.scales[i];
             }
 
-            // Publish peer arm JP (as before)
             theirJPOutputValue->setData(&theirJp);
-            policyJTOutputValue->setData(&policyTorque);
         } else {
             if (isLinked()) {
                 udp_teleop_age = static_cast<double>(now_ns - received_data->timestamp) / 1000000.0;
@@ -183,6 +176,7 @@ class Leader : public barrett::systems::System {
             }
         }
 
+
         // Pack outgoing messages
         sendJpMsg << wamJP;
         sendJvMsg << wamJV;
@@ -190,7 +184,12 @@ class Leader : public barrett::systems::System {
         const cp_type& toolPos  = boost::get<0>(wamTP);
         const Eigen::Quaterniond& toolQ = boost::get<1>(wamTP);
 
-        // Only arm external torque is meaningful here; pad wrist torques with zeros
+        // extTorqueIn.valueDefined() before setting a reference signal can cause bad feeling teleop
+        if (extTorqueIn.valueDefined()) {
+            extTorque = extTorqueIn.getValue();
+        } else {
+            extTorque.setZero();
+        }
         sendExtTorqueMsg << extTorque;
 
         // State machine
@@ -206,8 +205,9 @@ class Leader : public barrett::systems::System {
             jtOutputValue->setData(&control);
         }
 
-        uint64_t loop_start = std::chrono::duration_cast<std::chrono::nanoseconds>(now_op.time_since_epoch()).count();
+        policyJTOutputValue->setData(&policyTorque);
 
+        uint64_t loop_start = std::chrono::duration_cast<std::chrono::nanoseconds>(now_op.time_since_epoch()).count();
         auto send_start = std::chrono::steady_clock::now();
         udp_handler.send(sendJpMsg, sendJvMsg, sendExtTorqueMsg, static_cast<double>(desired_gripper_vel.load()), loop_start); // we send the start of theoperation loop when we collect our leader data
         auto send_end = std::chrono::steady_clock::now();
