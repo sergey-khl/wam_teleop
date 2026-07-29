@@ -1,7 +1,7 @@
 network:
-  # ports are from the perspective of the leader
   leader_host: "127.0.0.1"
   follower_host: "127.0.0.1"
+  # ports are from the perspective of the leader
   teleop_send: 5555
   teleop_recv: 5554
   policy_host: "127.0.0.1"
