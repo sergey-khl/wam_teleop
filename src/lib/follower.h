@@ -193,8 +193,9 @@ class Follower : public barrett::systems::System {
         }
 
 
-        policyJp << theirJp;
-        policyJv << theirJv;
+        // policy defaults
+        policyJp << wamJP;
+        policyJv << wamJV;
         policyJa << 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0;
 
         sendJpMsg << wamJP;
@@ -215,7 +216,7 @@ class Follower : public barrett::systems::System {
             theirJp = teleop_data->jp;
             theirJv = teleop_data->jv;
             theirExtTorque = teleop_data->extTorque;
-            // target_gripper_vel.store(static_cast<double>(teleop_data->gripper_cmd));
+            target_gripper_vel.store(static_cast<double>(teleop_data->gripper_cmd));
 
             // mirror and offset some of the wam joints
             for (size_t i = 0; i < DOF; i++) {
@@ -227,6 +228,11 @@ class Follower : public barrett::systems::System {
             theirJPOutputValue->setData(&theirJp);
             theirJVOutputValue->setData(&theirJv);
             theirExtTorqueOutputValue->setData(&theirExtTorque);
+
+            // help with free motion
+            policyJp << theirJp;
+            policyJv << theirJv;
+            policyJa << 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0;
         } else {
             if (isLinked()) {
                 udp_teleop_age = static_cast<double>(now_ns - teleop_data->timestamp) / 1000000.0;
@@ -397,30 +403,20 @@ class Follower : public barrett::systems::System {
         if (isLinked() && isInference()) { // shared control
             control = compute_teleop_control(theirJp, theirJv, theirExtTorque, wamJP, wamJV, extTorque, wamGrav, wamDyn);
             jtOutputValue->setData(&control);
-            policyJpOutputValue->setData(&policyJp);
-            policyJvOutputValue->setData(&policyJv);
-            policyJaOutputValue->setData(&policyJa);
         } else if (isLinked()) { // teleop only
             control = compute_teleop_control(theirJp, theirJv, theirExtTorque, wamJP, wamJV, extTorque, wamGrav, wamDyn);
             jtOutputValue->setData(&control);
-            policyJpOutputValue->setData(&policyJp);
-            policyJvOutputValue->setData(&policyJv);
-            policyJaOutputValue->setData(&policyJa);
         } else if (isInference()) { // inference only
             control.setZero();
             jtOutputValue->setData(&control);
-            policyJpOutputValue->setData(&policyJp);
-            policyJvOutputValue->setData(&policyJv);
-            policyJaOutputValue->setData(&policyJa);
         } else {
             control.setZero();
             jtOutputValue->setData(&control);
-            policyJpOutputValue->setData(&wamJP);
-            policyJvOutputValue->setData(&wamJV);
-            ja_type wamJA;
-            wamJA << 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0;
-            policyJaOutputValue->setData(&wamJA);
         }
+
+        policyJpOutputValue->setData(&policyJp);
+        policyJvOutputValue->setData(&policyJv);
+        policyJaOutputValue->setData(&policyJa);
 
         // jpOutputValue->setData(&wamJP);
         // policyJtScaleOutputValue->setData(&policyJtScale);
@@ -452,11 +448,12 @@ class Follower : public barrett::systems::System {
             // std::cout << "  -> teleop: [" << isLinked() << "]\n\n";
             // std::cout << "  -> TX GrpTrq:  " << current_gripper_torque.load() << "\n\n";
             // std::cout << "  -> TX GrpPos:  " << current_gripper_pos.load() << "\n\n";
+            // std::cout << "  -> TX grpcmd:  " << target_gripper_vel.load() << "\n\n";
             // std::cout << "  -> P control:      [" << policyControl.transpose() << "]\n";
-            std::cout << "  -> P JT:      [" << policyJt.transpose() << "]\n";
+            // std::cout << "  -> P JT:      [" << policyJt.transpose() << "]\n";
             // std::cout << "  -> P scales:      [" << policyJtScale.transpose() << "]\n";
             // std::cout << "  -> P final:      [" << (policyJtScale.asDiagonal() * policyJt).transpose() << "]\n\n";
-            // std::cout << "  -> P JP:      [" << policyJp.transpose() << "]\nn";
+            std::cout << "  -> P JP:      [" << policyJp.transpose() << "]\nn";
             // std::cout << "  -> P T Force:      [" << policyToolForce.transpose() << "]\n\n";
             // std::cout << "  -> P T Torque:      [" << policyToolTorque.transpose() << "]\n\n";
             // std::cout << "  -> P G:      [" << policy_gripper_pos.load() << "]\n\n";

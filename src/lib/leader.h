@@ -167,6 +167,7 @@ class Leader : public barrett::systems::System {
             }
 
             theirJPOutputValue->setData(&theirJp);
+            policyJTOutputValue->setData(&policyTorque);
         } else {
             if (isLinked()) {
                 udp_teleop_age = static_cast<double>(now_ns - received_data->timestamp) / 1000000.0;
@@ -197,7 +198,7 @@ class Leader : public barrett::systems::System {
             control = compute_control(
                 theirJp, theirJv, theirExtTorque,
                 wamJP,   wamJV,   extTorque,
-                wamGrav, wamDyn
+                wamGrav, wamDyn, policyTorque
             );
             jtOutputValue->setData(&control);
         } else {
@@ -205,7 +206,6 @@ class Leader : public barrett::systems::System {
             jtOutputValue->setData(&control);
         }
 
-        policyJTOutputValue->setData(&policyTorque);
 
         uint64_t loop_start = std::chrono::duration_cast<std::chrono::nanoseconds>(now_op.time_since_epoch()).count();
         auto send_start = std::chrono::steady_clock::now();
@@ -224,7 +224,7 @@ class Leader : public barrett::systems::System {
             // std::cout << " FOLLOWER -> :  " << theirJp.transpose() << "\n";
             // std::cout << "  -> leader ExtTrq:  [" << sendExtTorqueMsg.transpose() << "]\n";
             std::cout << "  -> policy:  [" << policyTorque.transpose() << "]\n";
-            // std::cout << "  -> leader control: [" << compute_control(theirJp, theirJv, theirExtTorque, wamJP, wamJV, extTorque, wamGrav, wamDyn) << "]\n";
+            std::cout << "  -> leader control: [" << compute_control(theirJp, theirJv, theirExtTorque, wamJP, wamJV, extTorque, wamGrav, wamDyn, policyTorque) << "]\n\n";
             // std::cout << "  -> dyn: [" << wamDyn.transpose() << "]\n\n";
             // std::cout << "  -> TX JV:      [" << sendJvMsg.transpose() << "]\n";
             // std::cout << "  -> TX GrpVel:  " << desired_gripper_vel.load() << "\n";
@@ -234,6 +234,9 @@ class Leader : public barrett::systems::System {
             // std::cout << "  -> ref:  " << theirExtTorque.transpose() << "\n\n";
             // std::cout << "  -> Tool Pos:  [" << toolPos.transpose() << "]\n";
             // std::cout << "  -> Tool Quat: [" << toolQ.w() << " " << toolQ.x() << " " << toolQ.y() << " " << toolQ.z() << "]\n\n";
+            // std::cout << "  -> bumper: [" << bumper.load() << "]\n";
+            // std::cout << "  -> trigger: [" << trigger.load() << "]\n";
+            // std::cout << "  -> desired_gripper_vel: [" << desired_gripper_vel.load() << "]\n";
         }
     }
 
@@ -283,7 +286,7 @@ class Leader : public barrett::systems::System {
 
     jt_type compute_control(const jp_type& ref_pos, const jv_type& ref_vel, const jt_type& ref_extTorque,
                             const jp_type& cur_pos, const jv_type& cur_vel, const jt_type& cur_extTorque,
-                            const jt_type& cur_grav, const jt_type& cur_dyn) {
+                            const jt_type& cur_grav, const jt_type& cur_dyn, const jt_type& policy_torque) {
 
         jt_type u1 = 0.0 * cur_extTorque;                        // zero FF (P-P + g-comp only if you add it)
         jt_type u2 = cur_dyn - cur_grav;                          // P-P with dynamic comp (your comment)
@@ -301,6 +304,9 @@ class Leader : public barrett::systems::System {
         for (size_t i = 4; i < 7; ++i) {
             u[i] = 0.0;
         }
+
+        // safety is handled on follower side
+        u += policyTorque;
 
         return u;
     };

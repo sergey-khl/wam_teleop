@@ -123,6 +123,7 @@ int wam_main(int argc, char **argv, ProductManager &pm, systems::Wam<DOF> &wam) 
     systems::PrintToStream<jt_type> printextTorque(pm.getExecutionManager(), "extTorque: ");
     systems::PrintToStream<jt_type> printdynamicoutput(pm.getExecutionManager(), "dynamicoutput: ");
     systems::PrintToStream<jt_type> printSC(pm.getExecutionManager(), "SC: ");
+    systems::PrintToStream<jt_type> printTOQ(pm.getExecutionManager(), "TOQ: ");
 
     double h_omega_p = 25.0;
     barrett::systems::FirstOrderFilter<jv_type> hp1;
@@ -193,6 +194,7 @@ int wam_main(int argc, char **argv, ProductManager &pm, systems::Wam<DOF> &wam) 
     // systems::connect(customjtSum.output, printextTorque.input);
     // systems::connect(wam.supervisoryController.output, printSC.input);
     // systems::connect(leaderDynamics.dynamicsFeedFWD, printdynamicoutput.input);
+    // systems::connect(leader.policyJTOutput, printdynamicoutput.input);
 
     wam.gravityCompensate();
 
@@ -217,8 +219,8 @@ int wam_main(int argc, char **argv, ProductManager &pm, systems::Wam<DOF> &wam) 
                 waitForEnter();
                 leader.tryLink();
                 wam.trackReferenceSignal(leader.theirJPOutput);
+                // NOTE: avoid connecting multiple signals to wam.input because it causes free motion to be worse. even if the signal is 0
                 connect(leader.wamJTOutput, wam.input);
-                // connect(leader.policyJTOutput, wam.input);
 
                 btsleep(0.1); // wait an execution cycle or two
                 if (leader.isLinked()) {
