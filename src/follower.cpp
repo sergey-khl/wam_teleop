@@ -12,6 +12,7 @@
 #include <barrett/systems/pid_controller.h>
 #include <barrett/systems/tool_torque_to_joint_torques.h>
 #include <iostream>
+#include <libconfig.h++>
 #include <string>
 
 #include <boost/thread.hpp>
@@ -49,20 +50,6 @@ bool validate_args(int argc, char** argv) {
         return false;
     }
     return true;
-}
-
-// TODO: this is gross. fix later
-template <size_t DOF>
-barrett::math::Matrix<DOF, 1> toBarrettVec(const std::vector<double>& v) {
-    if (v.size() != DOF) {
-        throw std::runtime_error("Config vector size (" + std::to_string(v.size()) +
-                                  ") does not match DOF (" + std::to_string(DOF) + ")");
-    }
-    barrett::math::Matrix<DOF, 1> out;
-    for (size_t i = 0; i < DOF; ++i) {
-        out[i] = v[i];
-    }
-    return out;
 }
 
 template <size_t DOF> int wam_main(int argc, char **argv, ProductManager &pm, systems::Wam<DOF> &wam) {
@@ -104,12 +91,24 @@ template <size_t DOF> int wam_main(int argc, char **argv, ProductManager &pm, sy
     barrett::systems::Summer<jt_type, 3> customjtSum;
     pm.getExecutionManager()->startManaging(customjtSum);
 
-    barrett::systems::PIDController<jp_type, jt_type> policy_controller;
-    policy_controller.setKp(toBarrettVec<DOF>(config.policy.kp));
-    policy_controller.setKi(toBarrettVec<DOF>(config.policy.ki));
-    policy_controller.setKd(toBarrettVec<DOF>(config.policy.kd));
-    policy_controller.setIntegratorLimit(toBarrettVec<DOF>(config.policy.integrator_limit));
-    policy_controller.setControlSignalLimit(toBarrettVec<DOF>(config.policy.control_signal_limit));
+    // create libbarret gains settings from our teleop_config.yaml
+    libconfig::Config policy_config;
+    libconfig::Setting& policy_settings = policy_config.getRoot()
+            .add("policy_gains", libconfig::Setting::TypeGroup);
+    libconfig::Setting& kp_setting = policy_settings.add("kp", libconfig::Setting::TypeList);
+    libconfig::Setting& ki_setting = policy_settings.add("ki", libconfig::Setting::TypeList);
+    libconfig::Setting& kd_setting = policy_settings.add("kd", libconfig::Setting::TypeList);
+    libconfig::Setting& control_signal_limit_setting = policy_settings.add("control_signal", libconfig::Setting::TypeList);
+    libconfig::Setting& integrator_limit_setting = policy_settings.add("integrator_limit", libconfig::Setting::TypeList);
+    for (int i = 0; i < DOF; ++i) {
+        kp_setting.add(libconfig::Setting::TypeFloat) = config.policy.kp[i];
+        ki_setting.add(libconfig::Setting::TypeFloat) = config.policy.ki[i];
+        kd_setting.add(libconfig::Setting::TypeFloat) = config.policy.kd[i];
+        control_signal_limit_setting.add(libconfig::Setting::TypeFloat) = config.policy.control_signal_limit[i];
+        integrator_limit_setting.add(libconfig::Setting::TypeFloat) = config.policy.integrator_limit[i];
+    }
+
+    barrett::systems::PIDController<jp_type, jt_type> policy_controller(policy_config.lookup("policy_gains"));
 
     FollowerDynamics<DOF> followerDynamics(pm.getExecutionManager());
     DynamicExternalTorque<DOF> dynamicExternalTorque(pm.getExecutionManager());
@@ -144,6 +143,7 @@ template <size_t DOF> int wam_main(int argc, char **argv, ProductManager &pm, sy
 
     // systems::PrintToStream<jt_type> printTOQ(pm.getExecutionManager(), "TOQ: ");
 
+    // filters
     double h_omega_p = 25.0;
     barrett::systems::FirstOrderFilter<jv_type> hp1;
     hp1.setHighPass(jv_type(h_omega_p), jv_type(h_omega_p));
@@ -155,6 +155,7 @@ template <size_t DOF> int wam_main(int argc, char **argv, ProductManager &pm, sy
     jaFilter.setLowPass(l_omega_p);
     pm.getExecutionManager()->startManaging(jaFilter);
 
+    // filtered acc for dynamics
     systems::connect(wam.jvOutput, hp1.input);
     systems::connect(hp1.output, jaWAM.input);
     systems::connect(jaWAM.output, jaFilter.input);
@@ -170,36 +171,38 @@ template <size_t DOF> int wam_main(int argc, char **argv, ProductManager &pm, sy
         systems::connect(wam.gravity.output, followerVerticalDynamics->gravityIn);
     }
 
+    // follower info
     systems::connect(wam.jpOutput, follower.wamJPIn);
     systems::connect(wam.jvOutput, follower.wamJVIn);
     systems::connect(dynamicExternalTorque.wamExternalTorqueOut, follower.extTorqueIn);
-
-    systems::connect(wam.jpOutput, followerDynamics.jpInputDynamics);
-    systems::connect(wam.jvOutput, followerDynamics.jvInputDynamics);
-
-    systems::connect(follower.wamJTOutput, customjtSum.getInput(0));
-    systems::connect(wam.gravity.output, customjtSum.getInput(1));
-    systems::connect(wam.supervisoryController.output, customjtSum.getInput(2));
-
-    systems::connect(customjtSum.output, dynamicExternalTorque.wamTorqueSumIn);
-    if (config.follower.vertical) {
-        systems::connect(followerVerticalDynamics->followerVerticalDynamicsOut, dynamicExternalTorque.wamDynamicsIn);
-    } else {
-        systems::connect(followerDynamics.dynamicsFeedFWD, dynamicExternalTorque.wamDynamicsIn);
-    }
-
     systems::connect(wam.gravity.output, follower.wamGravIn);
+    systems::connect(wam.toolPose.output, follower.wamTPIn);
+    systems::connect(policy_controller.controlOutput, follower.policyJtIn);
     if (config.follower.vertical) {
         systems::connect(followerVerticalDynamics->followerVerticalDynamicsOut, follower.wamDynIn);
     } else {
         systems::connect(followerDynamics.dynamicsFeedFWD, follower.wamDynIn);
     }
 
-    systems::connect(wam.toolPose.output, follower.wamTPIn);
+    // the other current values needed for dynamics. zero vel and acc is just grav comp.
+    systems::connect(wam.jpOutput, followerDynamics.jpInputDynamics);
+    systems::connect(wam.jvOutput, followerDynamics.jvInputDynamics);
+
+    // if using dyn_comp-grav_comp as feedforward then customjtSum will find the the non dynamically compensated ext torque
+    systems::connect(follower.wamJTOutput, customjtSum.getInput(0));
+    systems::connect(wam.gravity.output, customjtSum.getInput(1));
+    systems::connect(wam.supervisoryController.output, customjtSum.getInput(2));
+    systems::connect(customjtSum.output, dynamicExternalTorque.wamTorqueSumIn);
+
+    // pass dynamics for other systems
+    if (config.follower.vertical) {
+        systems::connect(followerVerticalDynamics->followerVerticalDynamicsOut, dynamicExternalTorque.wamDynamicsIn);
+    } else {
+        systems::connect(followerDynamics.dynamicsFeedFWD, dynamicExternalTorque.wamDynamicsIn);
+    }
 
     systems::connect(follower.policyJpOutput, policy_controller.referenceInput);
     systems::connect(follower.theirJPOutput, policy_controller.feedbackInput);
-    systems::connect(policy_controller.controlOutput, follower.policyJtIn);
 
     // systems::connect(customjtSum.output, printTOQ.input);
 

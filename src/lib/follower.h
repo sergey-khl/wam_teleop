@@ -38,9 +38,6 @@ class Follower : public barrett::systems::System {
     Output<jv_type> theirJVOutput;
     Output<jt_type> theirExtTorqueOutput;
     Output<jp_type> policyJpOutput;
-    Output<jv_type> policyJvOutput;
-    Output<ja_type> policyJaOutput;
-    Output<jt_type> policyJtScaleOutput;
 
     std::atomic<bool> linked;
     std::atomic<bool> inference_enabled;
@@ -68,9 +65,6 @@ class Follower : public barrett::systems::System {
         , theirJVOutput(this, &theirJVOutputValue)
         , theirExtTorqueOutput(this, &theirExtTorqueOutputValue)
         , policyJpOutput(this, &policyJpOutputValue)
-        , policyJvOutput(this, &policyJvOutputValue)
-        , policyJaOutput(this, &policyJaOutputValue)
-        , policyJtScaleOutput(this, &policyJtScaleOutputValue)
         , udp_handler(config.network.leader_host, config.network.teleop_recv, config.network.teleop_send, 
                       config.network.policy_send_active, config.network.policy_host, config.network.policy_send, config.network.policy_recv)
         , gripper(gripper)
@@ -129,9 +123,6 @@ class Follower : public barrett::systems::System {
     typename Output<jv_type>::Value* theirJVOutputValue;
     typename Output<jt_type>::Value* theirExtTorqueOutputValue;
     typename Output<jp_type>::Value* policyJpOutputValue;
-    typename Output<jv_type>::Value* policyJvOutputValue;
-    typename Output<ja_type>::Value* policyJaOutputValue;
-    typename Output<jt_type>::Value* policyJtScaleOutputValue;
     jp_type wamJP;
     jv_type wamJV;
     boost::tuple<cp_type, Eigen::Quaterniond> wamTP;
@@ -151,8 +142,8 @@ class Follower : public barrett::systems::System {
     int loop_counter = 0;
     std::chrono::time_point<std::chrono::steady_clock> last_op_time;
 
-    float gripper_max_pos;
-    float gripper_min_pos; // assumes 0 is the open pos of the gripper
+    float gripper_max_pos; // assumes 0 is the close pos of the gripper
+    float gripper_min_pos;
 
     using TeleopReceivedData = typename FollowerUDPHandler<DOF>::TeleopReceivedData;
 
@@ -246,7 +237,6 @@ class Follower : public barrett::systems::System {
         if (isInference()) {
             boost::optional<PolicyReceivedData> policy_data = udp_handler.getLatestPolicyReceived();
             now_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
-            timeout_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(INFERENCE_TIMEOUT_DURATION).count();
             double udp_policy_age = 0.0;
             if (policy_data) {
                 jt_type max_torques;
@@ -380,7 +370,6 @@ class Follower : public barrett::systems::System {
                 //     }
                 // }
 
-                // policyJt << policyJt * policyJtScale;
                 policyJp << clipped_jp;
                 policyJv << clipped_jv;
                 policyJa << clipped_ja;
@@ -415,10 +404,8 @@ class Follower : public barrett::systems::System {
         }
 
         policyJpOutputValue->setData(&policyJp);
-        policyJvOutputValue->setData(&policyJv);
-        policyJaOutputValue->setData(&policyJa);
 
-        // jpOutputValue->setData(&wamJP);
+        jpOutputValue->setData(&wamJP);
         // policyJtScaleOutputValue->setData(&policyJtScale);
 
         uint64_t loop_start = std::chrono::duration_cast<std::chrono::nanoseconds>(now_op.time_since_epoch()).count();
@@ -503,8 +490,7 @@ class Follower : public barrett::systems::System {
     DISALLOW_COPY_AND_ASSIGN(Follower);
     std::mutex state_mutex;
     FollowerUDPHandler<DOF> udp_handler;
-    const std::chrono::milliseconds TELEOP_TIMEOUT_DURATION = std::chrono::milliseconds(10); // this needs to be larger than 2ms becuse of warmup on policy startup
-    const std::chrono::milliseconds INFERENCE_TIMEOUT_DURATION = std::chrono::milliseconds(1000); // dont take action on packets recieved longer than 3s ago
+    const std::chrono::milliseconds TELEOP_TIMEOUT_DURATION = std::chrono::milliseconds(20); // this needs to be larger than 2ms becuse of warmup when starting other programs
 
     GeckoGripper* gripper;
     std::thread io_thread;

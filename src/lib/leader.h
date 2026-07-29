@@ -234,9 +234,9 @@ class Leader : public barrett::systems::System {
             // std::cout << "  -> ref:  " << theirExtTorque.transpose() << "\n\n";
             // std::cout << "  -> Tool Pos:  [" << toolPos.transpose() << "]\n";
             // std::cout << "  -> Tool Quat: [" << toolQ.w() << " " << toolQ.x() << " " << toolQ.y() << " " << toolQ.z() << "]\n\n";
-            // std::cout << "  -> bumper: [" << bumper.load() << "]\n";
-            // std::cout << "  -> trigger: [" << trigger.load() << "]\n";
-            // std::cout << "  -> desired_gripper_vel: [" << desired_gripper_vel.load() << "]\n";
+            std::cout << "  -> bumper: [" << bumper.load() << "]\n";
+            std::cout << "  -> trigger: [" << trigger.load() << "]\n";
+            std::cout << "  -> desired_gripper_vel: [" << desired_gripper_vel.load() << "]\n";
         }
     }
 
@@ -282,7 +282,7 @@ class Leader : public barrett::systems::System {
     std::mutex state_mutex;
     jp_type joint_positions;
     LeaderUDPHandler<DOF> udp_handler;
-    const std::chrono::milliseconds TIMEOUT_DURATION = std::chrono::milliseconds(10);
+    const std::chrono::milliseconds TIMEOUT_DURATION = std::chrono::milliseconds(20);
 
     jt_type compute_control(const jp_type& ref_pos, const jv_type& ref_vel, const jt_type& ref_extTorque,
                             const jp_type& cur_pos, const jv_type& cur_vel, const jt_type& cur_extTorque,

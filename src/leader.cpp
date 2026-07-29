@@ -159,9 +159,8 @@ int wam_main(int argc, char **argv, ProductManager &pm, systems::Wam<DOF> &wam) 
     // the other current values needed for dynamics. zero vel and acc is just grav comp.
     systems::connect(wam.jpOutput, leaderDynamics.jpInputDynamics);
     systems::connect(wam.jvOutput, leaderDynamics.jvInputDynamics);
-    // systems::connect(zeroVelocity.output, leaderDynamics.jvInputDynamics);
-    // systems::connect(zeroAcceleration.output, leaderDynamics.jaInputDynamics);
 
+    // if using dyn_comp-grav_comp as feedforward then customjtSum will find the the non dynamically compensated ext torque
     systems::connect(leader.wamJTOutput, customjtSum.getInput(0));
     systems::connect(wam.gravity.output, customjtSum.getInput(1));
     systems::connect(wam.supervisoryController.output, customjtSum.getInput(2)); // this will be 0 initially until we command the wam
