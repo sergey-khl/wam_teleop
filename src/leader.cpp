@@ -28,7 +28,6 @@
 #include "lib/leader.h"
 #include "lib/background_state_publisher.h"
 #include "lib/leader_dynamics_4dof.h"
-// #include "lib/leader_dynamics_7dof.h"
 #include "lib/dynamic_external_torque.h"
 #include "lib/leader_vertical_dynamics.h"
 
@@ -73,12 +72,10 @@ int wam_main(int argc, char **argv, ProductManager &pm, systems::Wam<DOF> &wam) 
         return false;
     }
 
-    // ==== CHANGED: node name to reflect wrist leader ====
     ros::init(argc, argv, "leader");
 
     haptic_wrist::Handle handle;
 
-    // ==== CHANGED: pass &hw to state publisher so it can publish wrist states ====
     // BackgroundStatePublisher<DOF> state_publisher(pm.getExecutionManager(), wam, &hw);
 
     barrett::systems::Summer<jt_type, 3> customjtSum;
@@ -94,7 +91,7 @@ int wam_main(int argc, char **argv, ProductManager &pm, systems::Wam<DOF> &wam) 
         leaderVerticalDynamics = new LeaderVerticalDynamics<DOF>(pm.getExecutionManager());
     }
 
-    // Filters (unchanged)
+    // filters
     barrett::systems::FirstOrderFilter<jt_type> extFilter;
     jt_type omega_p(180.0);
     extFilter.setLowPass(omega_p);
@@ -112,18 +109,13 @@ int wam_main(int argc, char **argv, ProductManager &pm, systems::Wam<DOF> &wam) 
     systems::Constant<ja_type> zeroAcceleration(ja);
     pm.getExecutionManager()->startManaging(zeroAcceleration);
 
-    // ==== CHANGED: instantiate wrist-capable Leader ====
     Leader<DOF> leader(pm.getExecutionManager(), &handle, config);
 
     jt_type maxRate; // Nm·s^-1 per joint
     maxRate << 50, 50, 50, 50;
     systems::RateLimiter<jt_type> wamJPOutputRamp(maxRate, "ffRamp");
 
-    systems::PrintToStream<jt_type> printdynamicextTorque(pm.getExecutionManager(), "dynamicextTorque: ");
-    systems::PrintToStream<jt_type> printextTorque(pm.getExecutionManager(), "extTorque: ");
-    systems::PrintToStream<jt_type> printdynamicoutput(pm.getExecutionManager(), "dynamicoutput: ");
-    systems::PrintToStream<jt_type> printSC(pm.getExecutionManager(), "SC: ");
-    systems::PrintToStream<jt_type> printTOQ(pm.getExecutionManager(), "TOQ: ");
+    // systems::PrintToStream<jt_type> printTOQ(pm.getExecutionManager(), "TOQ: ");
 
     double h_omega_p = 25.0;
     barrett::systems::FirstOrderFilter<jv_type> hp1;
@@ -136,7 +128,7 @@ int wam_main(int argc, char **argv, ProductManager &pm, systems::Wam<DOF> &wam) 
     jaFilter.setLowPass(l_omega_p);
     pm.getExecutionManager()->startManaging(jaFilter);
 
-    // === Wiring (same as your original "no-wrist" main) ===
+    // filtered acc for dynamics
     systems::connect(wam.jvOutput, hp1.input);
     systems::connect(hp1.output, jaWAM.input);
     systems::connect(jaWAM.output, jaFilter.input);
@@ -152,13 +144,19 @@ int wam_main(int argc, char **argv, ProductManager &pm, systems::Wam<DOF> &wam) 
         systems::connect(wam.gravity.output, leaderVerticalDynamics->gravityIn);
     }
 
+    // leader info
     systems::connect(wam.jpOutput, leader.wamJPIn);
     systems::connect(wam.jvOutput, leader.wamJVIn);
-    // systems::connect(extFilter.output, leader.extTorqueIn);
-    // systems::connect(customjtSum.output, leader.extTorqueIn);
-    // systems::connect(dynamicExtFilter.output, leader.extTorqueIn);
     systems::connect(dynamicExternalTorque.wamExternalTorqueOut, leader.extTorqueIn);
+    systems::connect(wam.gravity.output, leader.wamGravIn);
+    systems::connect(wam.toolPose.output, leader.wamTPIn);
+    if (config.leader.vertical) {
+        systems::connect(leaderVerticalDynamics->leaderVerticalDynamicsOut, leader.wamDynIn);
+    } else {
+        systems::connect(leaderDynamics.dynamicsFeedFWD, leader.wamDynIn);
+    }
 
+    // the other current values needed for dynamics. zero vel and acc is just grav comp.
     systems::connect(wam.jpOutput, leaderDynamics.jpInputDynamics);
     systems::connect(wam.jvOutput, leaderDynamics.jvInputDynamics);
     // systems::connect(zeroVelocity.output, leaderDynamics.jvInputDynamics);
@@ -166,35 +164,19 @@ int wam_main(int argc, char **argv, ProductManager &pm, systems::Wam<DOF> &wam) 
 
     systems::connect(leader.wamJTOutput, customjtSum.getInput(0));
     systems::connect(wam.gravity.output, customjtSum.getInput(1));
-    systems::connect(wam.supervisoryController.output, customjtSum.getInput(2));
-
+    systems::connect(wam.supervisoryController.output, customjtSum.getInput(2)); // this will be 0 initially until we command the wam
     systems::connect(customjtSum.output, dynamicExternalTorque.wamTorqueSumIn);
+
+    // pass dynamics for other systems
     if (config.leader.vertical) {
         systems::connect(leaderVerticalDynamics->leaderVerticalDynamicsOut, dynamicExternalTorque.wamDynamicsIn);
     } else {
         systems::connect(leaderDynamics.dynamicsFeedFWD, dynamicExternalTorque.wamDynamicsIn);
-        systems::connect(dynamicExternalTorque.wamExternalTorqueOut, dynamicExtFilter.input);
-        systems::connect(customjtSum.output, extFilter.input);
     }
 
-    systems::connect(wam.gravity.output, leader.wamGravIn);
-    if (config.leader.vertical) {
-        systems::connect(leaderVerticalDynamics->leaderVerticalDynamicsOut, leader.wamDynIn);
-        systems::connect(dynamicExternalTorque.wamExternalTorqueOut, dynamicExtFilter.input);
-    } else {
-        systems::connect(leaderDynamics.dynamicsFeedFWD, leader.wamDynIn);
-    }
-
-    systems::connect(wam.toolPose.output, leader.wamTPIn);
-
-
-    // Optional prints (leave commented to avoid loop jitter)
-    // systems::connect(dynamicExternalTorque.wamExternalTorqueOut, printdynamicextTorque.input);
-    // systems::connect(extFilter.output, printextTorque.input);
-    // systems::connect(customjtSum.output, printextTorque.input);
-    // systems::connect(wam.supervisoryController.output, printSC.input);
-    // systems::connect(leaderDynamics.dynamicsFeedFWD, printdynamicoutput.input);
-    // systems::connect(leader.policyJTOutput, printdynamicoutput.input);
+    // filter torques
+    systems::connect(dynamicExternalTorque.wamExternalTorqueOut, dynamicExtFilter.input);
+    systems::connect(customjtSum.output, extFilter.input);
 
     wam.gravityCompensate();
 
@@ -224,7 +206,6 @@ int wam_main(int argc, char **argv, ProductManager &pm, systems::Wam<DOF> &wam) 
 
                 btsleep(0.1); // wait an execution cycle or two
                 if (leader.isLinked()) {
-                    // Track peer’s arm joints (Leader publishes them)
                     printf("Linked with remote WAM.\n");
                 } else {
                     printf("WARNING: Linking was unsuccessful.\n");

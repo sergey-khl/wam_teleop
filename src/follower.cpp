@@ -28,12 +28,9 @@
 #include "lib/follower.h"
 #include "lib/background_state_publisher.h"
 #include "lib/follower_dynamics_4dof.h"
-// #include "lib/leader_dynamics_4dof.h"
-// #include "lib/follower_dynamics_7dof.h"
 #include "lib/dynamic_external_torque.h"
-// #include "lib/policy_external_torque.h"
 #include "lib/follower_vertical_dynamics.h"
-#include "lib/trajectory_smoother.h"
+// #include "lib/trajectory_smoother.h"
 
 using namespace barrett;
 using detail::waitForEnter;
@@ -107,9 +104,6 @@ template <size_t DOF> int wam_main(int argc, char **argv, ProductManager &pm, sy
     barrett::systems::Summer<jt_type, 3> customjtSum;
     pm.getExecutionManager()->startManaging(customjtSum);
 
-    // TrajectorySmoother<DOF> policyFilter(2.0, 2.0, 0.0);
-    // pm.getExecutionManager()->startManaging(policyFilter);
-
     barrett::systems::PIDController<jp_type, jt_type> policy_controller;
     policy_controller.setKp(toBarrettVec<DOF>(config.policy.kp));
     policy_controller.setKi(toBarrettVec<DOF>(config.policy.ki));
@@ -119,7 +113,6 @@ template <size_t DOF> int wam_main(int argc, char **argv, ProductManager &pm, sy
 
     FollowerDynamics<DOF> followerDynamics(pm.getExecutionManager());
     DynamicExternalTorque<DOF> dynamicExternalTorque(pm.getExecutionManager());
-    // PolicyExternalTorque<DOF> policyExternalTorque(pm.getExecutionManager());
 
     FollowerDynamics<DOF>* horizontalGravity = nullptr;
     FollowerVerticalDynamics<DOF>* followerVerticalDynamics = nullptr;
@@ -149,12 +142,7 @@ template <size_t DOF> int wam_main(int argc, char **argv, ProductManager &pm, sy
     maxRate << 50, 50, 50, 50;
     systems::RateLimiter<jt_type> wamJPOutputRamp(maxRate, "ffRamp");
 
-    systems::PrintToStream<jt_type> printdynamicextTorque(pm.getExecutionManager(), "dynamicextTorque: ");
-    systems::PrintToStream<jt_type> printSC(pm.getExecutionManager(), "SC: ");
-    systems::PrintToStream<jp_type> printPOS(pm.getExecutionManager(), "POS: ");
-    systems::PrintToStream<jt_type> printFOR(pm.getExecutionManager(), "FOR: ");
-    systems::PrintToStream<jt_type> printTOQ(pm.getExecutionManager(), "TOQ: ");
-    systems::PrintToStream<ja_type> printACC(pm.getExecutionManager(), "ACC: ");
+    // systems::PrintToStream<jt_type> printTOQ(pm.getExecutionManager(), "TOQ: ");
 
     double h_omega_p = 25.0;
     barrett::systems::FirstOrderFilter<jv_type> hp1;
@@ -166,10 +154,6 @@ template <size_t DOF> int wam_main(int argc, char **argv, ProductManager &pm, sy
     ja_type l_omega_p = ja_type::Constant(50.0);
     jaFilter.setLowPass(l_omega_p);
     pm.getExecutionManager()->startManaging(jaFilter);
-
-    // convert VLA actions to joint torques
-    // systems::ToolForceToJointTorques<DOF> tf2jt;
-    // systems::ToolTorqueToJointTorques<DOF> tt2jt;
 
     systems::connect(wam.jvOutput, hp1.input);
     systems::connect(hp1.output, jaWAM.input);
@@ -188,13 +172,10 @@ template <size_t DOF> int wam_main(int argc, char **argv, ProductManager &pm, sy
 
     systems::connect(wam.jpOutput, follower.wamJPIn);
     systems::connect(wam.jvOutput, follower.wamJVIn);
-    // systems::connect(extFilter.output, follower.extTorqueIn);
     systems::connect(dynamicExternalTorque.wamExternalTorqueOut, follower.extTorqueIn);
 
     systems::connect(wam.jpOutput, followerDynamics.jpInputDynamics);
     systems::connect(wam.jvOutput, followerDynamics.jvInputDynamics);
-    // systems::connect(zeroVelocity.output, followerDynamics.jvInputDynamics);
-    // systems::connect(zeroAcceleration.output, followerDynamics.jaInputDynamics);
 
     systems::connect(follower.wamJTOutput, customjtSum.getInput(0));
     systems::connect(wam.gravity.output, customjtSum.getInput(1));
@@ -214,25 +195,13 @@ template <size_t DOF> int wam_main(int argc, char **argv, ProductManager &pm, sy
         systems::connect(followerDynamics.dynamicsFeedFWD, follower.wamDynIn);
     }
 
-    // systems::connect(dynamicExternalTorque.wamExternalTorqueOut, extFilter.input);
-
     systems::connect(wam.toolPose.output, follower.wamTPIn);
 
     systems::connect(follower.policyJpOutput, policy_controller.referenceInput);
     systems::connect(follower.theirJPOutput, policy_controller.feedbackInput);
-
     systems::connect(policy_controller.controlOutput, follower.policyJtIn);
 
-    // systems::connect(extFilter.output, printdynamicextTorque.input);
-    // systems::connect(dynamicExternalTorque.wamExternalTorqueOut, printdynamicextTorque.input);
-    // systems::connect(wam.supervisoryController.output, printSC.input);
     // systems::connect(customjtSum.output, printTOQ.input);
-    // systems::connect(followerDynamics.dynamicsFeedFWD, printTOQ.input);
-    // systems::connect(policyFilter.output, printPOS.input);
-    // systems::connect(policy_controller.controlOutput, printTOQ.input);
-    // systems::connect(policyExternalTorque.output, printTOQ.input);
-    // systems::connect(follower.policyJtScaleOutput, printTOQ.input);
-    // systems::connect(follower.policyJaOutput, printACC.input);
 
     wam.gravityCompensate();
 
@@ -278,7 +247,6 @@ template <size_t DOF> int wam_main(int argc, char **argv, ProductManager &pm, sy
 
                 btsleep(0.1); // wait an execution cycle or two
                 if (follower.isInference()) {
-                    // systems::connect(policyExternalTorque.output, wam.input);
                     printf("Running policy.\n");
                 } else {
                     printf("WARNING: inference was unsuccessful.\n");
