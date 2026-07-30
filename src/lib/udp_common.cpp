@@ -101,6 +101,14 @@ void PolicyUDPHandler<DOF>::send(const jp_type& follower_jp, const jv_type& foll
 }
 
 template <size_t DOF>
+void PolicyUDPHandler<DOF>::clearQueueAndPause(std::chrono::milliseconds duration) {
+    std::lock_guard<std::mutex> lock(state_mutex);
+    action_queue.clear();
+    pause_until = std::chrono::steady_clock::now() + duration;
+}
+
+
+template <size_t DOF>
 std::deque<PolicyReceivedData> PolicyUDPHandler<DOF>::interpolateChunk(const RawAction (&actions)[ACTION_HORIZON],
                                                                         uint64_t inference_timestamp_ns,
                                                                         const RawAction* last_action) {
@@ -199,6 +207,11 @@ void PolicyUDPHandler<DOF>::receiveLoop() {
 
 
         std::lock_guard<std::mutex> lock(state_mutex);
+        if (std::chrono::steady_clock::now() < pause_until) {
+            // do not add any new actions to the queue for a little bit if the user canceled an episode
+            continue;
+        }
+
         // a new chunk extends what is left in the queue
         action_queue.insert(action_queue.end(),
                              std::make_move_iterator(new_queue.begin()),

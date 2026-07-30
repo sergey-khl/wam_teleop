@@ -80,7 +80,7 @@ void LeaderUDPHandler<DOF>::receiveLoop() {
 template <size_t DOF>
 void LeaderUDPHandler<DOF>::send(const jp_type& jp, const jv_type& jv, const jt_type& extTorque,
                                    const cp_type& cart_pos, const Eigen::Quaterniond& quat,
-                                   double gripper_cmd, uint64_t timestamp) {
+                                   double gripper_cmd, double cancel_policy, uint64_t timestamp) {
     {
         std::lock_guard<std::mutex> lock(send_mutex);
         std::memcpy(pending_send_packet.jp, jp.data(), sizeof(double) * DOF);
@@ -92,6 +92,7 @@ void LeaderUDPHandler<DOF>::send(const jp_type& jp, const jv_type& jv, const jt_
         pending_send_packet.quat[2] = quat.y();
         pending_send_packet.quat[3] = quat.z();
         pending_send_packet.gripper_cmd = gripper_cmd;
+        pending_send_packet.cancel_policy = cancel_policy;
         pending_send_packet.timestamp = timestamp;
         new_data_available = true;
     }

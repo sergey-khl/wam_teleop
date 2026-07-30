@@ -31,6 +31,7 @@ struct LeaderToFollowerPacket {
     double cart_pos[3];   // x, y, z
     double quat[4];   // w, x, y, z
     double gripper_cmd;
+    double cancel_policy;
     uint64_t timestamp;
 };
 
@@ -100,6 +101,7 @@ struct FollowerReceivedData {
     Eigen::Matrix<double, 3, 1> cart_pos;
     Eigen::Quaterniond quat;
     double gripper_cmd;
+    double cancel_policy;
     uint64_t timestamp;
 };
 
@@ -126,6 +128,9 @@ public:
  
     // Latest interpolated action received from the policy (pops the front of the queue).
     boost::optional<PolicyReceivedData> getLatestPolicyReceived();
+
+    void clearQueueAndPause(std::chrono::milliseconds duration = std::chrono::milliseconds(1000));
+
  
     // Queue a PolicyPacket to be sent to the policy. No-op if inactive.
     void send(const jp_type& follower_jp, const jv_type& follower_jv, const jt_type& follower_extTorque,
@@ -170,5 +175,6 @@ private:
                                                              uint64_t inference_timestamp_ns,
                                                              const RawAction* last_action);
 
+    std::chrono::steady_clock::time_point pause_until{};
 };
 

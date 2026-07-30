@@ -63,6 +63,7 @@ class Leader : public barrett::systems::System {
         , handle(handle)
     	, bumper(0.0f)
     	, trigger(0.0f)
+    	, cancel_policy(0.0f)
         , desired_gripper_pos(0.0f)
         , remote_gripper_torque(0.0f)
         , remote_gripper_pos(0.0f)
@@ -118,6 +119,7 @@ class Leader : public barrett::systems::System {
     // TODO: these should be bool
     std::atomic<double> bumper;
     std::atomic<double> trigger;
+    std::atomic<double> cancel_policy;
 
     std::atomic<float> desired_gripper_pos;
     std::atomic<float> remote_gripper_torque;
@@ -186,6 +188,11 @@ class Leader : public barrett::systems::System {
                 std::cout << "lost link with age " << udp_teleop_age << std::endl;
                 linked.store(false);
             }
+        }
+
+        // cancel a policy
+        if (cancel_policy.load() == 1) {
+            policy_udp_handler.clearQueueAndPause();
         }
 
         // inference. see how on_leader is used for the magic
@@ -259,7 +266,7 @@ class Leader : public barrett::systems::System {
 
         uint64_t loop_start = std::chrono::duration_cast<std::chrono::nanoseconds>(now_op.time_since_epoch()).count();
         auto send_start = std::chrono::steady_clock::now();
-        teleop_udp_handler.send(sendJpMsg, sendJvMsg, sendExtTorqueMsg, toolPos, toolQ, static_cast<double>(desired_gripper_pos.load()), loop_start); // we send the start of theoperation loop when we collect our leader data
+        teleop_udp_handler.send(sendJpMsg, sendJvMsg, sendExtTorqueMsg, toolPos, toolQ, static_cast<double>(desired_gripper_pos.load()), static_cast<double>(cancel_policy.load()), loop_start); // we send the start of theoperation loop when we collect our leader data
         policy_udp_handler.send(theirJp, theirJv, theirExtTorque, sendJpMsg, sendJvMsg, sendExtTorqueMsg, theirToolPos, theirToolQ, toolPos, toolQ, static_cast<double>(remote_gripper_pos.load()), static_cast<double>(remote_gripper_vel.load()), static_cast<double>(remote_gripper_pos.load()), loop_start);
         auto send_end = std::chrono::steady_clock::now();
         double send_dt = std::chrono::duration<double, std::milli>(send_end - send_start).count();
@@ -316,6 +323,7 @@ class Leader : public barrett::systems::System {
                 haptic_wrist::handle_type handle = *opt_handle;
                 bumper.store(handle[0]);
                 trigger.store(handle[1]);
+                cancel_policy.store(handle[2]); // up button on controller
             }
 
             float current_pos = remote_gripper_pos.load();

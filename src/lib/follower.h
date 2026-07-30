@@ -70,6 +70,7 @@ class Follower : public barrett::systems::System {
         , current_gripper_pos(0.0f)
         , current_gripper_vel(0.0f)
         , current_gripper_torque(0.0f)
+        , cancel_policy(0.0f)
         , io_running(false)
         , linked(false) {
 
@@ -161,6 +162,7 @@ class Follower : public barrett::systems::System {
             theirToolPos = teleop_data->cart_pos.template head<3>();
             theirToolQ = teleop_data->quat;
             target_gripper_pos.store(static_cast<double>(teleop_data->gripper_cmd));
+            cancel_policy.store(static_cast<double>(teleop_data->cancel_policy));
 
             // mirror and offset some of the wam joints
             for (size_t i = 0; i < DOF; i++) {
@@ -179,6 +181,11 @@ class Follower : public barrett::systems::System {
                 std::cout << "lost link with age " << udp_teleop_age << std::endl;
                 linked.store(false);
             }
+        }
+
+        // cancel a policy
+        if (cancel_policy.load() == 1) {
+            policy_udp_handler.clearQueueAndPause();
         }
 
         // inference. see how on_follower is used for the magic
@@ -327,6 +334,7 @@ class Follower : public barrett::systems::System {
     std::atomic<float> current_gripper_pos;
     std::atomic<float> current_gripper_vel;
     std::atomic<float> current_gripper_torque;
+    std::atomic<float> cancel_policy;
 
     jt_type compute_control(const jp_type& ref_pos, const jv_type& ref_vel, const jt_type& ref_extTorque,
                             const jp_type& cur_pos, const jv_type& cur_vel, const jt_type& cur_extTorque,
