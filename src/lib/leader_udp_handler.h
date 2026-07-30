@@ -15,6 +15,7 @@ public:
     using jp_type = Eigen::Matrix<double, DOF, 1>;
     using jv_type = Eigen::Matrix<double, DOF, 1>;
     using jt_type = Eigen::Matrix<double, DOF, 1>;
+    using cp_type = Eigen::Matrix<double, 3, 1>;
 
     using TeleopPacket = LeaderToFollowerPacket<DOF>;
     using TeleopRecvPacket = FollowerToLeaderPacket<DOF>;
@@ -30,6 +31,7 @@ public:
 
     // Queue a LeaderToFollowerPacket to be sent to the follower.
     void send(const jp_type& jp, const jv_type& jv, const jt_type& extTorque,
+              const cp_type& cart_pos, const Eigen::Quaterniond& quat,
               double gripper_cmd, uint64_t timestamp);
 
 private:

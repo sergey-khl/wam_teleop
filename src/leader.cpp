@@ -81,6 +81,24 @@ int wam_main(int argc, char **argv, ProductManager &pm, systems::Wam<DOF> &wam) 
     barrett::systems::Summer<jt_type, 3> customjtSum;
     pm.getExecutionManager()->startManaging(customjtSum);
 
+    // create libbarret gains settings from our teleop_config.yaml
+    libconfig::Config policy_config;
+    libconfig::Setting& policy_settings = policy_config.getRoot().add("policy_gains", libconfig::Setting::TypeGroup);
+    libconfig::Setting& kp_setting = policy_settings.add("kp", libconfig::Setting::TypeList);
+    libconfig::Setting& ki_setting = policy_settings.add("ki", libconfig::Setting::TypeList);
+    libconfig::Setting& kd_setting = policy_settings.add("kd", libconfig::Setting::TypeList);
+    libconfig::Setting& control_signal_limit_setting = policy_settings.add("control_signal", libconfig::Setting::TypeList);
+    libconfig::Setting& integrator_limit_setting = policy_settings.add("integrator_limit", libconfig::Setting::TypeList);
+    for (int i = 0; i < DOF; ++i) {
+        kp_setting.add(libconfig::Setting::TypeFloat) = config.policy.kp[i];
+        ki_setting.add(libconfig::Setting::TypeFloat) = config.policy.ki[i];
+        kd_setting.add(libconfig::Setting::TypeFloat) = config.policy.kd[i];
+        control_signal_limit_setting.add(libconfig::Setting::TypeFloat) = config.policy.control_signal_limit[i];
+        integrator_limit_setting.add(libconfig::Setting::TypeFloat) = config.policy.integrator_limit[i];
+    }
+
+    barrett::systems::PIDController<jp_type, jt_type> policy_controller(policy_config.lookup("policy_gains"));
+
     LeaderDynamics<DOF> leaderDynamics(pm.getExecutionManager());
     DynamicExternalTorque<DOF> dynamicExternalTorque(pm.getExecutionManager());
 
@@ -150,6 +168,7 @@ int wam_main(int argc, char **argv, ProductManager &pm, systems::Wam<DOF> &wam) 
     systems::connect(dynamicExternalTorque.wamExternalTorqueOut, leader.extTorqueIn);
     systems::connect(wam.gravity.output, leader.wamGravIn);
     systems::connect(wam.toolPose.output, leader.wamTPIn);
+    systems::connect(policy_controller.controlOutput, leader.policyJtIn);
     if (config.leader.vertical) {
         systems::connect(leaderVerticalDynamics->leaderVerticalDynamicsOut, leader.wamDynIn);
     } else {
@@ -177,6 +196,9 @@ int wam_main(int argc, char **argv, ProductManager &pm, systems::Wam<DOF> &wam) 
     systems::connect(dynamicExternalTorque.wamExternalTorqueOut, dynamicExtFilter.input);
     systems::connect(customjtSum.output, extFilter.input);
 
+    systems::connect(leader.policyJpOutput, policy_controller.referenceInput);
+    systems::connect(wam.jpOutput, policy_controller.feedbackInput);
+
     wam.gravityCompensate();
 
     std::string line;
@@ -201,7 +223,7 @@ int wam_main(int argc, char **argv, ProductManager &pm, systems::Wam<DOF> &wam) 
                 leader.tryLink();
                 wam.trackReferenceSignal(leader.theirJPOutput);
                 // NOTE: avoid connecting multiple signals to wam.input because it causes free motion to be worse. even if the signal is 0
-                connect(leader.wamJTOutput, wam.input);
+                // connect(leader.wamJTOutput, wam.input);
 
                 btsleep(0.1); // wait an execution cycle or two
                 if (leader.isLinked()) {

@@ -2,6 +2,19 @@
 #include <cstdint>
 #include <cstddef>
 #include <Eigen/Dense>
+#include <Eigen/Geometry>
+ 
+#include <boost/asio.hpp>
+#include <boost/optional.hpp>
+ 
+#include <atomic>
+#include <condition_variable>
+#include <deque>
+#include <mutex>
+#include <string>
+#include <thread>
+ 
+
 
 static constexpr size_t ACTION_HORIZON = 200;
 static constexpr double CHUNK_DURATION_SEC = 20.0;
@@ -16,6 +29,8 @@ struct LeaderToFollowerPacket {
     double jp[DOF];
     double jv[DOF];
     double extTorque[DOF];
+    double cart_pos[3];   // x, y, z
+    double quat[4];   // w, x, y, z
     double gripper_cmd;
     uint64_t timestamp;
 };
@@ -25,8 +40,11 @@ struct FollowerToLeaderPacket {
     double jp[DOF];
     double jv[DOF];
     double extTorque[DOF];
-    double policyTorque[DOF];
+    double cart_pos[3];   // x, y, z
+    double quat[4];   // w, x, y, z
     double gripper_torque;
+    double gripper_pos;
+    double gripper_vel;
     uint64_t timestamp;
 };
 
@@ -40,7 +58,9 @@ struct PolicyPacket {
     double leader_jv[DOF];
     double leader_extTorque[DOF];
     double follower_cart_pos[3];   // x, y, z
-    double follower_cart_rot[4];   // w, x, y, z
+    double follower_quat[4];   // w, x, y, z
+    double leader_cart_pos[3];   // x, y, z
+    double leader_quat[4];   // w, x, y, z
     double gripper_pos;
     double gripper_vel;
     double gripper_torque;
@@ -65,8 +85,11 @@ struct LeaderReceivedData {
     Eigen::Matrix<double, DOF, 1> jp;
     Eigen::Matrix<double, DOF, 1> jv;
     Eigen::Matrix<double, DOF, 1> extTorque;
-    Eigen::Matrix<double, DOF, 1> policyTorque;
+    Eigen::Matrix<double, 3, 1> cart_pos;
+    Eigen::Matrix<double, 4, 1> quat;
     double gripper_torque;
+    double gripper_pos;
+    double gripper_vel;
     uint64_t timestamp;
 };
 
@@ -75,6 +98,8 @@ struct FollowerReceivedData {
     Eigen::Matrix<double, DOF, 1> jp;
     Eigen::Matrix<double, DOF, 1> jv;
     Eigen::Matrix<double, DOF, 1> extTorque;
+    Eigen::Matrix<double, 3, 1> cart_pos;
+    Eigen::Matrix<double, 4, 1> quat;
     double gripper_cmd;
     uint64_t timestamp;
 };
@@ -86,3 +111,59 @@ struct PolicyReceivedData {
     double gripper_cmd;
     uint64_t timestamp;
 };
+
+template <size_t DOF>
+class PolicyUDPHandler {
+public:
+    using jp_type = Eigen::Matrix<double, DOF, 1>;
+    using jv_type = Eigen::Matrix<double, DOF, 1>;
+    using jt_type = Eigen::Matrix<double, DOF, 1>;
+    using PolicyPacketType = PolicyPacket<DOF>;
+ 
+    PolicyUDPHandler(bool active, const std::string& policy_host, int policy_send_port, int policy_recv_port);
+    ~PolicyUDPHandler();
+ 
+    void stop();
+ 
+    // Latest interpolated action received from the policy (pops the front of the queue).
+    boost::optional<PolicyReceivedData> getLatestPolicyReceived();
+ 
+    // Queue a PolicyPacket to be sent to the policy. No-op if inactive.
+    void send(const jp_type& follower_jp, const jv_type& follower_jv, const jt_type& follower_extTorque,
+                       const jp_type& leader_jp, const jv_type& leader_jv, const jt_type& leader_extTorque,
+                       const Eigen::Vector3d& follower_cart_pos, const Eigen::Quaterniond& follower_quat,
+                       const Eigen::Vector3d& leader_cart_pos, const Eigen::Quaterniond& leader_quat,
+                       double gripper_pos, double gripper_vel, double gripper_torque,
+                       uint64_t timestamp);
+ 
+private:
+    static constexpr size_t NUM_INTERP_SAMPLES = static_cast<size_t>(INTERP_HZ * CHUNK_DURATION_SEC);
+ 
+    bool active;
+    std::atomic<bool> stop_threads;
+ 
+    boost::asio::io_context io_context;
+    boost::asio::ip::udp::socket send_socket;
+    boost::asio::ip::udp::socket recv_socket;
+    boost::asio::ip::udp::endpoint policy_endpoint;
+    int policy_recv_port;
+ 
+    std::thread send_thread;
+    std::thread recv_thread;
+ 
+    std::mutex state_mutex;
+    std::mutex send_mutex;
+    std::condition_variable send_condition;
+ 
+    PolicyPacketType pending_packet;
+    bool new_data_available = false;
+ 
+    std::deque<PolicyReceivedData> action_queue;
+ 
+    void sendLoop();
+    void receiveLoop();
+ 
+    static std::deque<PolicyReceivedData> interpolateChunk(const RawAction (&actions)[ACTION_HORIZON],
+                                                             uint64_t inference_timestamp_ns);
+};
+

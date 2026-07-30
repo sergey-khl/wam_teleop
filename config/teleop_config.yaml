@@ -1,13 +1,13 @@
 network:
   leader_host: "127.0.0.1"
   follower_host: "127.0.0.1"
-  # ports are from the perspective of the leader
+  # ports are from the perspective of the leader host
   teleop_send: 5555
   teleop_recv: 5554
   policy_host: "127.0.0.1"
+  # if policy.on_leader the ports are from persepctive of leader. Similar for follower
   policy_send: 6554
   policy_recv: 6666
-  policy_send_active: true
 
 sync_mapping:
   scales:  [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
@@ -19,6 +19,10 @@ policy:
   kd: [1.5, 1.5, 0.5, 0.3, 0.01, 0.01, 0.01]
   control_signal_limit: [10, 5, 4, 2.5, 0.8, 0.8, 0.5]
   integrator_limit: [0, 0, 0, 0, 0, 0, 0]
+
+  # only one of these should be true. Whether policy torque is applied to leader or follower
+  on_leader: true
+  on_follower: false
 
 leader:
   sync_pos: [0.0, -1.7, 0.0, 2.97, 0.0, 0.0, 0.0] 

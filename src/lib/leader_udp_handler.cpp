@@ -49,8 +49,11 @@ typename LeaderUDPHandler<DOF>::TeleopReceivedData LeaderUDPHandler<DOF>::unpack
     std::memcpy(rd.jp.data(), pkt.jp, sizeof(double) * DOF);
     std::memcpy(rd.jv.data(), pkt.jv, sizeof(double) * DOF);
     std::memcpy(rd.extTorque.data(), pkt.extTorque, sizeof(double) * DOF);
-    std::memcpy(rd.policyTorque.data(), pkt.policyTorque, sizeof(double) * DOF);
+    std::memcpy(rd.cart_pos.data(), pkt.cart_pos, sizeof(double) * 3);
+    std::memcpy(rd.quat.data(), pkt.quat, sizeof(double) * 4);
     rd.gripper_torque = pkt.gripper_torque;
+    rd.gripper_pos = pkt.gripper_pos;
+    rd.gripper_vel = pkt.gripper_vel;
     rd.timestamp = pkt.timestamp;
     return rd;
 }
@@ -76,12 +79,18 @@ void LeaderUDPHandler<DOF>::receiveLoop() {
 
 template <size_t DOF>
 void LeaderUDPHandler<DOF>::send(const jp_type& jp, const jv_type& jv, const jt_type& extTorque,
+                                   const cp_type& cart_pos, const Eigen::Quaterniond& quat,
                                    double gripper_cmd, uint64_t timestamp) {
     {
         std::lock_guard<std::mutex> lock(send_mutex);
         std::memcpy(pending_send_packet.jp, jp.data(), sizeof(double) * DOF);
         std::memcpy(pending_send_packet.jv, jv.data(), sizeof(double) * DOF);
         std::memcpy(pending_send_packet.extTorque, extTorque.data(), sizeof(double) * DOF);
+        std::memcpy(pending_send_packet.cart_pos, cart_pos.data(), sizeof(double) * 3);
+        pending_send_packet.quat[0] = quat.w();
+        pending_send_packet.quat[1] = quat.x();
+        pending_send_packet.quat[2] = quat.y();
+        pending_send_packet.quat[3] = quat.z();
         pending_send_packet.gripper_cmd = gripper_cmd;
         pending_send_packet.timestamp = timestamp;
         new_data_available = true;

@@ -93,8 +93,7 @@ template <size_t DOF> int wam_main(int argc, char **argv, ProductManager &pm, sy
 
     // create libbarret gains settings from our teleop_config.yaml
     libconfig::Config policy_config;
-    libconfig::Setting& policy_settings = policy_config.getRoot()
-            .add("policy_gains", libconfig::Setting::TypeGroup);
+    libconfig::Setting& policy_settings = policy_config.getRoot().add("policy_gains", libconfig::Setting::TypeGroup);
     libconfig::Setting& kp_setting = policy_settings.add("kp", libconfig::Setting::TypeList);
     libconfig::Setting& ki_setting = policy_settings.add("ki", libconfig::Setting::TypeList);
     libconfig::Setting& kd_setting = policy_settings.add("kd", libconfig::Setting::TypeList);
@@ -202,7 +201,7 @@ template <size_t DOF> int wam_main(int argc, char **argv, ProductManager &pm, sy
     }
 
     systems::connect(follower.policyJpOutput, policy_controller.referenceInput);
-    systems::connect(follower.theirJPOutput, policy_controller.feedbackInput);
+    systems::connect(wam.jpOutput, policy_controller.feedbackInput);
 
     // systems::connect(customjtSum.output, printTOQ.input);
 
@@ -229,30 +228,13 @@ template <size_t DOF> int wam_main(int argc, char **argv, ProductManager &pm, sy
                 waitForEnter();
                 follower.tryLink();
                 wam.trackReferenceSignal(follower.theirJPOutput);
-                systems::connect(follower.wamJTOutput, wam.input); // CAREFUL WITH THIS. CAN BE IN BOTH LINK AND IN INFERENCE
+                // systems::connect(follower.wamJTOutput, wam.input); // CAREFUL WITH THIS. CAN BE IN BOTH LINK AND IN INFERENCE
 
                 btsleep(0.1); // wait an execution cycle or two
                 if (follower.isLinked()) {
                     printf("Linked with remote WAM.\n");
                 } else {
                     printf("WARNING: Linking was unsuccessful.\n");
-                }
-            }
-
-            break;
-
-        case 'p':
-            if (follower.isInference()) {
-                follower.disableInference();
-                printf("disabled inference");
-            } else {
-                follower.enableInference();
-
-                btsleep(0.1); // wait an execution cycle or two
-                if (follower.isInference()) {
-                    printf("Running policy.\n");
-                } else {
-                    printf("WARNING: inference was unsuccessful.\n");
                 }
             }
 

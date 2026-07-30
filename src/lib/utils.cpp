@@ -8,9 +8,10 @@ void print_leader_banner(const TeleopConfig& config) {
 
     std::vector<double> sync_pos  = config.leader.sync_pos;
     bool vertical = config.leader.vertical;
+    bool on_leader = config.policy.on_leader;
 
     printf("\n========================================\n");
-    printf("  WAM LEADER — startup\n");
+    printf("  LEADER \n");
     printf("========================================\n");
     printf("  Sync pos      : [");
     for (int i = 0; i < 7; ++i)
@@ -20,6 +21,7 @@ void print_leader_banner(const TeleopConfig& config) {
     printf("]\n");
     printf("  config    : %s\n", barrett_cfg ? barrett_cfg : "(BARRETT_CONFIG_FILE not set)");
     printf("  CAN port  : %d\n",   barrett_port);
+    printf("  policy on leader  : %d\n",   on_leader);
     printf("========================================\n\n");
 }
 
@@ -29,9 +31,10 @@ void print_follower_banner(const TeleopConfig& config) {
 
     std::vector<double> sync_pos  = config.follower.sync_pos;
     bool vertical = config.follower.vertical;
-
+    bool on_follower = config.policy.on_follower;
+  
     printf("\n========================================\n");
-    printf("  WAM FOLLOWER — startup\n");
+    printf("  FOLLOWER \n");
     printf("========================================\n");
     printf("  Send To Policy     : %s\n",   config.network.policy_send_active ? "yes" : "no");
     printf("  Sync pos      : [");
@@ -49,6 +52,7 @@ void print_follower_banner(const TeleopConfig& config) {
     printf("]\n");
     printf("  config    : %s\n", barrett_cfg ? barrett_cfg : "(BARRETT_CONFIG_FILE not set)");
     printf("  CAN port  : %d\n",   barrett_port);
+    printf("  policy on follower  : %d\n",   on_follower);
     printf("========================================\n\n");
 }
 

@@ -13,7 +13,6 @@ struct NetworkConfig {
     std::string policy_host;
     int policy_send;
     int policy_recv;
-    bool policy_send_active;
 };
 struct PolicyConfig {
     std::vector<double> kp;
@@ -21,6 +20,8 @@ struct PolicyConfig {
     std::vector<double> kd;
     std::vector<double> control_signal_limit;
     std::vector<double> integrator_limit;
+    bool on_leader;
+    bool on_follower;
 };
 
 struct HapticsConfig {
@@ -57,7 +58,6 @@ template<> struct convert<NetworkConfig> {
         c.policy_host = node["policy_host"].as<std::string>();
         c.policy_send = node["policy_send"].as<int>();
         c.policy_recv = node["policy_recv"].as<int>();
-        c.policy_send_active = node["policy_send_active"].as<bool>();
         return true;
     }
 };
@@ -80,6 +80,8 @@ template<> struct convert<PolicyConfig> {
         c.kd = node["kd"].as<std::vector<double>>();
         c.control_signal_limit = node["control_signal_limit"].as<std::vector<double>>();
         c.integrator_limit = node["integrator_limit"].as<std::vector<double>>();
+        c.on_leader = node["on_leader"].as<bool>();
+        c.on_follower = node["on_follower"].as<bool>();
         return true;
     }
 };
