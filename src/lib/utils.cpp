@@ -21,7 +21,7 @@ void print_leader_banner(const TeleopConfig& config) {
     printf("]\n");
     printf("  config    : %s\n", barrett_cfg ? barrett_cfg : "(BARRETT_CONFIG_FILE not set)");
     printf("  CAN port  : %d\n",   barrett_port);
-    printf("  policy on leader  : %d\n",   on_leader);
+    printf("  policy on leader  : %s\n",   on_leader ? "yes" : "no");
     printf("========================================\n\n");
 }
 
@@ -51,7 +51,7 @@ void print_follower_banner(const TeleopConfig& config) {
     printf("]\n");
     printf("  config    : %s\n", barrett_cfg ? barrett_cfg : "(BARRETT_CONFIG_FILE not set)");
     printf("  CAN port  : %d\n",   barrett_port);
-    printf("  policy on follower  : %d\n",   on_follower);
+    printf("  policy on follower  : %s\n",   on_follower ? "yes" : "no");
     printf("========================================\n\n");
 }
 

@@ -159,7 +159,7 @@ class Follower : public barrett::systems::System {
             theirJv = teleop_data->jv;
             theirExtTorque = teleop_data->extTorque;
             theirToolPos = teleop_data->cart_pos.template head<3>();
-            theirToolQ = teleop_data->quat.template head<4>();
+            theirToolQ = teleop_data->quat;
             target_gripper_pos.store(static_cast<double>(teleop_data->gripper_cmd));
 
             // mirror and offset some of the wam joints
@@ -246,33 +246,33 @@ class Follower : public barrett::systems::System {
         // auto send_end = std::chrono::steady_clock::now();
         // double send_dt = std::chrono::duration<double, std::milli>(send_end - send_start).count();
 
-        if (++loop_counter % 50 == 0) {
+        if (++loop_counter % 500 == 0) {
             std::cout << std::fixed << std::setprecision(3);
 
             // std::cout << "[FOLLOWER] Loop dt: " << loop_dt
                       // << " ms | UDP Rx Age: " << udp_rx_age 
                       // << " ms | UDP Send latency: " << send_dt << " ms\n";
 
-            // std::cout << "  -> FOLLOWER JP:      [" << sendJpMsg.transpose() << "]\n";
-            // std::cout << "  -> LEADER JP:  " << theirJp.transpose() << "\n\n";
-            // std::cout << "  -> TX JV:      [" << sendJvMsg.transpose() << "]\n";
-            // std::cout << "  -> FOLLOWER EXT TOQ:  [" << sendExtTorqueMsg.transpose() << "]\n";
-            // std::cout << "  -> LEADER EXT TOQ:  " << theirExtTorque.transpose() << "\n";
+            std::cout << "  -> FOLLOWER JP:      [" << sendJpMsg.transpose() << "]\n";
+            std::cout << "  -> LEADER JP:    [" << theirJp.transpose() << "\n";
+            std::cout << "  -> FOLLOWER JV:      [" << sendJvMsg.transpose() << "]\n";
+            std::cout << "  -> LEADER JV:    [" << theirJv.transpose() << "]\n";
+            std::cout << "  -> FOLLOWER ExtTrq:  [" << sendExtTorqueMsg.transpose() << "]\n";
+            std::cout << "  -> leader ExtTrq:[" << theirExtTorque.transpose() << "]\n";
+            std::cout << "  -> follower Tool Pos:  [" << toolPos.transpose() << "]\n";
+            std::cout << "  -> follower Tool Quat: [" << toolQ.w() << " " << toolQ.x() << " " << toolQ.y() << " " << toolQ.z() << "]\n";
+            std::cout << "  -> leader Tool Pos:  [" << theirToolPos.transpose() << "]\n";
+            std::cout << "  -> leader Tool Quat: [" << theirToolQ.w() << " " << theirToolQ.x() << " " << theirToolQ.y() << " " << theirToolQ.z() << "]\n";
+            // std::cout << "  -> policy:  [" << policyJt.transpose() << "]\n";
             // std::cout << "  -> control: [" << compute_control(theirJp, theirJv, theirExtTorque, wamJP, wamJV, extTorque, wamGrav, wamDyn, policyJt) << "]\n";
-            // std::cout << "  -> applied: [" << (sendExtTorqueMsg + compute_teleop_control(theirJp, theirJv, theirExtTorque, wamJP, wamJV, extTorque, wamGrav, wamDyn)).transpose() << "]\n\n";
-            // std::cout << "  -> dyn: [" << wamDyn.transpose() << "]\n\n";
-            // std::cout << "  -> inf: [" << isInference() << "]\n";
-            // std::cout << "  -> teleop: [" << isLinked() << "]\n\n";
-            // std::cout << "  -> TX GrpTrq:  " << current_gripper_torque.load() << "\n\n";
-            // std::cout << "  -> TX GrpPos:  " << current_gripper_pos.load() << "\n\n";
-            std::cout << "  -> TX grpcmd:  " << target_gripper_pos.load() << "\n\n";
-            std::cout << "  -> P JT:      [" << policyJt.transpose() << "]\n";
-            // std::cout << "  -> P scales:      [" << policyJtScale.transpose() << "]\n";
-            // std::cout << "  -> P final:      [" << (policyJtScale.asDiagonal() * policyJt).transpose() << "]\n\n";
-            // std::cout << "  -> P JP:      [" << policyJp.transpose() << "]\nn";
-            // std::cout << "  -> P T Force:      [" << policyToolForce.transpose() << "]\n\n";
-            // std::cout << "  -> P T Torque:      [" << policyToolTorque.transpose() << "]\n\n";
-            // std::cout << "  -> P G:      [" << policy_gripper_pos.load() << "]\n\n";
+            // std::cout << "  -> dyn: [" << wamDyn.transpose() << "]\n";
+            // std::cout << "  -> TX GrpTrq:  " << current_gripper_torque.load() << "\n";
+            // std::cout << "  -> TX GrpPos:  " << current_gripper_pos.load() << "\n";
+            std::cout << "  -> grip pos:  " << current_gripper_pos.load() << "\n";
+            std::cout << "  -> grip vel:  " << current_gripper_vel.load() << "\n";
+            std::cout << "  -> grip toq:  " << current_gripper_torque.load() << "\n";
+            // std::cout << "  -> P JP:      [" << policyJp.transpose() << "]\n";
+            // std::cout << "  -> P G:      [" << policy_gripper_pos.load() << "]\n";
             //
             std::cout << std::endl;
         }

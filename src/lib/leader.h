@@ -113,7 +113,7 @@ class Leader : public barrett::systems::System {
     jt_type wamDyn;
     jp_type policyJp;
 
-    const float gripper_speed = 0.03f;
+    const float gripper_speed = 0.1f;
 
     // TODO: these should be bool
     std::atomic<double> bumper;
@@ -165,7 +165,7 @@ class Leader : public barrett::systems::System {
             theirJv        = received_data->jv.template head<DOF>();
             theirExtTorque = received_data->extTorque.template head<DOF>();
             theirToolPos = received_data->cart_pos.template head<3>();
-            theirToolQ = received_data->quat.template head<4>();
+            theirToolQ = received_data->quat;
             remote_gripper_torque.store(static_cast<double>(received_data->gripper_torque));
             remote_gripper_pos.store(static_cast<double>(received_data->gripper_pos));
             remote_gripper_vel.store(static_cast<double>(received_data->gripper_vel));
@@ -264,7 +264,7 @@ class Leader : public barrett::systems::System {
         auto send_end = std::chrono::steady_clock::now();
         double send_dt = std::chrono::duration<double, std::milli>(send_end - send_start).count();
 
-        if (++loop_counter % 50 == 0) {
+        if (++loop_counter % 500 == 0) {
             std::cout << std::fixed << std::setprecision(3);
 
             // std::cout << "[LEADER] Loop dt: " << loop_dt 
@@ -272,22 +272,26 @@ class Leader : public barrett::systems::System {
                       // << " ms | UDP Send latency: " << send_dt << " ms\n";
                
             std::cout << "  -> LEADER JP:      [" << sendJpMsg.transpose() << "]\n";
-            std::cout << " FOLLOWER -> :  " << theirJp.transpose() << "\n";
-            // std::cout << "  -> leader ExtTrq:  [" << sendExtTorqueMsg.transpose() << "]\n";
-            std::cout << "  -> policy:  [" << policyJt.transpose() << "]\n";
+            std::cout << "  -> FOLLOWER JP:    [" << theirJp.transpose() << "\n";
+            std::cout << "  -> LEADER JV:      [" << sendJvMsg.transpose() << "]\n";
+            std::cout << "  -> FOLLOWER JV:    [" << theirJv.transpose() << "]\n";
+            std::cout << "  -> leader ExtTrq:  [" << sendExtTorqueMsg.transpose() << "]\n";
+            std::cout << "  -> follower ExtTrq:[" << theirExtTorque.transpose() << "]\n";
+            std::cout << "  -> Leader Tool Pos:  [" << toolPos.transpose() << "]\n";
+            std::cout << "  -> leader Tool Quat: [" << toolQ.w() << " " << toolQ.x() << " " << toolQ.y() << " " << toolQ.z() << "]\n";
+            std::cout << "  -> follower Tool Pos:  [" << theirToolPos.transpose() << "]\n";
+            std::cout << "  -> follower Tool Quat: [" << theirToolQ.w() << " " << theirToolQ.x() << " " << theirToolQ.y() << " " << theirToolQ.z() << "]\n";
+            // std::cout << "  -> policy:  [" << policyJt.transpose() << "]\n";
             // std::cout << "  -> leader control: [" << compute_control(theirJp, theirJv, theirExtTorque, wamJP, wamJV, extTorque, wamGrav, wamDyn, policyTorque) << "]\n\n";
             // std::cout << "  -> dyn: [" << wamDyn.transpose() << "]\n\n";
-            // std::cout << "  -> TX JV:      [" << sendJvMsg.transpose() << "]\n";
-            // std::cout << "  -> TX GrpVel:  " << desired_gripper_vel.load() << "\n";
             // std::cout << "  -> Their wrist:  " << theirWristJp.transpose() << "\n";
             // std::cout << "  -> My wrist:  " << wristJP.transpose() << "\n\n";
-            // std::cout << "  -> leader ext:  " << extTorque.transpose() << "\n";
-            // std::cout << "  -> ref:  " << theirExtTorque.transpose() << "\n\n";
-            // std::cout << "  -> Tool Pos:  [" << toolPos.transpose() << "]\n";
-            // std::cout << "  -> Tool Quat: [" << toolQ.w() << " " << toolQ.x() << " " << toolQ.y() << " " << toolQ.z() << "]\n\n";
             // std::cout << "  -> bumper: [" << bumper.load() << "]\n";
             // std::cout << "  -> trigger: [" << trigger.load() << "]\n";
             std::cout << "  -> desired_gripper_pos: [" << desired_gripper_pos.load() << "]\n";
+            std::cout << "  -> remote_gripper_pos: [" << remote_gripper_pos.load() << "]\n";
+            std::cout << "  -> remote_gripper_vel: [" << remote_gripper_vel.load() << "]\n";
+            std::cout << "  -> remote_gripper_torque: [" << remote_gripper_torque.load() << "]\n";
 
             std::cout << std::endl;
         }

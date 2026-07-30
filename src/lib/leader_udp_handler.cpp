@@ -50,7 +50,7 @@ typename LeaderUDPHandler<DOF>::TeleopReceivedData LeaderUDPHandler<DOF>::unpack
     std::memcpy(rd.jv.data(), pkt.jv, sizeof(double) * DOF);
     std::memcpy(rd.extTorque.data(), pkt.extTorque, sizeof(double) * DOF);
     std::memcpy(rd.cart_pos.data(), pkt.cart_pos, sizeof(double) * 3);
-    std::memcpy(rd.quat.data(), pkt.quat, sizeof(double) * 4);
+    rd.quat = Eigen::Quaterniond(pkt.quat[0], pkt.quat[1], pkt.quat[2], pkt.quat[3]); // w, x, y, z
     rd.gripper_torque = pkt.gripper_torque;
     rd.gripper_pos = pkt.gripper_pos;
     rd.gripper_vel = pkt.gripper_vel;

@@ -86,7 +86,7 @@ struct LeaderReceivedData {
     Eigen::Matrix<double, DOF, 1> jv;
     Eigen::Matrix<double, DOF, 1> extTorque;
     Eigen::Matrix<double, 3, 1> cart_pos;
-    Eigen::Matrix<double, 4, 1> quat;
+    Eigen::Quaterniond quat;
     double gripper_torque;
     double gripper_pos;
     double gripper_vel;
@@ -99,7 +99,7 @@ struct FollowerReceivedData {
     Eigen::Matrix<double, DOF, 1> jv;
     Eigen::Matrix<double, DOF, 1> extTorque;
     Eigen::Matrix<double, 3, 1> cart_pos;
-    Eigen::Matrix<double, 4, 1> quat;
+    Eigen::Quaterniond quat;
     double gripper_cmd;
     uint64_t timestamp;
 };
