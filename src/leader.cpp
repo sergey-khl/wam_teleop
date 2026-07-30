@@ -196,7 +196,7 @@ int wam_main(int argc, char **argv, ProductManager &pm, systems::Wam<DOF> &wam) 
     systems::connect(dynamicExternalTorque.wamExternalTorqueOut, dynamicExtFilter.input);
     systems::connect(customjtSum.output, extFilter.input);
 
-    systems::connect(leader.policyJpOutput, policy_controller.referenceInput);
+    systems::connect(leader.policyJPOutput, policy_controller.referenceInput);
     systems::connect(wam.jpOutput, policy_controller.feedbackInput);
 
     wam.gravityCompensate();

@@ -36,7 +36,6 @@ void print_follower_banner(const TeleopConfig& config) {
     printf("\n========================================\n");
     printf("  FOLLOWER \n");
     printf("========================================\n");
-    printf("  Send To Policy     : %s\n",   config.network.policy_send_active ? "yes" : "no");
     printf("  Sync pos      : [");
     for (int i = 0; i < 7; ++i)
         printf("%s%.4f", i ? ", " : "", sync_pos[i]);

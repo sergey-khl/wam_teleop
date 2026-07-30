@@ -150,7 +150,7 @@ class Follower : public barrett::systems::System {
         const Eigen::Quaterniond& toolQ = boost::get<1>(wamTP);
 
         // teleop
-        boost::optional<TeleopReceivedData> teleop_data = udp_handler.getLatestTeleopReceived();
+        boost::optional<TeleopReceivedData> teleop_data = teleop_udp_handler.getLatestTeleopReceived();
         uint64_t now_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
         uint64_t timeout_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(TELEOP_TIMEOUT_DURATION).count();
         double udp_teleop_age = 0.0;
@@ -240,7 +240,7 @@ class Follower : public barrett::systems::System {
         uint64_t loop_start = std::chrono::duration_cast<std::chrono::nanoseconds>(now_op.time_since_epoch()).count();
         // auto send_start = std::chrono::steady_clock::now();
         // send to leader then send to policy
-        teleop_udp_handler.send(sendJpMsg, sendJvMsg, sendExtTorqueMsg, toolPos, toolQ, static_cast<double>(current_gripper_torque.load()), static_cast<double>(current_gripper_pos.load()), loop_start);
+        teleop_udp_handler.send(sendJpMsg, sendJvMsg, sendExtTorqueMsg, toolPos, toolQ, static_cast<double>(current_gripper_torque.load()), static_cast<double>(current_gripper_pos.load()), static_cast<double>(current_gripper_vel.load()), loop_start);
         policy_udp_handler.send(sendJpMsg, sendJvMsg, sendExtTorqueMsg, theirJp, theirJv, theirExtTorque, toolPos, toolQ, theirToolPos, theirToolQ, static_cast<double>(current_gripper_pos.load()), static_cast<double>(current_gripper_vel.load()), static_cast<double>(current_gripper_torque.load()), loop_start);
 
         // auto send_end = std::chrono::steady_clock::now();
@@ -315,7 +315,8 @@ class Follower : public barrett::systems::System {
   private:
     DISALLOW_COPY_AND_ASSIGN(Follower);
     std::mutex state_mutex;
-    FollowerUDPHandler<DOF> udp_handler;
+    FollowerUDPHandler<DOF> teleop_udp_handler;
+    PolicyUDPHandler<DOF> policy_udp_handler;
     const std::chrono::milliseconds TELEOP_TIMEOUT_DURATION = std::chrono::milliseconds(20); // this needs to be larger than 2ms becuse of warmup when starting other programs
 
     GeckoGripper* gripper;

@@ -215,4 +215,4 @@ void PolicyUDPHandler<DOF>::sendLoop() {
     send_socket.close();
 }
 
-template class PolicyUDPChannel<7>; // For DOF=7
+template class PolicyUDPHandler<7>; // For DOF=7
