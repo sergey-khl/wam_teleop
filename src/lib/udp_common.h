@@ -15,9 +15,8 @@
 #include <thread>
  
 
-
-static constexpr size_t ACTION_HORIZON = 200;
-static constexpr double CHUNK_DURATION_SEC = 20.0;
+static constexpr size_t ACTION_HORIZON = 9;
+static constexpr double CHUNK_DURATION_SEC = 1.0;
 static constexpr double INTERP_HZ = 500.0;
 static constexpr double UNINTERP_HZ = 10.0;
 
@@ -162,8 +161,14 @@ private:
  
     void sendLoop();
     void receiveLoop();
+
+    RawAction last_action;
+    bool have_last_action = false;
  
+    // past action is used to smooth velocity across action chunks
     static std::deque<PolicyReceivedData> interpolateChunk(const RawAction (&actions)[ACTION_HORIZON],
-                                                             uint64_t inference_timestamp_ns);
+                                                             uint64_t inference_timestamp_ns,
+                                                             const RawAction* last_action);
+
 };
 
