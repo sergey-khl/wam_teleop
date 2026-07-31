@@ -59,7 +59,7 @@ class Leader : public barrett::systems::System {
         , theirJPOutput(this, &theirJPOutputValue)
         , policyJPOutput(this, &policyJPOutputValue)
         , teleop_udp_handler(config.network.follower_host, config.network.teleop_send, config.network.teleop_recv)
-        , policy_udp_handler(config.policy.on_leader, config.network.policy_host, config.network.policy_send, config.network.policy_recv)
+        , policy_udp_handler(config.policy.on_leader, config.network.policy_host, config.network.policy_send, config.network.policy_leader_recv)
         , handle(handle)
     	, bumper(0.0f)
     	, trigger(0.0f)
@@ -195,9 +195,22 @@ class Leader : public barrett::systems::System {
             policy_udp_handler.clearQueueAndPause();
         }
 
-        // inference. see how on_leader is used for the magic
+        // inference.
         boost::optional<PolicyReceivedData> policy_data = policy_udp_handler.getLatestPolicyReceived();
         if (policy_data) {
+            jt_type max_torques;
+            max_torques << 5, 5, 2, 2, 0, 0, 0;
+
+            jt_type normalized_ext_torque;
+            for (size_t i = 0; i < 4; ++i) {
+                normalized_ext_torque[i] = max_torques[i] / std::abs(extTorque[i]); // inverse. 1 means a lot of human, 0 is not
+            }
+
+            // this should output something roughly between 0.2 and 1 which i will use to scale my policy control
+            for (size_t i = 0; i < 4; ++i) {
+                policyTorqueScale[i] = 1.0 / (1.0 + std::exp(3.0 * (-normalized_ext_torque[i] + 0.5)));
+            }
+
             jp_type clipped_jp;
             clipped_jp << policy_data->jp;
             jp_type clip_val;
@@ -225,7 +238,7 @@ class Leader : public barrett::systems::System {
             }
 
             policyJp << clipped_jp;
-            policy_gripper_cmd.store(static_cast<double>(policy_data->gripper_cmd));
+            // policy_gripper_cmd.store(static_cast<double>(policy_data->gripper_cmd));
         }
         policyJPOutputValue->setData(&policyJp);
 
@@ -266,12 +279,13 @@ class Leader : public barrett::systems::System {
 
         uint64_t loop_start = std::chrono::duration_cast<std::chrono::nanoseconds>(now_op.time_since_epoch()).count();
         auto send_start = std::chrono::steady_clock::now();
-        teleop_udp_handler.send(sendJpMsg, sendJvMsg, sendExtTorqueMsg, toolPos, toolQ, static_cast<double>(desired_gripper_pos.load()), static_cast<double>(cancel_policy.load()), loop_start); // we send the start of theoperation loop when we collect our leader data
+        teleop_udp_handler.send(sendJpMsg, sendJvMsg, sendExtTorqueMsg, toolPos, toolQ, static_cast<double>(desired_gripper_pos.load()), static_cast<double>(cancel_policy.load()), loop_start);
+        // see how on_leader is used for the magic
         policy_udp_handler.send(theirJp, theirJv, theirExtTorque, sendJpMsg, sendJvMsg, sendExtTorqueMsg, theirToolPos, theirToolQ, toolPos, toolQ, static_cast<double>(remote_gripper_pos.load()), static_cast<double>(remote_gripper_vel.load()), static_cast<double>(remote_gripper_pos.load()), loop_start);
         auto send_end = std::chrono::steady_clock::now();
         double send_dt = std::chrono::duration<double, std::milli>(send_end - send_start).count();
 
-        if (++loop_counter % 500 == 0) {
+        if (++loop_counter % 30 == 0) {
             std::cout << std::fixed << std::setprecision(3);
 
             // std::cout << "[LEADER] Loop dt: " << loop_dt 
@@ -282,13 +296,14 @@ class Leader : public barrett::systems::System {
             // std::cout << "  -> FOLLOWER JP:    [" << theirJp.transpose() << "\n";
             // std::cout << "  -> LEADER JV:      [" << sendJvMsg.transpose() << "]\n";
             // std::cout << "  -> FOLLOWER JV:    [" << theirJv.transpose() << "]\n";
-            // std::cout << "  -> leader ExtTrq:  [" << sendExtTorqueMsg.transpose() << "]\n";
+            std::cout << "  -> leader ExtTrq:  [" << sendExtTorqueMsg.transpose() << "]\n";
             // std::cout << "  -> follower ExtTrq:[" << theirExtTorque.transpose() << "]\n";
             // std::cout << "  -> Leader Tool Pos:  [" << toolPos.transpose() << "]\n";
             // std::cout << "  -> leader Tool Quat: [" << toolQ.w() << " " << toolQ.x() << " " << toolQ.y() << " " << toolQ.z() << "]\n";
             // std::cout << "  -> follower Tool Pos:  [" << theirToolPos.transpose() << "]\n";
             // std::cout << "  -> follower Tool Quat: [" << theirToolQ.w() << " " << theirToolQ.x() << " " << theirToolQ.y() << " " << theirToolQ.z() << "]\n";
-            std::cout << "  -> policy:  [" << policyJt.transpose() << "]\n";
+            std::cout << "  -> policy jt:      [" << policyJt.transpose() << "]\n";
+            std::cout << "  -> policy scale:[" << policyTorqueScale.transpose() << "]\n";
             // std::cout << "  -> leader control: [" << compute_control(theirJp, theirJv, theirExtTorque, wamJP, wamJV, extTorque, wamGrav, wamDyn, policyTorque) << "]\n\n";
             // std::cout << "  -> dyn: [" << wamDyn.transpose() << "]\n\n";
             // std::cout << "  -> Their wrist:  " << theirWristJp.transpose() << "\n";
@@ -309,6 +324,7 @@ class Leader : public barrett::systems::System {
     jv_type theirJv;
     jt_type theirExtTorque;
     cp_type theirToolPos;
+    jt_type policyTorqueScale;
     Eigen::Quaterniond theirToolQ;
     jt_type policyJt;
     jt_type control;

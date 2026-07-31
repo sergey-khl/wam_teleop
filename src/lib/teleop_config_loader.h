@@ -12,7 +12,8 @@ struct NetworkConfig {
     int teleop_recv;
     std::string policy_host;
     int policy_send;
-    int policy_recv;
+    int policy_leader_recv;
+    int policy_follower_recv;
 };
 struct PolicyConfig {
     std::vector<double> kp;
@@ -57,7 +58,8 @@ template<> struct convert<NetworkConfig> {
         c.teleop_recv = node["teleop_recv"].as<int>();
         c.policy_host = node["policy_host"].as<std::string>();
         c.policy_send = node["policy_send"].as<int>();
-        c.policy_recv = node["policy_recv"].as<int>();
+        c.policy_leader_recv = node["policy_leader_recv"].as<int>();
+        c.policy_follower_recv = node["policy_follower_recv"].as<int>();
         return true;
     }
 };

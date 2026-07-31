@@ -7,20 +7,25 @@ network:
   policy_host: "127.0.0.1"
   # if policy.on_leader the ports are from persepctive of leader. Similar for follower
   policy_send: 6554
-  policy_recv: 6666
+  policy_follower_recv: 20000
+  policy_leader_recv: 10000
 
 sync_mapping:
   scales:  [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
   offsets: [0, 0.0,  0.0,  0.0, 0, 0, 0]
 
 policy:
-  kp: [100.0, 75.0, 25.0, 25.0, 8.0, 8.0, 5.0]
+  kp: [40.0, 30.0, 20.0, 15.0, 0.0, 0.0, 0.0]
   ki: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
-  kd: [1.5, 1.5, 0.5, 0.3, 0.01, 0.01, 0.01]
-  control_signal_limit: [10, 5, 4, 2.5, 0.8, 0.8, 0.5]
+  kd: [0.5, 0.5, 0.1, 0.05, 0.0, 0.0, 0.0]
+  control_signal_limit: [3, 3.0, 2, 2.0, 0.0, 0.0, 0.0]
   integrator_limit: [0, 0, 0, 0, 0, 0, 0]
 
-  # only one of these should be true. Whether policy torque is applied to leader or follower
+  # kp: [100.0, 75.0, 50.0, 25.0, 8.0, 8.0, 5.0]
+  # kd: [1.5, 1.5, 0.5, 0.3, 0.01, 0.01, 0.01]
+  # control_signal_limit: [10, 5, 4, 2.5, 0.8, 0.8, 0.5]
+
+  # only one of these should be true. Whether leader or follower sends the data to the policy
   on_leader: true
   on_follower: false
 

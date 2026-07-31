@@ -29,6 +29,7 @@
 #include "lib/background_state_publisher.h"
 #include "lib/leader_dynamics_4dof.h"
 #include "lib/dynamic_external_torque.h"
+#include "lib/policy_external_torque.h"
 #include "lib/leader_vertical_dynamics.h"
 
 using namespace barrett;
@@ -101,6 +102,7 @@ int wam_main(int argc, char **argv, ProductManager &pm, systems::Wam<DOF> &wam) 
 
     LeaderDynamics<DOF> leaderDynamics(pm.getExecutionManager());
     DynamicExternalTorque<DOF> dynamicExternalTorque(pm.getExecutionManager());
+    PolicyExternalTorque<DOF> policyExternalTorque(pm.getExecutionManager());
 
     LeaderDynamics<DOF>* horizontalGravity = nullptr;
     LeaderVerticalDynamics<DOF>* leaderVerticalDynamics = nullptr;
@@ -114,10 +116,6 @@ int wam_main(int argc, char **argv, ProductManager &pm, systems::Wam<DOF> &wam) 
     jt_type omega_p(180.0);
     extFilter.setLowPass(omega_p);
     pm.getExecutionManager()->startManaging(extFilter);
-
-    barrett::systems::FirstOrderFilter<jt_type> dynamicExtFilter;
-    dynamicExtFilter.setLowPass(omega_p);
-    pm.getExecutionManager()->startManaging(dynamicExtFilter);
 
     jv_type jv; jv.setConstant(0.0);
     systems::Constant<jv_type> zeroVelocity(jv);
@@ -165,7 +163,7 @@ int wam_main(int argc, char **argv, ProductManager &pm, systems::Wam<DOF> &wam) 
     // leader info
     systems::connect(wam.jpOutput, leader.wamJPIn);
     systems::connect(wam.jvOutput, leader.wamJVIn);
-    systems::connect(dynamicExternalTorque.wamExternalTorqueOut, leader.extTorqueIn);
+    systems::connect(policyExternalTorque.output, leader.extTorqueIn);
     systems::connect(wam.gravity.output, leader.wamGravIn);
     systems::connect(wam.toolPose.output, leader.wamTPIn);
     systems::connect(policy_controller.controlOutput, leader.policyJtIn);
@@ -192,9 +190,12 @@ int wam_main(int argc, char **argv, ProductManager &pm, systems::Wam<DOF> &wam) 
         systems::connect(leaderDynamics.dynamicsFeedFWD, dynamicExternalTorque.wamDynamicsIn);
     }
 
+    // remove policy torque from external torque
+    systems::connect(dynamicExternalTorque.wamExternalTorqueOut, policyExternalTorque.wamExtTorqueIn);
+    systems::connect(policy_controller.controlOutput, policyExternalTorque.policyExtTorqueIn);
+
     // filter torques
-    systems::connect(dynamicExternalTorque.wamExternalTorqueOut, dynamicExtFilter.input);
-    systems::connect(customjtSum.output, extFilter.input);
+    systems::connect(dynamicExternalTorque.wamExternalTorqueOut, extFilter.input);
 
     systems::connect(leader.policyJPOutput, policy_controller.referenceInput);
     systems::connect(wam.jpOutput, policy_controller.feedbackInput);

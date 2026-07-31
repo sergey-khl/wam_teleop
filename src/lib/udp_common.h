@@ -15,8 +15,8 @@
 #include <thread>
  
 
-static constexpr size_t ACTION_HORIZON = 9;
-static constexpr double CHUNK_DURATION_SEC = 1.0;
+static constexpr size_t ACTION_HORIZON = 200;
+static constexpr double CHUNK_DURATION_SEC = 40.0;
 static constexpr double INTERP_HZ = 500.0;
 static constexpr double UNINTERP_HZ = 10.0;
 
@@ -121,7 +121,7 @@ public:
     using jt_type = Eigen::Matrix<double, DOF, 1>;
     using PolicyPacketType = PolicyPacket<DOF>;
  
-    PolicyUDPHandler(bool active, const std::string& policy_host, int policy_send_port, int policy_recv_port);
+    PolicyUDPHandler(bool send_active, const std::string& policy_host, int policy_send_port, int policy_recv_port);
     ~PolicyUDPHandler();
  
     void stop();
@@ -143,7 +143,7 @@ public:
 private:
     static constexpr size_t NUM_INTERP_SAMPLES = static_cast<size_t>(INTERP_HZ * CHUNK_DURATION_SEC);
  
-    bool active;
+    bool send_active;
     std::atomic<bool> stop_threads;
  
     boost::asio::io_context io_context;

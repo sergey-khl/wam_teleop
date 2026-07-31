@@ -64,7 +64,7 @@ class Follower : public barrett::systems::System {
         , theirExtTorqueOutput(this, &theirExtTorqueOutputValue)
         , policyJpOutput(this, &policyJpOutputValue)
         , teleop_udp_handler(config.network.leader_host, config.network.teleop_recv, config.network.teleop_send)
-        , policy_udp_handler(config.policy.on_follower, config.network.policy_host, config.network.policy_send, config.network.policy_recv)
+        , policy_udp_handler(config.policy.on_follower, config.network.policy_host, config.network.policy_send, config.network.policy_follower_recv)
         , gripper(gripper)
         , target_gripper_pos(0.0f)
         , current_gripper_pos(0.0f)
@@ -188,7 +188,7 @@ class Follower : public barrett::systems::System {
             policy_udp_handler.clearQueueAndPause();
         }
 
-        // inference. see how on_follower is used for the magic
+        // inference.
         boost::optional<PolicyReceivedData> policy_data = policy_udp_handler.getLatestPolicyReceived();
         if (policy_data) {
             jp_type clipped_jp;
@@ -218,9 +218,17 @@ class Follower : public barrett::systems::System {
             }
 
             policyJp << clipped_jp;
-            policy_gripper_cmd.store(static_cast<double>(policy_data->gripper_cmd));
+            // policy_gripper_cmd.store(static_cast<double>(policy_data->gripper_cmd));
         }
         policyJpOutputValue->setData(&policyJp);
+        // extTorqueIn.valueDefined() before setting a reference signal can cause bad feeling teleop
+
+        if (extTorqueIn.valueDefined()) {
+            extTorque = extTorqueIn.getValue();
+        } else {
+            extTorque.setZero();
+        }
+        sendExtTorqueMsg << extTorque;
 
         // extTorqueIn.valueDefined() before setting a reference signal can cause bad feeling teleop
         if (extTorqueIn.valueDefined()) {
@@ -229,6 +237,7 @@ class Follower : public barrett::systems::System {
             extTorque.setZero();
         }
         sendExtTorqueMsg << extTorque;
+
 
         if (policyJtIn.valueDefined()) {
             policyJt = policyJtIn.getValue();
@@ -248,12 +257,13 @@ class Follower : public barrett::systems::System {
         // auto send_start = std::chrono::steady_clock::now();
         // send to leader then send to policy
         teleop_udp_handler.send(sendJpMsg, sendJvMsg, sendExtTorqueMsg, toolPos, toolQ, static_cast<double>(current_gripper_torque.load()), static_cast<double>(current_gripper_pos.load()), static_cast<double>(current_gripper_vel.load()), loop_start);
+        // see how on_follower is used for the magic
         policy_udp_handler.send(sendJpMsg, sendJvMsg, sendExtTorqueMsg, theirJp, theirJv, theirExtTorque, toolPos, toolQ, theirToolPos, theirToolQ, static_cast<double>(current_gripper_pos.load()), static_cast<double>(current_gripper_vel.load()), static_cast<double>(current_gripper_torque.load()), loop_start);
 
         // auto send_end = std::chrono::steady_clock::now();
         // double send_dt = std::chrono::duration<double, std::milli>(send_end - send_start).count();
 
-        if (++loop_counter % 500 == 0) {
+        if (++loop_counter % 30 == 0) {
             std::cout << std::fixed << std::setprecision(3);
 
             // std::cout << "[FOLLOWER] Loop dt: " << loop_dt
@@ -264,7 +274,7 @@ class Follower : public barrett::systems::System {
             // std::cout << "  -> LEADER JP:    [" << theirJp.transpose() << "\n";
             // std::cout << "  -> FOLLOWER JV:      [" << sendJvMsg.transpose() << "]\n";
             // std::cout << "  -> LEADER JV:    [" << theirJv.transpose() << "]\n";
-            // std::cout << "  -> FOLLOWER ExtTrq:  [" << sendExtTorqueMsg.transpose() << "]\n";
+            std::cout << "  -> FOLLOWER ExtTrq:  [" << sendExtTorqueMsg.transpose() << "]\n";
             // std::cout << "  -> leader ExtTrq:[" << theirExtTorque.transpose() << "]\n";
             // std::cout << "  -> follower Tool Pos:  [" << toolPos.transpose() << "]\n";
             // std::cout << "  -> follower Tool Quat: [" << toolQ.w() << " " << toolQ.x() << " " << toolQ.y() << " " << toolQ.z() << "]\n";
@@ -280,7 +290,7 @@ class Follower : public barrett::systems::System {
             // std::cout << "  -> grip toq:  " << current_gripper_torque.load() << "\n";
             // std::cout << "  -> P JP:      [" << policyJp.transpose() << "]\n";
             // std::cout << "  -> P G:      [" << policy_gripper_pos.load() << "]\n";
-            //
+
             std::cout << std::endl;
         }
     }
