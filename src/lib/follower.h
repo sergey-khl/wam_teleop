@@ -37,6 +37,7 @@ class Follower : public barrett::systems::System {
     Output<jv_type> theirJVOutput;
     Output<jt_type> theirExtTorqueOutput;
     Output<jp_type> policyJpOutput;
+    Output<jt_type> policyTorqueScaleOutput;
 
     std::atomic<bool> linked;
     
@@ -63,6 +64,7 @@ class Follower : public barrett::systems::System {
         , theirJVOutput(this, &theirJVOutputValue)
         , theirExtTorqueOutput(this, &theirExtTorqueOutputValue)
         , policyJpOutput(this, &policyJpOutputValue)
+        , policyTorqueScaleOutput(this, &policyTorqueScaleOutputValue)
         , teleop_udp_handler(config.network.leader_host, config.network.teleop_recv, config.network.teleop_send)
         , policy_udp_handler(config.policy.on_follower, config.network.policy_host, config.network.policy_send, config.network.policy_follower_recv)
         , gripper(gripper)
@@ -106,6 +108,7 @@ class Follower : public barrett::systems::System {
     typename Output<jv_type>::Value* theirJVOutputValue;
     typename Output<jt_type>::Value* theirExtTorqueOutputValue;
     typename Output<jp_type>::Value* policyJpOutputValue;
+    typename Output<jt_type>::Value* policyTorqueScaleOutputValue;
     jp_type wamJP;
     jv_type wamJV;
     boost::tuple<cp_type, Eigen::Quaterniond> wamTP;
@@ -177,6 +180,7 @@ class Follower : public barrett::systems::System {
             theirJPOutputValue->setData(&theirJp);
             theirJVOutputValue->setData(&theirJv);
             theirExtTorqueOutputValue->setData(&theirExtTorque);
+            policyTorqueScaleOutputValue->setData(&policyTorqueScale);
         } else {
             if (isLinked()) {
                 udp_teleop_age = static_cast<double>(now_ns - teleop_data->timestamp) / 1000000.0;
@@ -279,7 +283,6 @@ class Follower : public barrett::systems::System {
             // std::cout << "  -> leader Tool Pos:  [" << theirToolPos.transpose() << "]\n";
             // std::cout << "  -> leader Tool Quat: [" << theirToolQ.w() << " " << theirToolQ.x() << " " << theirToolQ.y() << " " << theirToolQ.z() << "]\n";
             std::cout << "  -> policy:        [" << policyJt.transpose() << "]\n";
-            std::cout << "  -> policy scale:  [" << policyTorqueScale.transpose() << "]\n";
             // std::cout << "  -> control: [" << compute_control(theirJp, theirJv, theirExtTorque, wamJP, wamJV, extTorque, wamGrav, wamDyn, policyJt) << "]\n";
             // std::cout << "  -> dyn: [" << wamDyn.transpose() << "]\n";
             // std::cout << "  -> TX GrpTrq:  " << current_gripper_torque.load() << "\n";

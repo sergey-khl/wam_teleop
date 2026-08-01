@@ -34,6 +34,7 @@ class Leader : public barrett::systems::System {
     Output<jt_type> wamJTOutput;      // control torque command for the WAM arm (DOF)
     Output<jp_type> theirJPOutput;    // peer arm JP (DOF) for logging/monitoring
     Output<jp_type> policyJPOutput;      // control torque command for the WAM arm (DOF)
+    Output<jt_type> policyTorqueScaleOutput;
 
     std::atomic<bool> linked;
 
@@ -58,6 +59,7 @@ class Leader : public barrett::systems::System {
         , wamJTOutput(this, &jtOutputValue)
         , theirJPOutput(this, &theirJPOutputValue)
         , policyJPOutput(this, &policyJPOutputValue)
+        , policyTorqueScaleOutput(this, &policyTorqueScaleOutputValue)
         , teleop_udp_handler(config.network.follower_host, config.network.teleop_send, config.network.teleop_recv)
         , policy_udp_handler(config.policy.on_leader, config.network.policy_host, config.network.policy_send, config.network.policy_leader_recv)
         , handle(handle)
@@ -103,6 +105,7 @@ class Leader : public barrett::systems::System {
     typename Output<jt_type>::Value* jtOutputValue;
     typename Output<jp_type>::Value* theirJPOutputValue;
     typename Output<jp_type>::Value* policyJPOutputValue;
+    typename Output<jt_type>::Value* policyTorqueScaleOutputValue;
 
     TeleopConfig config;
 
@@ -198,18 +201,6 @@ class Leader : public barrett::systems::System {
         // inference.
         boost::optional<PolicyReceivedData> policy_data = policy_udp_handler.getLatestPolicyReceived();
         if (policy_data) {
-            jt_type max_torques;
-            max_torques << 7, 5, 3, 2, 0, 0, 0;
-
-            for (size_t i = 0; i < 4; ++i) {
-                normalized_ext_torque[i] = std::abs(extTorque[i]) / max_torques[i]; // inverse. 1 means a lot of human, 0 is not
-            }
-
-            // this should output something roughly between 0.2 and 1 which i will use to scale my policy control
-            for (size_t i = 0; i < 4; ++i) {
-                policyTorqueScale[i] = 1.0 / (1.0 + std::exp(6 * normalized_ext_torque[i] - 3));
-            }
-
             jp_type clipped_jp;
             clipped_jp << policy_data->jp;
             jp_type clip_val;
@@ -256,6 +247,17 @@ class Leader : public barrett::systems::System {
             extTorque.setZero();
         }
         sendExtTorqueMsg << extTorque;
+
+        jt_type max_torques;
+        max_torques << 7, 5, 3, 2, 0, 0, 0;
+        for (size_t i = 0; i < 4; ++i) {
+            normalized_ext_torque[i] = std::abs(extTorque[i]) / max_torques[i]; // 1 means a lot of human, 0 is not
+        }
+        // flipped sigmoid. The higher the user input the lower the policy gains
+        for (size_t i = 0; i < 4; ++i) {
+            policyTorqueScale[i] = 1.0 / (1.0 + std::exp(6 * normalized_ext_torque[i] - 3));
+        }
+        policyTorqueScaleOutputValue->setData(&policyTorqueScale);
 
         if (policyJtIn.valueDefined()) {
             policyJt = policyJtIn.getValue();

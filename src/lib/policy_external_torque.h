@@ -11,12 +11,14 @@ class PolicyExternalTorque : public barrett::systems::System {
   public:
     Input<jt_type> wamExtTorqueIn;
     Input<jt_type> policyExtTorqueIn;
+    Input<jt_type> policyTorqueScaleIn;
     Output<jt_type> output;
 
     explicit PolicyExternalTorque(barrett::systems::ExecutionManager* em, const std::string& sysName = "PolicyExternalTorque")
         : System(sysName)
         , wamExtTorqueIn(this)
         , policyExtTorqueIn(this)
+        , policyTorqueScaleIn(this)
         , output(this, &jtOutputValue) {
 
         if (em != NULL) {
@@ -32,12 +34,14 @@ class PolicyExternalTorque : public barrett::systems::System {
     typename Output<jt_type>::Value* jtOutputValue;
     jt_type wamExtTorque;
     jt_type policyExtTorque;
+    jt_type policyTorqueScale;
     jt_type externalTorque;
 
     virtual void operate() {
         wamExtTorque = wamExtTorqueIn.getValue();
         policyExtTorque = policyExtTorqueIn.getValue();
-        externalTorque = wamExtTorque - policyExtTorque;
+        policyTorqueScale = policyTorqueScaleIn.getValue();
+        externalTorque = wamExtTorque - policyTorqueScale.asDiagonal() * policyExtTorque;
         jtOutputValue->setData(&externalTorque);
     }
 

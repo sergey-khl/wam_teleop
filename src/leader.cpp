@@ -194,6 +194,7 @@ int wam_main(int argc, char **argv, ProductManager &pm, systems::Wam<DOF> &wam) 
     // systems::connect(dynamicExternalTorque.wamExternalTorqueOut, policyExternalTorque.wamExtTorqueIn);
     systems::connect(extFilter.output, policyExternalTorque.wamExtTorqueIn);
     systems::connect(policy_controller.controlOutput, policyExternalTorque.policyExtTorqueIn);
+    systems::connect(leader.policyTorqueScaleOutput, policyExternalTorque.policyTorqueScaleIn);
 
     // filter torques
     systems::connect(dynamicExternalTorque.wamExternalTorqueOut, extFilter.input);
