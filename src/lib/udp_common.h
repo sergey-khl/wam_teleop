@@ -16,7 +16,7 @@
  
 
 static constexpr size_t ACTION_HORIZON = 200;
-static constexpr double CHUNK_DURATION_SEC = 40.0;
+static constexpr double CHUNK_DURATION_SEC = 20.0;
 static constexpr double INTERP_HZ = 500.0;
 static constexpr double UNINTERP_HZ = 10.0;
 
@@ -30,6 +30,7 @@ struct LeaderToFollowerPacket {
     double extTorque[DOF];
     double cart_pos[3];   // x, y, z
     double quat[4];   // w, x, y, z
+    double policyTorqueScale[DOF];
     double gripper_cmd;
     double cancel_policy;
     uint64_t timestamp;
@@ -100,6 +101,7 @@ struct FollowerReceivedData {
     Eigen::Matrix<double, DOF, 1> extTorque;
     Eigen::Matrix<double, 3, 1> cart_pos;
     Eigen::Quaterniond quat;
+    Eigen::Matrix<double, DOF, 1> policyTorqueScale;
     double gripper_cmd;
     double cancel_policy;
     uint64_t timestamp;

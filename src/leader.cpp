@@ -191,7 +191,8 @@ int wam_main(int argc, char **argv, ProductManager &pm, systems::Wam<DOF> &wam) 
     }
 
     // remove policy torque from external torque
-    systems::connect(dynamicExternalTorque.wamExternalTorqueOut, policyExternalTorque.wamExtTorqueIn);
+    // systems::connect(dynamicExternalTorque.wamExternalTorqueOut, policyExternalTorque.wamExtTorqueIn);
+    systems::connect(extFilter.output, policyExternalTorque.wamExtTorqueIn);
     systems::connect(policy_controller.controlOutput, policyExternalTorque.policyExtTorqueIn);
 
     // filter torques

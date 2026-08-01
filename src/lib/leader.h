@@ -199,16 +199,15 @@ class Leader : public barrett::systems::System {
         boost::optional<PolicyReceivedData> policy_data = policy_udp_handler.getLatestPolicyReceived();
         if (policy_data) {
             jt_type max_torques;
-            max_torques << 5, 5, 2, 2, 0, 0, 0;
+            max_torques << 7, 5, 3, 2, 0, 0, 0;
 
-            jt_type normalized_ext_torque;
             for (size_t i = 0; i < 4; ++i) {
-                normalized_ext_torque[i] = max_torques[i] / std::abs(extTorque[i]); // inverse. 1 means a lot of human, 0 is not
+                normalized_ext_torque[i] = std::abs(extTorque[i]) / max_torques[i]; // inverse. 1 means a lot of human, 0 is not
             }
 
             // this should output something roughly between 0.2 and 1 which i will use to scale my policy control
             for (size_t i = 0; i < 4; ++i) {
-                policyTorqueScale[i] = 1.0 / (1.0 + std::exp(3.0 * (-normalized_ext_torque[i] + 0.5)));
+                policyTorqueScale[i] = 1.0 / (1.0 + std::exp(6 * normalized_ext_torque[i] - 3));
             }
 
             jp_type clipped_jp;
@@ -250,6 +249,7 @@ class Leader : public barrett::systems::System {
         const Eigen::Quaterniond& toolQ = boost::get<1>(wamTP);
 
         // extTorqueIn.valueDefined() before setting a reference signal can cause bad feeling teleop
+        // also cant put this before the policy read. i have no idea why
         if (extTorqueIn.valueDefined()) {
             extTorque = extTorqueIn.getValue();
         } else {
@@ -262,6 +262,8 @@ class Leader : public barrett::systems::System {
         } else {
             policyJt << 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0;
         }
+
+        policyJt = policyTorqueScale.asDiagonal() * policyJt;
 
         // State machine
         if (isLinked()) {
@@ -279,7 +281,7 @@ class Leader : public barrett::systems::System {
 
         uint64_t loop_start = std::chrono::duration_cast<std::chrono::nanoseconds>(now_op.time_since_epoch()).count();
         auto send_start = std::chrono::steady_clock::now();
-        teleop_udp_handler.send(sendJpMsg, sendJvMsg, sendExtTorqueMsg, toolPos, toolQ, static_cast<double>(desired_gripper_pos.load()), static_cast<double>(cancel_policy.load()), loop_start);
+        teleop_udp_handler.send(sendJpMsg, sendJvMsg, sendExtTorqueMsg, toolPos, toolQ, policyTorqueScale, static_cast<double>(desired_gripper_pos.load()), static_cast<double>(cancel_policy.load()), loop_start);
         // see how on_leader is used for the magic
         policy_udp_handler.send(theirJp, theirJv, theirExtTorque, sendJpMsg, sendJvMsg, sendExtTorqueMsg, theirToolPos, theirToolQ, toolPos, toolQ, static_cast<double>(remote_gripper_pos.load()), static_cast<double>(remote_gripper_vel.load()), static_cast<double>(remote_gripper_pos.load()), loop_start);
         auto send_end = std::chrono::steady_clock::now();
@@ -303,6 +305,7 @@ class Leader : public barrett::systems::System {
             // std::cout << "  -> follower Tool Pos:  [" << theirToolPos.transpose() << "]\n";
             // std::cout << "  -> follower Tool Quat: [" << theirToolQ.w() << " " << theirToolQ.x() << " " << theirToolQ.y() << " " << theirToolQ.z() << "]\n";
             std::cout << "  -> policy jt:      [" << policyJt.transpose() << "]\n";
+            std::cout << "  -> policy norm:[" << normalized_ext_torque.transpose() << "]\n";
             std::cout << "  -> policy scale:[" << policyTorqueScale.transpose() << "]\n";
             // std::cout << "  -> leader control: [" << compute_control(theirJp, theirJv, theirExtTorque, wamJP, wamJV, extTorque, wamGrav, wamDyn, policyTorque) << "]\n\n";
             // std::cout << "  -> dyn: [" << wamDyn.transpose() << "]\n\n";
@@ -325,6 +328,7 @@ class Leader : public barrett::systems::System {
     jt_type theirExtTorque;
     cp_type theirToolPos;
     jt_type policyTorqueScale;
+    jt_type normalized_ext_torque;
     Eigen::Quaterniond theirToolQ;
     jt_type policyJt;
     jt_type control;

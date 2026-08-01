@@ -52,6 +52,7 @@ typename FollowerUDPHandler<DOF>::TeleopReceivedData FollowerUDPHandler<DOF>::un
     std::memcpy(rd.extTorque.data(), pkt.extTorque, sizeof(double) * DOF);
     std::memcpy(rd.cart_pos.data(), pkt.cart_pos, sizeof(double) * 3);
     rd.quat = Eigen::Quaterniond(pkt.quat[0], pkt.quat[1], pkt.quat[2], pkt.quat[3]); // w, x, y, z
+    std::memcpy(rd.policyTorqueScale.data(), pkt.policyTorqueScale, sizeof(double) * DOF);
     rd.gripper_cmd = pkt.gripper_cmd;
     rd.cancel_policy = pkt.cancel_policy;
     rd.timestamp = pkt.timestamp;

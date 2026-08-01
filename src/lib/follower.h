@@ -113,6 +113,7 @@ class Follower : public barrett::systems::System {
     jt_type wamGrav;
     jt_type wamDyn;
     jt_type policyJt;
+    jt_type policyTorqueScale;
     jp_type policyJp;
     Eigen::Matrix<double, DOF, 1> sendJpMsg;
     Eigen::Matrix<double, DOF, 1> sendJvMsg;
@@ -142,6 +143,7 @@ class Follower : public barrett::systems::System {
         // policy defaults
         policyJp << wamJP;
         policy_gripper_cmd.store(current_gripper_pos.load());
+        policyTorqueScale.setZero();
 
         sendJpMsg << wamJP;
         sendJvMsg << wamJV;
@@ -161,6 +163,7 @@ class Follower : public barrett::systems::System {
             theirExtTorque = teleop_data->extTorque;
             theirToolPos = teleop_data->cart_pos.template head<3>();
             theirToolQ = teleop_data->quat;
+            policyTorqueScale << teleop_data->policyTorqueScale;
             target_gripper_pos.store(static_cast<double>(teleop_data->gripper_cmd));
             cancel_policy.store(static_cast<double>(teleop_data->cancel_policy));
 
@@ -187,6 +190,7 @@ class Follower : public barrett::systems::System {
         if (cancel_policy.load() == 1) {
             policy_udp_handler.clearQueueAndPause();
         }
+
 
         // inference.
         boost::optional<PolicyReceivedData> policy_data = policy_udp_handler.getLatestPolicyReceived();
@@ -221,14 +225,6 @@ class Follower : public barrett::systems::System {
             // policy_gripper_cmd.store(static_cast<double>(policy_data->gripper_cmd));
         }
         policyJpOutputValue->setData(&policyJp);
-        // extTorqueIn.valueDefined() before setting a reference signal can cause bad feeling teleop
-
-        if (extTorqueIn.valueDefined()) {
-            extTorque = extTorqueIn.getValue();
-        } else {
-            extTorque.setZero();
-        }
-        sendExtTorqueMsg << extTorque;
 
         // extTorqueIn.valueDefined() before setting a reference signal can cause bad feeling teleop
         if (extTorqueIn.valueDefined()) {
@@ -244,6 +240,8 @@ class Follower : public barrett::systems::System {
         } else {
             policyJt << 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0;
         }
+
+        policyJt = policyTorqueScale.asDiagonal() * policyJt;
 
         if (isLinked()) {
             control = compute_control(theirJp, theirJv, theirExtTorque, wamJP, wamJV, extTorque, wamGrav, wamDyn, policyJt);
@@ -280,7 +278,8 @@ class Follower : public barrett::systems::System {
             // std::cout << "  -> follower Tool Quat: [" << toolQ.w() << " " << toolQ.x() << " " << toolQ.y() << " " << toolQ.z() << "]\n";
             // std::cout << "  -> leader Tool Pos:  [" << theirToolPos.transpose() << "]\n";
             // std::cout << "  -> leader Tool Quat: [" << theirToolQ.w() << " " << theirToolQ.x() << " " << theirToolQ.y() << " " << theirToolQ.z() << "]\n";
-            std::cout << "  -> policy:  [" << policyJt.transpose() << "]\n";
+            std::cout << "  -> policy:        [" << policyJt.transpose() << "]\n";
+            std::cout << "  -> policy scale:  [" << policyTorqueScale.transpose() << "]\n";
             // std::cout << "  -> control: [" << compute_control(theirJp, theirJv, theirExtTorque, wamJP, wamJV, extTorque, wamGrav, wamDyn, policyJt) << "]\n";
             // std::cout << "  -> dyn: [" << wamDyn.transpose() << "]\n";
             // std::cout << "  -> TX GrpTrq:  " << current_gripper_torque.load() << "\n";
