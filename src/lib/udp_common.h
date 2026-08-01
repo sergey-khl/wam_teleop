@@ -58,6 +58,7 @@ struct PolicyPacket {
     double leader_jp[DOF];
     double leader_jv[DOF];
     double leader_extTorque[DOF];
+    double policyTorqueScale[DOF];
     double follower_cart_pos[3];   // x, y, z
     double follower_quat[4];   // w, x, y, z
     double leader_cart_pos[3];   // x, y, z
@@ -137,6 +138,7 @@ public:
     // Queue a PolicyPacket to be sent to the policy. No-op if inactive.
     void send(const jp_type& follower_jp, const jv_type& follower_jv, const jt_type& follower_extTorque,
                        const jp_type& leader_jp, const jv_type& leader_jv, const jt_type& leader_extTorque,
+                       const jt_type& policyTorqueScale,
                        const Eigen::Vector3d& follower_cart_pos, const Eigen::Quaterniond& follower_quat,
                        const Eigen::Vector3d& leader_cart_pos, const Eigen::Quaterniond& leader_quat,
                        double gripper_pos, double gripper_vel, double gripper_torque,

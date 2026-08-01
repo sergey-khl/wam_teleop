@@ -285,7 +285,7 @@ class Leader : public barrett::systems::System {
         auto send_start = std::chrono::steady_clock::now();
         teleop_udp_handler.send(sendJpMsg, sendJvMsg, sendExtTorqueMsg, toolPos, toolQ, policyTorqueScale, static_cast<double>(desired_gripper_pos.load()), static_cast<double>(cancel_policy.load()), loop_start);
         // see how on_leader is used for the magic
-        policy_udp_handler.send(theirJp, theirJv, theirExtTorque, sendJpMsg, sendJvMsg, sendExtTorqueMsg, theirToolPos, theirToolQ, toolPos, toolQ, static_cast<double>(remote_gripper_pos.load()), static_cast<double>(remote_gripper_vel.load()), static_cast<double>(remote_gripper_pos.load()), loop_start);
+        policy_udp_handler.send(theirJp, theirJv, theirExtTorque, sendJpMsg, sendJvMsg, sendExtTorqueMsg, policyTorqueScale, theirToolPos, theirToolQ, toolPos, toolQ, static_cast<double>(remote_gripper_pos.load()), static_cast<double>(remote_gripper_vel.load()), static_cast<double>(remote_gripper_pos.load()), loop_start);
         auto send_end = std::chrono::steady_clock::now();
         double send_dt = std::chrono::duration<double, std::milli>(send_end - send_start).count();
 
@@ -397,12 +397,12 @@ class Leader : public barrett::systems::System {
 
         jt_type u = u2;
 
+        u += policyJt;
+
+        // j5-7 does not give a usable ext torque
         for (size_t i = 4; i < 7; ++i) {
             u[i] = 0.0;
         }
-
-        // safety is handled on follower side
-        u += policyJt;
 
         return u;
     };
