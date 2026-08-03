@@ -144,6 +144,7 @@ std::deque<PolicyReceivedData> PolicyUDPHandler<DOF>::interpolateSegment(
     };
 
     for (size_t j = 0; j < SAMPLES_PER_SEGMENT; ++j) {
+        // alpha goes between a1 and a2
         double alpha = static_cast<double>(j) / static_cast<double>(SAMPLES_PER_SEGMENT);
 
         PolicyReceivedData rd;
@@ -200,17 +201,21 @@ void PolicyUDPHandler<DOF>::interpLoop() {
             });
             if (stop_threads) break;
 
-            a0 = raw_waypoint_queue[0];
-            a1 = raw_waypoint_queue[1];
-            a2 = raw_waypoint_queue[2];
-            a3 = raw_waypoint_queue[3];
-
             if (first_segment_ever) {
-                a0 = a1; // clamp: no real predecessor exists yet for the very first segment
-                first_segment_ever = false;
-            }
+                a0 = raw_waypoint_queue[0];
+                a1 = raw_waypoint_queue[0];
+                a2 = raw_waypoint_queue[1];
+                a3 = raw_waypoint_queue[2];
 
-            raw_waypoint_queue.pop_front(); // slide the window by one support point
+                first_segment_ever = false;
+            } else {
+                a0 = raw_waypoint_queue[0];
+                a1 = raw_waypoint_queue[1];
+                a2 = raw_waypoint_queue[2];
+                a3 = raw_waypoint_queue[3];
+                
+                raw_waypoint_queue.pop_front(); // slide the window by one support point
+            }
         }
 
         std::deque<PolicyReceivedData> new_samples = interpolateSegment(a0, a1, a2, a3);
@@ -243,7 +248,7 @@ void PolicyUDPHandler<DOF>::sendLoop() {
         {
             // for creating a seamless policy loop, we start inference when x% of our actions are left
             std::lock_guard<std::mutex> lock(state_mutex);
-            // should_send = static_cast<double>(action_queue.size()) / static_cast<double>(NUM_INTERP_SAMPLES) <= 0.1;
+            should_send = static_cast<double>(action_queue.size()) / static_cast<double>(SEGMENT_DURATION_SEC * ACTION_HORIZON) <= 0.1;
         }
 
         // if (should_send) {

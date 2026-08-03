@@ -272,11 +272,11 @@ class Follower : public barrett::systems::System {
                       // << " ms | UDP Rx Age: " << udp_rx_age 
                       // << " ms | UDP Send latency: " << send_dt << " ms\n";
 
-            // std::cout << "  -> FOLLOWER JP:      [" << sendJpMsg.transpose() << "]\n";
-            // std::cout << "  -> LEADER JP:    [" << theirJp.transpose() << "\n";
+            std::cout << "  -> FOLLOWER JP:      [" << sendJpMsg.transpose() << "]\n";
+            std::cout << "  -> LEADER JP:    [" << theirJp.transpose() << "\n";
             // std::cout << "  -> FOLLOWER JV:      [" << sendJvMsg.transpose() << "]\n";
             // std::cout << "  -> LEADER JV:    [" << theirJv.transpose() << "]\n";
-            std::cout << "  -> FOLLOWER ExtTrq:  [" << sendExtTorqueMsg.transpose() << "]\n";
+            // std::cout << "  -> FOLLOWER ExtTrq:  [" << sendExtTorqueMsg.transpose() << "]\n";
             // std::cout << "  -> leader ExtTrq:[" << theirExtTorque.transpose() << "]\n";
             // std::cout << "  -> follower Tool Pos:  [" << toolPos.transpose() << "]\n";
             // std::cout << "  -> follower Tool Quat: [" << toolQ.w() << " " << toolQ.x() << " " << toolQ.y() << " " << toolQ.z() << "]\n";

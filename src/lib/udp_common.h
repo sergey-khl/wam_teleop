@@ -15,8 +15,8 @@
 #include <thread>
  
 
-static constexpr size_t ACTION_HORIZON = 200;
-static constexpr double CHUNK_DURATION_SEC = 20.0;
+static constexpr size_t ACTION_HORIZON = 8;
+static constexpr double SEGMENT_DURATION_SEC = 0.1;
 static constexpr double INTERP_HZ = 500.0;
 static constexpr double UNINTERP_HZ = 10.0;
 
@@ -145,7 +145,7 @@ public:
                        uint64_t timestamp);
  
 private:
-    static constexpr size_t SAMPLES_PER_SEGMENT = static_cast<size_t>(INTERP_HZ / UNINTERP_HZ);
+    static constexpr size_t SAMPLES_PER_SEGMENT = static_cast<size_t>(INTERP_HZ * SEGMENT_DURATION_SEC);
  
     bool send_active;
     std::atomic<bool> stop_threads;

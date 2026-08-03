@@ -300,14 +300,15 @@ class Leader : public barrett::systems::System {
             // std::cout << "  -> FOLLOWER JP:    [" << theirJp.transpose() << "\n";
             // std::cout << "  -> LEADER JV:      [" << sendJvMsg.transpose() << "]\n";
             // std::cout << "  -> FOLLOWER JV:    [" << theirJv.transpose() << "]\n";
-            std::cout << "  -> leader ExtTrq:  [" << sendExtTorqueMsg.transpose() << "]\n";
+            // std::cout << "  -> leader ExtTrq:  [" << sendExtTorqueMsg.transpose() << "]\n";
             // std::cout << "  -> follower ExtTrq:[" << theirExtTorque.transpose() << "]\n";
             // std::cout << "  -> Leader Tool Pos:  [" << toolPos.transpose() << "]\n";
             // std::cout << "  -> leader Tool Quat: [" << toolQ.w() << " " << toolQ.x() << " " << toolQ.y() << " " << toolQ.z() << "]\n";
             // std::cout << "  -> follower Tool Pos:  [" << theirToolPos.transpose() << "]\n";
             // std::cout << "  -> follower Tool Quat: [" << theirToolQ.w() << " " << theirToolQ.x() << " " << theirToolQ.y() << " " << theirToolQ.z() << "]\n";
+            std::cout << "  -> policy jp:      [" << policyJp.transpose() << "]\n";
             std::cout << "  -> policy jt:      [" << policyJt.transpose() << "]\n";
-            std::cout << "  -> policy norm:[" << normalized_ext_torque.transpose() << "]\n";
+            // std::cout << "  -> policy norm:[" << normalized_ext_torque.transpose() << "]\n";
             std::cout << "  -> policy scale:[" << policyTorqueScale.transpose() << "]\n";
             // std::cout << "  -> leader control: [" << compute_control(theirJp, theirJv, theirExtTorque, wamJP, wamJV, extTorque, wamGrav, wamDyn, policyTorque) << "]\n\n";
             // std::cout << "  -> dyn: [" << wamDyn.transpose() << "]\n\n";
