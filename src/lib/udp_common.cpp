@@ -17,6 +17,8 @@ PolicyUDPHandler<DOF>::PolicyUDPHandler(bool send_active, const std::string& pol
     recv_socket.bind(boost::asio::ip::udp::endpoint(boost::asio::ip::udp::v4(), policy_recv_port));
     recv_thread = std::thread(&PolicyUDPHandler::receiveLoop, this);
 
+    interp_thread = std::thread(&PolicyUDPHandler::interpLoop, this);
+
     if (send_active) {
         send_socket.open(boost::asio::ip::udp::v4());
 
@@ -34,6 +36,7 @@ void PolicyUDPHandler<DOF>::stop() {
     stop_threads = true;
     io_context.stop();
     send_condition.notify_all();
+    raw_condition.notify_all();
     try {
         if (recv_socket.is_open()) {
             recv_socket.cancel();
@@ -46,6 +49,7 @@ void PolicyUDPHandler<DOF>::stop() {
 
     if (recv_thread.joinable()) recv_thread.join();
     if (send_thread.joinable()) send_thread.join();
+    if (interp_thread.joinable()) interp_thread.join();
 }
 
 template <size_t DOF>
@@ -108,29 +112,30 @@ void PolicyUDPHandler<DOF>::send(const jp_type& follower_jp, const jv_type& foll
 
 template <size_t DOF>
 void PolicyUDPHandler<DOF>::clearQueueAndPause(std::chrono::milliseconds duration) {
-    std::lock_guard<std::mutex> lock(state_mutex);
-    action_queue.clear();
-    pause_until = std::chrono::steady_clock::now() + duration;
+    {
+        std::lock_guard<std::mutex> lock(state_mutex);
+        action_queue.clear();
+        pause_until = std::chrono::steady_clock::now() + duration;
+    }
+    {
+        std::lock_guard<std::mutex> lock(raw_mutex);
+        raw_waypoint_queue.clear();
+    }
 }
 
-
 template <size_t DOF>
-std::deque<PolicyReceivedData> PolicyUDPHandler<DOF>::interpolateChunk(const RawAction (&actions)[ACTION_HORIZON],
-                                                                        uint64_t inference_timestamp_ns,
-                                                                        const RawAction* last_action) {
+std::deque<PolicyReceivedData> PolicyUDPHandler<DOF>::interpolateSegment(
+        const RawAction& a0, const RawAction& a1, const RawAction& a2, const RawAction& a3) {
     std::deque<PolicyReceivedData> queue;
     const double policy_dt_ns = 1e9 / UNINTERP_HZ;
-    const double dt_s = policy_dt_ns * 1e-9; // seconds between consecutive raw waypoints
+    const double dt_s = policy_dt_ns * 1e-9;
 
-    // Catmull-Rom cubic position/velocity/acceleration between p1 and p2 (p0/p3 = outer support points).
     struct CRResult { double pos, dpos_dt, d2pos_dt2; };
     auto catmullRom = [](double p0, double p1, double p2, double p3, double t) -> CRResult {
         const double t2 = t * t;
-        // coefficients of the cubic in t
         const double c1 = (-p0 + p2);
         const double c2 = (2.0 * p0 - 5.0 * p1 + 4.0 * p2 - p3);
         const double c3 = (-p0 + 3.0 * p1 - 3.0 * p2 + p3);
- 
         CRResult r;
         r.pos       = 0.5 * (2.0 * p1 + c1 * t + c2 * t2 + c3 * t2 * t);
         r.dpos_dt   = 0.5 * (c1 + 2.0 * c2 * t + 3.0 * c3 * t2);
@@ -138,41 +143,21 @@ std::deque<PolicyReceivedData> PolicyUDPHandler<DOF>::interpolateChunk(const Raw
         return r;
     };
 
-    for (size_t j = 0; j < NUM_INTERP_SAMPLES; ++j) {
-        // map sample j -> fractional position across the horizon waypoints
-        double frac = static_cast<double>(j) / static_cast<double>(NUM_INTERP_SAMPLES - 1);
-        double pos = frac * static_cast<double>(ACTION_HORIZON - 1);
-
-        // idx1/idx2 bracket pos (equivalent to old idx0/idx1);
-        // idx0/idx3 are outer support points used to estimate local tangents/curvature.
-        size_t idx1 = static_cast<size_t>(pos);
-        size_t idx2 = std::min(idx1 + 1, ACTION_HORIZON - 1);
-        size_t idx3 = std::min(idx2 + 1, ACTION_HORIZON - 1);
-        double alpha = pos - static_cast<double>(idx1);
-
-        // For the very first segment (idx1 == 0) the "outer support" point normally has to be
-        // clamped (duplicated) because there's nothing before actions[0] within this chunk.
-        // If we have the previous chunk's real last waypoint, use that instead so the spline's
-        // tangent/velocity is continuous across the chunk seam rather than artificially flattened.
-        const RawAction& a0 = (idx1 == 0 && last_action != nullptr) ? *last_action : actions[(idx1 == 0) ? idx1 : idx1 - 1];
-        const RawAction& a1 = actions[idx1];
-        const RawAction& a2 = actions[idx2];
-        const RawAction& a3 = actions[idx3];
+    for (size_t j = 0; j < SAMPLES_PER_SEGMENT; ++j) {
+        double alpha = static_cast<double>(j) / static_cast<double>(SAMPLES_PER_SEGMENT);
 
         PolicyReceivedData rd;
         for (size_t k = 0; k < 7; ++k) {
             CRResult r = catmullRom(a0.jp[k], a1.jp[k], a2.jp[k], a3.jp[k], alpha);
             rd.jp[k] = r.pos;
-            rd.jv[k] = r.dpos_dt / dt_s;             // chain rule: d/dtime = d/dalpha * dalpha/dtime
-            rd.ja[k] = r.d2pos_dt2 / (dt_s * dt_s);  // d^2/dtime^2 = d^2/dalpha^2 * (dalpha/dtime)^2
+            rd.jv[k] = r.dpos_dt / dt_s;
+            rd.ja[k] = r.d2pos_dt2 / (dt_s * dt_s);
         }
 
-        {
-            CRResult rg = catmullRom(a0.gripper_cmd, a1.gripper_cmd, a2.gripper_cmd, a3.gripper_cmd, alpha);
-            rd.gripper_cmd = rg.pos;
-        }
+        CRResult rg = catmullRom(a0.gripper_cmd, a1.gripper_cmd, a2.gripper_cmd, a3.gripper_cmd, alpha);
+        rd.gripper_cmd = rg.pos;
 
-        rd.timestamp = inference_timestamp_ns + static_cast<uint64_t>(pos * policy_dt_ns) - static_cast<uint64_t>(2 * policy_dt_ns);
+        rd.timestamp = 0; // timestamps not handled yet
         queue.push_back(rd);
     }
     return queue;
@@ -194,39 +179,50 @@ void PolicyUDPHandler<DOF>::receiveLoop() {
             continue;
         }
 
-        RawAction local_last_action;
-        bool local_have_last_action = false;
         {
-            std::lock_guard<std::mutex> lock(state_mutex);
-            if (have_last_action) {
-                local_last_action = last_action;
-                local_have_last_action = true;
+            std::lock_guard<std::mutex> lock(raw_mutex);
+            raw_waypoint_queue.insert(raw_waypoint_queue.end(),
+                                       std::begin(pkt.actions), std::end(pkt.actions));
+        }
+        raw_condition.notify_one();
+    }
+    recv_socket.close();
+}
+
+template <size_t DOF>
+void PolicyUDPHandler<DOF>::interpLoop() {
+    while (!stop_threads) {
+        RawAction a0, a1, a2, a3;
+        {
+            std::unique_lock<std::mutex> lock(raw_mutex);
+            raw_condition.wait(lock, [this] {
+                return stop_threads || raw_waypoint_queue.size() >= 4;
+            });
+            if (stop_threads) break;
+
+            a0 = raw_waypoint_queue[0];
+            a1 = raw_waypoint_queue[1];
+            a2 = raw_waypoint_queue[2];
+            a3 = raw_waypoint_queue[3];
+
+            if (first_segment_ever) {
+                a0 = a1; // clamp: no real predecessor exists yet for the very first segment
+                first_segment_ever = false;
             }
 
+            raw_waypoint_queue.pop_front(); // slide the window by one support point
         }
 
-        std::deque<PolicyReceivedData> new_queue = interpolateChunk(pkt.actions, pkt.inference_timestamp_ns, local_have_last_action ? &local_last_action : nullptr);
-
-        PolicyActionChunkPacket record;
-        std::memcpy(record.actions, pkt.actions, sizeof(pkt.actions));
-        record.inference_timestamp_ns = pkt.inference_timestamp_ns;
-
+        std::deque<PolicyReceivedData> new_samples = interpolateSegment(a0, a1, a2, a3);
 
         std::lock_guard<std::mutex> lock(state_mutex);
         if (std::chrono::steady_clock::now() < pause_until) {
-            // do not add any new actions to the queue for a little bit if the user canceled an episode
             continue;
         }
-
-        // a new chunk extends what is left in the queue
         action_queue.insert(action_queue.end(),
-                             std::make_move_iterator(new_queue.begin()),
-                             std::make_move_iterator(new_queue.end()));
-
-        last_action = pkt.actions[ACTION_HORIZON - 1];
-        have_last_action = true;
+                             std::make_move_iterator(new_samples.begin()),
+                             std::make_move_iterator(new_samples.end()));
     }
-    recv_socket.close();
 }
 
 template <size_t DOF>
@@ -247,13 +243,13 @@ void PolicyUDPHandler<DOF>::sendLoop() {
         {
             // for creating a seamless policy loop, we start inference when x% of our actions are left
             std::lock_guard<std::mutex> lock(state_mutex);
-            should_send = static_cast<double>(action_queue.size()) / static_cast<double>(NUM_INTERP_SAMPLES) <= 0.1;
+            // should_send = static_cast<double>(action_queue.size()) / static_cast<double>(NUM_INTERP_SAMPLES) <= 0.1;
         }
 
-        if (should_send) {
-            boost::system::error_code ec;
-            send_socket.send_to(boost::asio::buffer(&pkt_to_send, sizeof(PolicyPacketType)), policy_endpoint, 0, ec);
-        }
+        // if (should_send) {
+        boost::system::error_code ec;
+        send_socket.send_to(boost::asio::buffer(&pkt_to_send, sizeof(PolicyPacketType)), policy_endpoint, 0, ec);
+        // }
     }
     send_socket.close();
 }

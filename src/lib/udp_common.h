@@ -145,7 +145,7 @@ public:
                        uint64_t timestamp);
  
 private:
-    static constexpr size_t NUM_INTERP_SAMPLES = static_cast<size_t>(INTERP_HZ * CHUNK_DURATION_SEC);
+    static constexpr size_t SAMPLES_PER_SEGMENT = static_cast<size_t>(INTERP_HZ / UNINTERP_HZ);
  
     bool send_active;
     std::atomic<bool> stop_threads;
@@ -171,13 +171,16 @@ private:
     void sendLoop();
     void receiveLoop();
 
-    RawAction last_action;
-    bool have_last_action = false;
+    std::deque<RawAction> raw_waypoint_queue;
+    std::mutex raw_mutex;
+    std::condition_variable raw_condition;
+    bool first_segment_ever = true;
+
+    std::thread interp_thread;
+    void interpLoop();
  
-    // past action is used to smooth velocity across action chunks
-    static std::deque<PolicyReceivedData> interpolateChunk(const RawAction (&actions)[ACTION_HORIZON],
-                                                             uint64_t inference_timestamp_ns,
-                                                             const RawAction* last_action);
+    // always use unique points for a0-3
+    static std::deque<PolicyReceivedData> interpolateSegment(const RawAction& a0, const RawAction& a1, const RawAction& a2, const RawAction& a3);
 
     std::chrono::steady_clock::time_point pause_until{};
 };
