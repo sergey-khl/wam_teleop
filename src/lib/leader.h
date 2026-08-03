@@ -228,7 +228,7 @@ class Leader : public barrett::systems::System {
             }
 
             policyJp << clipped_jp;
-            // policy_gripper_cmd.store(static_cast<double>(policy_data->gripper_cmd));
+            policy_gripper_cmd.store(static_cast<double>(policy_data->gripper_cmd));
         }
         policyJPOutputValue->setData(&policyJp);
 
@@ -247,16 +247,17 @@ class Leader : public barrett::systems::System {
             extTorque.setZero();
         }
         sendExtTorqueMsg << extTorque;
-
-        jt_type max_torques;
-        max_torques << 7, 5, 3, 2, 0, 0, 0;
-        for (size_t i = 0; i < 4; ++i) {
-            normalized_ext_torque[i] = std::abs(extTorque[i]) / max_torques[i]; // 1 means a lot of human, 0 is not
-        }
-        // flipped sigmoid. The higher the user input the lower the policy gains
-        for (size_t i = 0; i < 4; ++i) {
-            policyTorqueScale[i] = 1.0 / (1.0 + std::exp(6 * normalized_ext_torque[i] - 3));
-        }
+        //
+        // jt_type max_torques;
+        // max_torques << 7, 5, 3, 2, 0, 0, 0;
+        // for (size_t i = 0; i < 4; ++i) {
+        //     normalized_ext_torque[i] = std::abs(extTorque[i]) / max_torques[i]; // 1 means a lot of human, 0 is not
+        // }
+        // // flipped sigmoid. The higher the user input the lower the policy gains
+        // for (size_t i = 0; i < 4; ++i) {
+        //     policyTorqueScale[i] = 1.0 / (1.0 + std::exp(6 * normalized_ext_torque[i] - 3));
+        // }
+        policyTorqueScale << 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0;
         policyTorqueScaleOutputValue->setData(&policyTorqueScale);
 
         if (policyJtIn.valueDefined()) {
@@ -398,12 +399,12 @@ class Leader : public barrett::systems::System {
 
         jt_type u = u2;
 
-        u += policyJt;
-
         // j5-7 does not give a usable ext torque
         for (size_t i = 4; i < 7; ++i) {
             u[i] = 0.0;
         }
+
+        u += policyJt;
 
         return u;
     };
