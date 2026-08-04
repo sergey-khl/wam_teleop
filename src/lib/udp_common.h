@@ -15,7 +15,7 @@
 #include <thread>
  
 
-static constexpr size_t ACTION_HORIZON = 8;
+static constexpr double ACTION_HORIZON = 8;
 static constexpr double SEGMENT_DURATION_SEC = 0.3;
 static constexpr double INTERP_HZ = 500.0;
 static constexpr double UNINTERP_HZ = 10.0;
@@ -66,6 +66,7 @@ struct PolicyPacket {
     double gripper_pos;
     double gripper_vel;
     double gripper_torque;
+    uint64_t time_to_chunk_end;
     uint64_t timestamp;
 };
 
@@ -113,7 +114,6 @@ struct PolicyReceivedData {
     Eigen::Matrix<double, 7, 1> jv;
     Eigen::Matrix<double, 7, 1> ja;
     double gripper_cmd;
-    uint64_t timestamp;
 };
 
 template <size_t DOF>
@@ -178,6 +178,7 @@ private:
 
     std::thread interp_thread;
     void interpLoop();
+    uint64_t time_to_chunk_end; // used for timing the policy inference
  
     // always use unique points for a0-3
     static std::deque<PolicyReceivedData> interpolateSegment(const RawAction& a0, const RawAction& a1, const RawAction& a2, const RawAction& a3);

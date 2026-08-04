@@ -80,6 +80,9 @@ void PolicyUDPHandler<DOF>::send(const jp_type& follower_jp, const jv_type& foll
 
     {
         std::lock_guard<std::mutex> lock(send_mutex);
+
+        uint64_t time_to_chunk_end = static_cast<double>();
+
         std::memcpy(pending_packet.follower_jp, follower_jp.data(), sizeof(double) * DOF);
         std::memcpy(pending_packet.follower_jv, follower_jv.data(), sizeof(double) * DOF);
         std::memcpy(pending_packet.follower_extTorque, follower_extTorque.data(), sizeof(double) * DOF);
@@ -104,6 +107,7 @@ void PolicyUDPHandler<DOF>::send(const jp_type& follower_jp, const jv_type& foll
         pending_packet.gripper_pos = gripper_pos;
         pending_packet.gripper_vel = gripper_vel;
         pending_packet.gripper_torque = gripper_torque;
+        pending_packet.time_to_chunk_end = time_to_chunk_end;
         pending_packet.timestamp = timestamp;
         new_data_available = true;
     }
@@ -158,7 +162,6 @@ std::deque<PolicyReceivedData> PolicyUDPHandler<DOF>::interpolateSegment(
         CRResult rg = catmullRom(a0.gripper_cmd, a1.gripper_cmd, a2.gripper_cmd, a3.gripper_cmd, alpha);
         rd.gripper_cmd = rg.pos;
 
-        rd.timestamp = 0; // timestamps not handled yet
         queue.push_back(rd);
     }
     return queue;
@@ -248,13 +251,10 @@ void PolicyUDPHandler<DOF>::sendLoop() {
         {
             // for creating a seamless policy loop, we start inference when x% of our actions are left
             std::lock_guard<std::mutex> lock(state_mutex);
-            should_send = static_cast<double>(action_queue.size()) / static_cast<double>(SEGMENT_DURATION_SEC * ACTION_HORIZON) <= 0.1;
         }
 
-        // if (should_send) {
         boost::system::error_code ec;
         send_socket.send_to(boost::asio::buffer(&pkt_to_send, sizeof(PolicyPacketType)), policy_endpoint, 0, ec);
-        // }
     }
     send_socket.close();
 }
