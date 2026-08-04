@@ -81,7 +81,9 @@ void PolicyUDPHandler<DOF>::send(const jp_type& follower_jp, const jv_type& foll
     {
         std::lock_guard<std::mutex> lock(send_mutex);
 
-        uint64_t time_to_chunk_end = static_cast<double>();
+        int64_t now_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(
+            std::chrono::steady_clock::now().time_since_epoch()).count();
+        int64_t remaining_ns = chunk_end_ns.load() - now_ns;
 
         std::memcpy(pending_packet.follower_jp, follower_jp.data(), sizeof(double) * DOF);
         std::memcpy(pending_packet.follower_jv, follower_jv.data(), sizeof(double) * DOF);
@@ -107,7 +109,7 @@ void PolicyUDPHandler<DOF>::send(const jp_type& follower_jp, const jv_type& foll
         pending_packet.gripper_pos = gripper_pos;
         pending_packet.gripper_vel = gripper_vel;
         pending_packet.gripper_torque = gripper_torque;
-        pending_packet.time_to_chunk_end = time_to_chunk_end;
+        pending_packet.time_to_chunk_end = remaining_ns > 0 ? static_cast<uint64_t>(remaining_ns) : 0;
         pending_packet.timestamp = timestamp;
         new_data_available = true;
     }
@@ -125,6 +127,9 @@ void PolicyUDPHandler<DOF>::clearQueueAndPause(std::chrono::milliseconds duratio
         std::lock_guard<std::mutex> lock(raw_mutex);
         raw_waypoint_queue.clear();
     }
+    samples_to_skip = 0;
+    chunk_end_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(
+        std::chrono::steady_clock::now().time_since_epoch()).count();
 }
 
 template <size_t DOF>
@@ -183,6 +188,13 @@ void PolicyUDPHandler<DOF>::receiveLoop() {
             continue;
         }
 
+        samples_to_skip = static_cast<uint64_t>(pkt.time_to_skip / (1e9 / INTERP_HZ));
+ 
+        int64_t nominal_duration_ns = static_cast<int64_t>(ACTION_HORIZON * SEGMENT_DURATION_SEC * 1e9);
+        int64_t now_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(
+            std::chrono::steady_clock::now().time_since_epoch()).count();
+        chunk_end_ns = now_ns + nominal_duration_ns - static_cast<int64_t>(pkt.time_to_skip);
+
         {
             std::lock_guard<std::mutex> lock(raw_mutex);
             raw_waypoint_queue.insert(raw_waypoint_queue.end(),
@@ -221,7 +233,21 @@ void PolicyUDPHandler<DOF>::interpLoop() {
             }
         }
 
+        uint64_t skip_now = samples_to_skip.load();
+ 
+        if (skip_now >= SAMPLES_PER_SEGMENT) {
+            // The whole segment would be discarded, so don't bother interpolating it at all.
+            samples_to_skip.fetch_sub(static_cast<uint64_t>(SAMPLES_PER_SEGMENT));
+            continue;
+        }
+
         std::deque<PolicyReceivedData> new_samples = interpolateSegment(a0, a1, a2, a3);
+
+        if (skip_now > 0) {
+            // Interpolation can start partway through a segment
+            new_samples.erase(new_samples.begin(), new_samples.begin() + static_cast<std::ptrdiff_t>(skip_now));
+            samples_to_skip.fetch_sub(skip_now);
+        }
 
         std::lock_guard<std::mutex> lock(state_mutex);
         if (std::chrono::steady_clock::now() < pause_until) {
