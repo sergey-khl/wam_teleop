@@ -120,8 +120,9 @@ template <size_t DOF>
 void PolicyUDPHandler<DOF>::clearQueueAndPause(std::chrono::milliseconds duration) {
     {
         std::lock_guard<std::mutex> lock(state_mutex);
-        action_queue.clear();
         pause_until = std::chrono::steady_clock::now() + duration;
+        action_queue.clear();
+        first_segment_ever = false;
     }
     {
         std::lock_guard<std::mutex> lock(raw_mutex);

@@ -144,11 +144,16 @@ int wam_main(int argc, char **argv, ProductManager &pm, systems::Wam<DOF> &wam) 
     jaFilter.setLowPass(l_omega_p);
     pm.getExecutionManager()->startManaging(jaFilter);
 
+
+    // current values needed for dynamics. zero vel and acc is just grav comp.
+    systems::connect(wam.jpOutput, leaderDynamics.jpInputDynamics);
+    systems::connect(wam.jvOutput, leaderDynamics.jvInputDynamics);
     // filtered acc for dynamics
-    systems::connect(wam.jvOutput, hp1.input);
-    systems::connect(hp1.output, jaWAM.input);
-    systems::connect(jaWAM.output, jaFilter.input);
-    systems::connect(jaFilter.output, leaderDynamics.jaInputDynamics);
+    // systems::connect(wam.jvOutput, hp1.input);
+    // systems::connect(hp1.output, jaWAM.input);
+    // systems::connect(jaWAM.output, jaFilter.input);
+    // systems::connect(jaFilter.output, leaderDynamics.jaInputDynamics);
+    systems::connect(zeroAcceleration.output, leaderDynamics.jaInputDynamics);
 
     if (config.leader.vertical) {
         systems::connect(wam.jpOutput, horizontalGravity->jpInputDynamics);
@@ -173,10 +178,6 @@ int wam_main(int argc, char **argv, ProductManager &pm, systems::Wam<DOF> &wam) 
         systems::connect(leaderDynamics.dynamicsFeedFWD, leader.wamDynIn);
     }
 
-    // the other current values needed for dynamics. zero vel and acc is just grav comp.
-    systems::connect(wam.jpOutput, leaderDynamics.jpInputDynamics);
-    systems::connect(wam.jvOutput, leaderDynamics.jvInputDynamics);
-
     // if using dyn_comp-grav_comp as feedforward then customjtSum will find the the non dynamically compensated ext torque
     systems::connect(leader.wamJTOutput, customjtSum.getInput(0));
     systems::connect(wam.gravity.output, customjtSum.getInput(1));
@@ -191,8 +192,8 @@ int wam_main(int argc, char **argv, ProductManager &pm, systems::Wam<DOF> &wam) 
     }
 
     // remove policy torque from external torque
-    // systems::connect(dynamicExternalTorque.wamExternalTorqueOut, policyExternalTorque.wamExtTorqueIn);
-    systems::connect(extFilter.output, policyExternalTorque.wamExtTorqueIn);
+    systems::connect(dynamicExternalTorque.wamExternalTorqueOut, policyExternalTorque.wamExtTorqueIn);
+    // systems::connect(extFilter.output, policyExternalTorque.wamExtTorqueIn);
     systems::connect(policy_controller.controlOutput, policyExternalTorque.policyExtTorqueIn);
     systems::connect(leader.policyTorqueScaleOutput, policyExternalTorque.policyTorqueScaleIn);
 
