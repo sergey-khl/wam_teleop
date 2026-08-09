@@ -55,6 +55,10 @@ void PolicyUDPHandler<DOF>::stop() {
 template <size_t DOF>
 boost::optional<PolicyReceivedData> PolicyUDPHandler<DOF>::getLatestPolicyReceived() {
     std::lock_guard<std::mutex> lock(state_mutex);
+    if (std::chrono::steady_clock::now() < pause_until) {
+        clearQueue();
+    }
+
     if (action_queue.empty()) {
         return boost::none;
     }
@@ -118,19 +122,28 @@ void PolicyUDPHandler<DOF>::send(const jp_type& follower_jp, const jv_type& foll
 
 template <size_t DOF>
 void PolicyUDPHandler<DOF>::clearQueueAndPause(std::chrono::milliseconds duration) {
+    clearQueue();
+    std::lock_guard<std::mutex> lock(state_mutex);
+    pause_until = std::chrono::steady_clock::now() + duration;
+}
+
+template <size_t DOF>
+void PolicyUDPHandler<DOF>::clearQueue() {
     {
         std::lock_guard<std::mutex> lock(state_mutex);
-        pause_until = std::chrono::steady_clock::now() + duration;
         action_queue.clear();
-        first_segment_ever = false;
     }
     {
         std::lock_guard<std::mutex> lock(raw_mutex);
         raw_waypoint_queue.clear();
+        first_segment_ever = false;
     }
-    samples_to_skip = 0;
-    chunk_end_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(
-        std::chrono::steady_clock::now().time_since_epoch()).count();
+    {
+        std::lock_guard<std::mutex> lock(send_mutex);
+        samples_to_skip.store(0);
+        chunk_end_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(
+            std::chrono::steady_clock::now().time_since_epoch()).count();
+    }
 }
 
 template <size_t DOF>
@@ -250,10 +263,6 @@ void PolicyUDPHandler<DOF>::interpLoop() {
             samples_to_skip.fetch_sub(skip_now);
         }
 
-        std::lock_guard<std::mutex> lock(state_mutex);
-        if (std::chrono::steady_clock::now() < pause_until) {
-            continue;
-        }
         action_queue.insert(action_queue.end(),
                              std::make_move_iterator(new_samples.begin()),
                              std::make_move_iterator(new_samples.end()));
