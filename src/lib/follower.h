@@ -306,20 +306,16 @@ class Follower : public barrett::systems::System {
 
     void pollGripper() {
         while (io_running.load()) {
-            if (isLinked()) { // teleop only
-                float local_usr_gripper_pos = target_gripper_pos.load();
-                float local_policy_gripper_cmd = policy_gripper_cmd.load();
-                float local_current_gripper_pos = current_gripper_pos.load();
-                // operator can command an override
-                if (std::abs(local_usr_gripper_pos - local_current_gripper_pos) < 1e-3) {
-                    gripper->setPosition(local_policy_gripper_cmd);
-                } else {
-                    gripper->setPosition(local_usr_gripper_pos);
-                }
-                gripper->controlLoopCallback();
+            float local_usr_gripper_pos = target_gripper_pos.load();
+            float local_policy_gripper_cmd = policy_gripper_cmd.load();
+            float local_current_gripper_pos = current_gripper_pos.load();
+            // operator can command an override
+            if (std::abs(local_usr_gripper_pos - local_current_gripper_pos) < 1e-3) {
+                gripper->setPosition(local_policy_gripper_cmd);
             } else {
-                gripper->setVelocity(0.0f);
+                gripper->setPosition(local_usr_gripper_pos);
             }
+            gripper->controlLoopCallback();
 
             GripperState gripper_state = gripper->getLatestState();
             current_gripper_pos.store(gripper_state.position);

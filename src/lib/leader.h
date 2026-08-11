@@ -352,11 +352,12 @@ class Leader : public barrett::systems::System {
 
             float current_pos = remote_gripper_pos.load();
             float target_position = current_pos;
-
+            
+            // still position controlled. just send to max and min gripper pos
             if (bumper && !trigger) {
-                target_position = current_pos - gripper_speed;
+                target_position = -1;
             } else if (trigger && !bumper) {
-                target_position = current_pos + gripper_speed;
+                target_position = 1;
             }
 
             if (std::abs(target_position - current_pos) < 1e-3) {

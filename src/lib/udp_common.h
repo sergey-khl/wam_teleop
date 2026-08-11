@@ -132,7 +132,9 @@ public:
     // Latest interpolated action received from the policy (pops the front of the queue).
     boost::optional<PolicyReceivedData> getLatestPolicyReceived();
 
-    void clearQueueAndPause(std::chrono::milliseconds duration = std::chrono::milliseconds(1000));
+    void clearQueueAndPause(std::chrono::milliseconds duration = std::chrono::duration_cast<std::chrono::milliseconds>(
+        std::chrono::duration<double, std::milli>(ACTION_HORIZON * SEGMENT_DURATION_SEC * 1e3)));
+    void clearQueue();
 
  
     // Queue a PolicyPacket to be sent to the policy. No-op if inactive.
