@@ -138,10 +138,6 @@ template <size_t DOF> int wam_main(int argc, char **argv, ProductManager &pm, sy
 
     Follower<DOF> follower(pm.getExecutionManager(), &gripper, config);
 
-    jt_type maxRate; // Nm · s-1 per joint
-    maxRate << 50, 50, 50, 50;
-    systems::RateLimiter<jt_type> wamJPOutputRamp(maxRate, "ffRamp");
-
     // systems::PrintToStream<jt_type> printTOQ(pm.getExecutionManager(), "TOQ: ");
 
     // filters
