@@ -226,7 +226,7 @@ class Follower : public barrett::systems::System {
             }
 
             policyJp << clipped_jp;
-            // policy_gripper_cmd.store(static_cast<double>(policy_data->gripper_cmd));
+            policy_gripper_cmd.store(static_cast<double>(policy_data->gripper_cmd));
         }
         policyJpOutputValue->setData(&policyJp);
 
@@ -310,11 +310,7 @@ class Follower : public barrett::systems::System {
             float local_policy_gripper_cmd = policy_gripper_cmd.load();
             float local_current_gripper_pos = current_gripper_pos.load();
             // operator can command an override
-            if (std::abs(local_usr_gripper_pos - local_current_gripper_pos) < 1e-3) {
-                gripper->setPosition(local_policy_gripper_cmd);
-            } else {
-                gripper->setPosition(local_usr_gripper_pos);
-            }
+            gripper->setPosition(local_usr_gripper_pos);
             gripper->controlLoopCallback();
 
             GripperState gripper_state = gripper->getLatestState();

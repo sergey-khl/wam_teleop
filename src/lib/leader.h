@@ -350,8 +350,8 @@ class Leader : public barrett::systems::System {
                 cancel_policy.store(handle[2]); // up button on controller
             }
 
-            float current_pos = remote_gripper_pos.load();
-            float target_position = current_pos;
+            float current_cmd = desired_gripper_pos.load();
+            float target_position = current_cmd;
             
             // still position controlled. just send to max and min gripper pos
             if (bumper && !trigger) {
@@ -360,7 +360,7 @@ class Leader : public barrett::systems::System {
                 target_position = 1;
             }
 
-            if (std::abs(target_position - current_pos) < 1e-3) {
+            if (target_position == current_cmd) {
                 desired_gripper_pos.store(policy_gripper_cmd.load());
             } else {
                 desired_gripper_pos.store(target_position);
