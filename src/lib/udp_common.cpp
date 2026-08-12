@@ -55,7 +55,7 @@ void PolicyUDPHandler<DOF>::stop() {
 template <size_t DOF>
 boost::optional<PolicyReceivedData> PolicyUDPHandler<DOF>::getLatestPolicyReceived() {
     std::lock_guard<std::mutex> lock(state_mutex);
-    if (std::chrono::steady_clock::now() < pause_until) {
+    if ((action_queue.size() != 0 || raw_waypoint_queue.size() != 0) && std::chrono::steady_clock::now() < pause_until) {
         clearQueue();
     }
 

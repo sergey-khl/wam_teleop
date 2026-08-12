@@ -31,6 +31,7 @@ class Leader : public barrett::systems::System {
     Input<jt_type> wamDynIn;
     Input<jt_type> policyJtIn;
     Input<jt_type> policyTorqueScaleIn;
+    Input<jt_type> humanExtTorqueIn;
 
     Output<jt_type> wamJTOutput;      // control torque command for the WAM arm (DOF)
     Output<jp_type> theirJPOutput;    // peer arm JP (DOF) for logging/monitoring
@@ -57,6 +58,7 @@ class Leader : public barrett::systems::System {
         , wamDynIn(this)
         , policyJtIn(this)
         , policyTorqueScaleIn(this)
+        , humanExtTorqueIn(this)
         , wamJTOutput(this, &jtOutputValue)
         , theirJPOutput(this, &theirJPOutputValue)
         , policyJPOutput(this, &policyJPOutputValue)
@@ -112,6 +114,7 @@ class Leader : public barrett::systems::System {
     jv_type wamJV;
     boost::tuple<cp_type, Eigen::Quaterniond> wamTP;
     jt_type extTorque;
+    jt_type humanExtTorque;
     jt_type wamGrav;
     jt_type wamDyn;
     jp_type policyJp;
@@ -247,6 +250,12 @@ class Leader : public barrett::systems::System {
         }
         sendExtTorqueMsg << extTorque;
 
+        if (humanExtTorqueIn.valueDefined()) {
+            humanExtTorque = humanExtTorqueIn.getValue();
+        } else {
+            humanExtTorque.setZero();
+        }
+
 
         if (policyJtIn.valueDefined()) {
             policyJt = policyJtIn.getValue();
@@ -260,14 +269,12 @@ class Leader : public barrett::systems::System {
             policyTorqueScale << 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0;
         }
 
-        policyJt = policyTorqueScale.asDiagonal() * policyJt;
-
         // State machine
         if (isLinked()) {
             control = compute_control(
                 theirJp, theirJv, theirExtTorque,
                 wamJP,   wamJV,   extTorque,
-                wamGrav, wamDyn, policyJt
+                wamGrav, wamDyn, policyTorqueScale.asDiagonal() * policyJt
             );
             jtOutputValue->setData(&control);
         } else {
@@ -301,10 +308,10 @@ class Leader : public barrett::systems::System {
             // std::cout << "  -> leader Tool Quat: [" << toolQ.w() << " " << toolQ.x() << " " << toolQ.y() << " " << toolQ.z() << "]\n";
             // std::cout << "  -> follower Tool Pos:  [" << theirToolPos.transpose() << "]\n";
             // std::cout << "  -> follower Tool Quat: [" << theirToolQ.w() << " " << theirToolQ.x() << " " << theirToolQ.y() << " " << theirToolQ.z() << "]\n";
-            std::cout << "  -> policy jp:      [" << policyJp.transpose() << "]\n";
+            // std::cout << "  -> policy jp:      [" << policyJp.transpose() << "]\n";
             std::cout << "  -> policy jt:      [" << policyJt.transpose() << "]\n";
-            // std::cout << "  -> policy norm:[" << normalized_ext_torque.transpose() << "]\n";
             std::cout << "  -> policy scale:[" << policyTorqueScale.transpose() << "]\n";
+            std::cout << "  -> human jt:    [" << humanExtTorque.transpose() << "]\n";
             // std::cout << "  -> leader control: [" << compute_control(theirJp, theirJv, theirExtTorque, wamJP, wamJV, extTorque, wamGrav, wamDyn, policyTorque) << "]\n\n";
             // std::cout << "  -> dyn: [" << wamDyn.transpose() << "]\n\n";
             // std::cout << "  -> Their wrist:  " << theirWristJp.transpose() << "\n";
@@ -344,8 +351,7 @@ class Leader : public barrett::systems::System {
                 cancel_policy.store(handle[2]); // up button on controller
             }
 
-            float current_cmd = desired_gripper_pos.load();
-            float target_position = current_cmd;
+            float target_position = desired_gripper_pos.load();
             
             // still position controlled. just send to max and min gripper pos
             if (bumper && !trigger) {
@@ -354,11 +360,7 @@ class Leader : public barrett::systems::System {
                 target_position = 1;
             }
 
-            if (target_position == current_cmd) {
-                desired_gripper_pos.store(policy_gripper_cmd.load());
-            } else {
-                desired_gripper_pos.store(target_position);
-            }
+            desired_gripper_pos.store(target_position);
 
             float remote_torque = remote_gripper_torque.load(); // TODO: do something with this.
 

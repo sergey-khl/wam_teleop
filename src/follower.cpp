@@ -30,7 +30,7 @@
 #include "lib/background_state_publisher.h"
 #include "lib/follower_dynamics_4dof.h"
 #include "lib/dynamic_external_torque.h"
-#include "lib/policy_external_torque.h"
+#include "lib/policy_torque.h"
 #include "lib/follower_vertical_dynamics.h"
 // #include "lib/trajectory_smoother.h"
 
@@ -112,7 +112,7 @@ template <size_t DOF> int wam_main(int argc, char **argv, ProductManager &pm, sy
 
     FollowerDynamics<DOF> followerDynamics(pm.getExecutionManager());
     DynamicExternalTorque<DOF> dynamicExternalTorque(pm.getExecutionManager());
-    PolicyExternalTorque<DOF> policyExternalTorque(pm.getExecutionManager());
+    PolicyTorque<DOF> policyTorque(pm.getExecutionManager());
 
     FollowerDynamics<DOF>* horizontalGravity = nullptr;
     FollowerVerticalDynamics<DOF>* followerVerticalDynamics = nullptr;
@@ -175,7 +175,7 @@ template <size_t DOF> int wam_main(int argc, char **argv, ProductManager &pm, sy
     // follower info
     systems::connect(wam.jpOutput, follower.wamJPIn);
     systems::connect(wam.jvOutput, follower.wamJVIn);
-    systems::connect(policyExternalTorque.output, follower.extTorqueIn);
+    systems::connect(dynamicExternalTorque.wamExternalTorqueOut, follower.extTorqueIn);
     systems::connect(wam.gravity.output, follower.wamGravIn);
     systems::connect(wam.toolPose.output, follower.wamTPIn);
     systems::connect(policy_controller.controlOutput, follower.policyJtIn);
@@ -199,10 +199,10 @@ template <size_t DOF> int wam_main(int argc, char **argv, ProductManager &pm, sy
     }
 
     // remove policy torque from external torque
-    systems::connect(dynamicExternalTorque.wamExternalTorqueOut, policyExternalTorque.wamExtTorqueIn);
-    // systems::connect(extFilter.output, policyExternalTorque.wamExtTorqueIn);
-    systems::connect(policy_controller.controlOutput, policyExternalTorque.policyExtTorqueIn);
-    systems::connect(follower.policyTorqueScaleOutput, policyExternalTorque.policyTorqueScaleIn);
+    // systems::connect(dynamicExternalTorque.wamExternalTorqueOut, policyExternalTorque.wamExtTorqueIn);
+    // // systems::connect(extFilter.output, policyExternalTorque.wamExtTorqueIn);
+    // systems::connect(policy_controller.controlOutput, policyExternalTorque.policyExtTorqueIn);
+    // systems::connect(follower.policyTorqueScaleOutput, policyExternalTorque.policyTorqueScaleIn);
 
     // filter torques
     systems::connect(dynamicExternalTorque.wamExternalTorqueOut, extFilter.input);

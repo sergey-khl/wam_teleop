@@ -245,10 +245,8 @@ class Follower : public barrett::systems::System {
             policyJt << 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0;
         }
 
-        policyJt = policyTorqueScale.asDiagonal() * policyJt;
-
         if (isLinked()) {
-            control = compute_control(theirJp, theirJv, theirExtTorque, wamJP, wamJV, extTorque, wamGrav, wamDyn, policyJt);
+            control = compute_control(theirJp, theirJv, theirExtTorque, wamJP, wamJV, extTorque, wamGrav, wamDyn, policyTorqueScale.asDiagonal() * policyJt);
             jtOutputValue->setData(&control);
         } else {
             control.setZero();
@@ -265,7 +263,7 @@ class Follower : public barrett::systems::System {
         // auto send_end = std::chrono::steady_clock::now();
         // double send_dt = std::chrono::duration<double, std::milli>(send_end - send_start).count();
 
-        if (++loop_counter % 30 == 0) {
+        if (++loop_counter % 50 == 0) {
             std::cout << std::fixed << std::setprecision(3);
 
             // std::cout << "[FOLLOWER] Loop dt: " << loop_dt
@@ -308,7 +306,6 @@ class Follower : public barrett::systems::System {
         while (io_running.load()) {
             float local_usr_gripper_pos = target_gripper_pos.load();
             float local_policy_gripper_cmd = policy_gripper_cmd.load();
-            float local_current_gripper_pos = current_gripper_pos.load();
             // operator can command an override
             gripper->setPosition(local_usr_gripper_pos);
             gripper->controlLoopCallback();

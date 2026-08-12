@@ -29,8 +29,7 @@
 #include "lib/background_state_publisher.h"
 #include "lib/leader_dynamics_4dof.h"
 #include "lib/dynamic_external_torque.h"
-#include "lib/policy_external_torque.h"
-#include "lib/policy_torque_scale.h"
+#include "lib/policy_torque.h"
 #include "lib/leader_vertical_dynamics.h"
 
 using namespace barrett;
@@ -103,8 +102,7 @@ int wam_main(int argc, char **argv, ProductManager &pm, systems::Wam<DOF> &wam) 
 
     LeaderDynamics<DOF> leaderDynamics(pm.getExecutionManager());
     DynamicExternalTorque<DOF> dynamicExternalTorque(pm.getExecutionManager());
-    PolicyExternalTorque<DOF> policyExternalTorque(pm.getExecutionManager());
-    PolicyTorqueScale<DOF> policyTorqueScale(pm.getExecutionManager());
+    PolicyTorque<DOF> policyTorque(pm.getExecutionManager());
 
     LeaderDynamics<DOF>* horizontalGravity = nullptr;
     LeaderVerticalDynamics<DOF>* leaderVerticalDynamics = nullptr;
@@ -129,11 +127,7 @@ int wam_main(int argc, char **argv, ProductManager &pm, systems::Wam<DOF> &wam) 
 
     Leader<DOF> leader(pm.getExecutionManager(), &handle, config);
 
-    jt_type maxRate;
-    maxRate << 0.01, 0.01, 0.01, 0.01;
-    systems::RateLimiter<jt_type> policyTorqueScaleRamp(maxRate, "ffRamp");
-
-    // systems::PrintToStream<jt_type> printTOQ(pm.getExecutionManager(), "TOQ: ");
+    systems::PrintToStream<jt_type> printTOQ(pm.getExecutionManager(), "TOQ: ");
 
     double h_omega_p = 25.0;
     barrett::systems::FirstOrderFilter<jv_type> hp1;
@@ -170,11 +164,12 @@ int wam_main(int argc, char **argv, ProductManager &pm, systems::Wam<DOF> &wam) 
     // leader info
     systems::connect(wam.jpOutput, leader.wamJPIn);
     systems::connect(wam.jvOutput, leader.wamJVIn);
-    systems::connect(policyExternalTorque.output, leader.extTorqueIn);
+    systems::connect(dynamicExternalTorque.wamExternalTorqueOut, leader.extTorqueIn);
     systems::connect(wam.gravity.output, leader.wamGravIn);
     systems::connect(wam.toolPose.output, leader.wamTPIn);
     systems::connect(policy_controller.controlOutput, leader.policyJtIn);
-    systems::connect(policyTorqueScaleRamp.output, leader.policyTorqueScaleIn);
+    systems::connect(policyTorque.policyTorqueScaleOutput, leader.policyTorqueScaleIn);
+    systems::connect(policyTorque.humanExtTorqueOutput, leader.humanExtTorqueIn);
     if (config.leader.vertical) {
         systems::connect(leaderVerticalDynamics->leaderVerticalDynamicsOut, leader.wamDynIn);
     } else {
@@ -195,20 +190,18 @@ int wam_main(int argc, char **argv, ProductManager &pm, systems::Wam<DOF> &wam) 
     }
 
     // remove policy torque from external torque
-    systems::connect(dynamicExternalTorque.wamExternalTorqueOut, policyExternalTorque.wamExtTorqueIn);
     // systems::connect(extFilter.output, policyExternalTorque.wamExtTorqueIn);
-    systems::connect(policy_controller.controlOutput, policyExternalTorque.policyExtTorqueIn);
-    systems::connect(policyTorqueScaleRamp.output, policyExternalTorque.policyTorqueScaleIn);
 
-    // rate limit the scale
-    systems::connect(policyExternalTorque.output, policyTorqueScale.humanExtTorqueIn);
-    systems::connect(policyTorqueScale.output, policyTorqueScaleRamp.input);
+    // find and rate limit the scale
+    systems::connect(dynamicExternalTorque.wamExternalTorqueOut, policyTorque.wamExtTorqueIn);
+    systems::connect(policy_controller.controlOutput, policyTorque.policyExtTorqueIn);
 
     // filter torques
     systems::connect(dynamicExternalTorque.wamExternalTorqueOut, extFilter.input);
 
     systems::connect(leader.policyJPOutput, policy_controller.referenceInput);
     systems::connect(wam.jpOutput, policy_controller.feedbackInput);
+
 
     wam.gravityCompensate();
 
