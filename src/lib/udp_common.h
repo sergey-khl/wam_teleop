@@ -16,7 +16,7 @@
  
 
 static constexpr int ACTION_HORIZON = 8;
-static constexpr double SEGMENT_DURATION_SEC = 0.1;
+static constexpr double SEGMENT_DURATION_SEC = 0.5;
 static constexpr double INTERP_HZ = 500.0;
 static constexpr double UNINTERP_HZ = 10.0;
 

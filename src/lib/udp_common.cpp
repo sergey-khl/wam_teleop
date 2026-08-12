@@ -203,6 +203,12 @@ void PolicyUDPHandler<DOF>::receiveLoop() {
             continue;
         }
 
+        // dont add any received actions if we are still paused
+        std::lock_guard<std::mutex> lock(state_mutex);
+        if (std::chrono::steady_clock::now() < pause_until) {
+            continue;
+        }
+
         samples_to_skip = static_cast<uint64_t>(pkt.time_to_skip / (1e9 / INTERP_HZ));
  
         int64_t nominal_duration_ns = static_cast<int64_t>(ACTION_HORIZON * SEGMENT_DURATION_SEC * 1e9);
