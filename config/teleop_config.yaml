@@ -28,6 +28,7 @@ policy:
   # integrator_limit: [0, 0, 0, 0, 0, 0, 0]
 
   # only one of these should be true. Whether leader or follower sends the data to the policy
+  # NOTE: maybe kinda broken right now. policy scales are determined by the leader only
   on_leader: true
   on_follower: false
 

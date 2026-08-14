@@ -73,9 +73,10 @@ boost::optional<PolicyReceivedData> PolicyUDPHandler<DOF>::getLatestPolicyReceiv
 
 template <size_t DOF>
 void PolicyUDPHandler<DOF>::send(const jp_type& follower_jp, const jv_type& follower_jv,
-                                          const jt_type& follower_extTorque, const jp_type& leader_jp,
-                                          const jv_type& leader_jv, const jt_type& leader_extTorque,
-                                          const jt_type& policyTorqueScale, const jt_type& policyJt,
+                                          const jt_type& follower_dyngravcomp_torque, const jt_type& follower_human_torque,
+                                          const jp_type& leader_jp, const jv_type& leader_jv,
+                                          const jt_type& leader_dyngravcomp_torque, const jt_type& leader_human_torque,
+                                          const jp_type& policyJp, const jt_type& policyJt, const jt_type& policyTorqueScale,
                                           const Eigen::Vector3d& follower_cart_pos, const Eigen::Quaterniond& follower_quat,
                                           const Eigen::Vector3d& leader_cart_pos, const Eigen::Quaterniond& leader_quat,
                                           double gripper_pos, double gripper_vel, double gripper_torque,
@@ -91,12 +92,15 @@ void PolicyUDPHandler<DOF>::send(const jp_type& follower_jp, const jv_type& foll
 
         std::memcpy(pending_packet.follower_jp, follower_jp.data(), sizeof(double) * DOF);
         std::memcpy(pending_packet.follower_jv, follower_jv.data(), sizeof(double) * DOF);
-        std::memcpy(pending_packet.follower_extTorque, follower_extTorque.data(), sizeof(double) * DOF);
+        std::memcpy(pending_packet.follower_dyngravcomp_torque, follower_dyngravcomp_torque.data(), sizeof(double) * DOF);
+        std::memcpy(pending_packet.follower_human_torque, follower_human_torque.data(), sizeof(double) * DOF);
         std::memcpy(pending_packet.leader_jp, leader_jp.data(), sizeof(double) * DOF);
         std::memcpy(pending_packet.leader_jv, leader_jv.data(), sizeof(double) * DOF);
-        std::memcpy(pending_packet.leader_extTorque, leader_extTorque.data(), sizeof(double) * DOF);
-        std::memcpy(pending_packet.policyTorqueScale, policyTorqueScale.data(), sizeof(double) * DOF);
+        std::memcpy(pending_packet.leader_dyngravcomp_torque, leader_dyngravcomp_torque.data(), sizeof(double) * DOF);
+        std::memcpy(pending_packet.leader_human_torque, leader_human_torque.data(), sizeof(double) * DOF);
+        std::memcpy(pending_packet.policyJp, policyJp.data(), sizeof(double) * DOF);
         std::memcpy(pending_packet.policyJt, policyJt.data(), sizeof(double) * DOF);
+        std::memcpy(pending_packet.policyTorqueScale, policyTorqueScale.data(), sizeof(double) * DOF);
         pending_packet.follower_cart_pos[0] = follower_cart_pos.x();
         pending_packet.follower_cart_pos[1] = follower_cart_pos.y();
         pending_packet.follower_cart_pos[2] = follower_cart_pos.z();

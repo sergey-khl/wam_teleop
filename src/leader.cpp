@@ -164,12 +164,12 @@ int wam_main(int argc, char **argv, ProductManager &pm, systems::Wam<DOF> &wam) 
     // leader info
     systems::connect(wam.jpOutput, leader.wamJPIn);
     systems::connect(wam.jvOutput, leader.wamJVIn);
-    systems::connect(dynamicExternalTorque.wamExternalTorqueOut, leader.extTorqueIn);
+    systems::connect(dynamicExternalTorque.wamExternalTorqueOut, leader.dyngravcompTorqueIn);
     systems::connect(wam.gravity.output, leader.wamGravIn);
     systems::connect(wam.toolPose.output, leader.wamTPIn);
     systems::connect(policy_controller.controlOutput, leader.policyJtIn);
     systems::connect(policyTorque.policyTorqueScaleOutput, leader.policyTorqueScaleIn);
-    systems::connect(policyTorque.humanExtTorqueOutput, leader.humanExtTorqueIn);
+    systems::connect(policyTorque.humanExtTorqueOutput, leader.humanTorqueIn);
     if (config.leader.vertical) {
         systems::connect(leaderVerticalDynamics->leaderVerticalDynamicsOut, leader.wamDynIn);
     } else {
@@ -197,8 +197,9 @@ int wam_main(int argc, char **argv, ProductManager &pm, systems::Wam<DOF> &wam) 
     systems::connect(policy_controller.controlOutput, policyTorque.policyExtTorqueIn);
 
     // filter torques
-    systems::connect(dynamicExternalTorque.wamExternalTorqueOut, extFilter.input);
+    // systems::connect(dynamicExternalTorque.wamExternalTorqueOut, extFilter.input);
 
+    // policy impedance control
     systems::connect(leader.policyJPOutput, policy_controller.referenceInput);
     systems::connect(wam.jpOutput, policy_controller.feedbackInput);
 

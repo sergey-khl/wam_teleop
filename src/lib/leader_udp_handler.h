@@ -30,7 +30,8 @@ public:
     boost::optional<TeleopReceivedData> getLatestTeleopReceived();
 
     // Queue a LeaderToFollowerPacket to be sent to the follower.
-    void send(const jp_type& jp, const jv_type& jv, const jt_type& extTorque,
+    void send(const jp_type& jp, const jv_type& jv,
+              const jt_type& dyngravcompTorque, const jt_type& humanTorque,
               const cp_type& cart_pos, const Eigen::Quaterniond& quat,
               const jt_type& policyTorqueScale,
               double gripper_cmd, double cancel_policy, uint64_t timestamp);

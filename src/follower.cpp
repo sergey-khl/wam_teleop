@@ -175,10 +175,11 @@ template <size_t DOF> int wam_main(int argc, char **argv, ProductManager &pm, sy
     // follower info
     systems::connect(wam.jpOutput, follower.wamJPIn);
     systems::connect(wam.jvOutput, follower.wamJVIn);
-    systems::connect(dynamicExternalTorque.wamExternalTorqueOut, follower.extTorqueIn);
+    systems::connect(dynamicExternalTorque.wamExternalTorqueOut, follower.dyngravcompTorqueIn);
     systems::connect(wam.gravity.output, follower.wamGravIn);
     systems::connect(wam.toolPose.output, follower.wamTPIn);
     systems::connect(policy_controller.controlOutput, follower.policyJtIn);
+    systems::connect(policyTorque.humanExtTorqueOutput, follower.humanTorqueIn);
     if (config.follower.vertical) {
         systems::connect(followerVerticalDynamics->followerVerticalDynamicsOut, follower.wamDynIn);
     } else {
@@ -198,15 +199,14 @@ template <size_t DOF> int wam_main(int argc, char **argv, ProductManager &pm, sy
         systems::connect(followerDynamics.dynamicsFeedFWD, dynamicExternalTorque.wamDynamicsIn);
     }
 
-    // remove policy torque from external torque
-    // systems::connect(dynamicExternalTorque.wamExternalTorqueOut, policyExternalTorque.wamExtTorqueIn);
-    // // systems::connect(extFilter.output, policyExternalTorque.wamExtTorqueIn);
-    // systems::connect(policy_controller.controlOutput, policyExternalTorque.policyExtTorqueIn);
-    // systems::connect(follower.policyTorqueScaleOutput, policyExternalTorque.policyTorqueScaleIn);
+    // find and rate limit the scale
+    systems::connect(dynamicExternalTorque.wamExternalTorqueOut, policyTorque.wamExtTorqueIn);
+    systems::connect(policy_controller.controlOutput, policyTorque.policyExtTorqueIn);
 
     // filter torques
-    systems::connect(dynamicExternalTorque.wamExternalTorqueOut, extFilter.input);
+    // systems::connect(dynamicExternalTorque.wamExternalTorqueOut, extFilter.input);
 
+    // policy impedance control
     systems::connect(follower.policyJpOutput, policy_controller.referenceInput);
     systems::connect(wam.jpOutput, policy_controller.feedbackInput);
 
