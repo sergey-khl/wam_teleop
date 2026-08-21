@@ -16,7 +16,7 @@
  
 
 static constexpr int ACTION_HORIZON = 8;
-static constexpr double SEGMENT_DURATION_SEC = 0.5;
+static constexpr double SEGMENT_DURATION_SEC = 0.1;
 static constexpr double INTERP_HZ = 500.0;
 static constexpr double UNINTERP_HZ = 10.0;
 
@@ -29,6 +29,7 @@ struct LeaderToFollowerPacket {
     double jv[DOF];
     double dyngravcompTorque[DOF];
     double humanTorque[DOF];
+    double filteredHumanTorque[DOF];
     double cart_pos[3];   // x, y, z
     double quat[4];   // w, x, y, z
     double policyTorqueScale[DOF];
@@ -42,7 +43,8 @@ struct FollowerToLeaderPacket {
     double jp[DOF];
     double jv[DOF];
     double dyngravcompTorque[DOF];
-    double humanTorque[DOF];
+    double environmentTorque[DOF];
+    double filteredEnvironmentTorque[DOF];
     double cart_pos[3];   // x, y, z
     double quat[4];   // w, x, y, z
     double gripper_torque;
@@ -57,11 +59,13 @@ struct PolicyPacket {
     double follower_jp[DOF];
     double follower_jv[DOF];
     double follower_dyngravcomp_torque[DOF];
-    double follower_human_torque[DOF]; // compensating dynamics, gravity and policy
+    double environment_torque[DOF]; // compensating dynamics, gravity and policy
+    double filtered_environment_torque[DOF]; // compensating dynamics, gravity and policy
     double leader_jp[DOF];
     double leader_jv[DOF];
     double leader_dyngravcomp_torque[DOF];
-    double leader_human_torque[DOF]; // compensating dynamics, gravity and policy
+    double human_torque[DOF]; // compensating dynamics, gravity and policy
+    double filtered_human_torque[DOF]; // compensating dynamics, gravity and policy
     double policyJp[DOF]; // latest recived policy command. Clipped
     double policyJt[DOF]; // policy torque to be executed
     double policyTorqueScale[DOF]; // (0, 1)
@@ -94,7 +98,8 @@ struct LeaderReceivedData {
     Eigen::Matrix<double, DOF, 1> jp;
     Eigen::Matrix<double, DOF, 1> jv;
     Eigen::Matrix<double, DOF, 1> dyngravcompTorque;
-    Eigen::Matrix<double, DOF, 1> humanTorque;
+    Eigen::Matrix<double, DOF, 1> environmentTorque;
+    Eigen::Matrix<double, DOF, 1> filteredEnvironmentTorque;
     Eigen::Matrix<double, 3, 1> cart_pos;
     Eigen::Quaterniond quat;
     double gripper_torque;
@@ -109,6 +114,7 @@ struct FollowerReceivedData {
     Eigen::Matrix<double, DOF, 1> jv;
     Eigen::Matrix<double, DOF, 1> dyngravcompTorque;
     Eigen::Matrix<double, DOF, 1> humanTorque;
+    Eigen::Matrix<double, DOF, 1> filteredHumanTorque;
     Eigen::Matrix<double, 3, 1> cart_pos;
     Eigen::Quaterniond quat;
     Eigen::Matrix<double, DOF, 1> policyTorqueScale;
@@ -147,9 +153,9 @@ public:
  
     // Queue a PolicyPacket to be sent to the policy. No-op if inactive.
     void send(const jp_type& follower_jp, const jv_type& follower_jv,
-                       const jt_type& follower_dyngravcomp_torque, const jt_type& follower_human_torque,
+                       const jt_type& follower_dyngravcomp_torque, const jt_type& environment_torque, const jt_type& filtered_environment_torque,
                        const jp_type& leader_jp, const jv_type& leader_jv,
-                       const jt_type& leader_dyngravcomp_torque, const jt_type& leader_human_torque,
+                       const jt_type& leader_dyngravcomp_torque, const jt_type& human_torque, const jt_type& filtered_human_torque,
                        const jp_type& policyjp, const jt_type& policyJt, const jt_type& policyTorqueScale,
                        const Eigen::Vector3d& follower_cart_pos, const Eigen::Quaterniond& follower_quat,
                        const Eigen::Vector3d& leader_cart_pos, const Eigen::Quaterniond& leader_quat,

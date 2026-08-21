@@ -32,6 +32,7 @@ class Leader : public barrett::systems::System {
     Input<jt_type> policyJtIn;
     Input<jt_type> policyTorqueScaleIn;
     Input<jt_type> humanTorqueIn;
+    Input<jt_type> filteredHumanTorqueIn;
 
     Output<jt_type> wamJTOutput;      // control torque command for the WAM arm (DOF)
     Output<jp_type> theirJPOutput;    // peer arm JP (DOF) for logging/monitoring
@@ -47,7 +48,7 @@ class Leader : public barrett::systems::System {
         , theirJp(0.0)
         , theirJv(0.0)
         , theirDyngravcompTorque(0.0)
-        , theirHumanTorque(0.0)
+        , environmentTorque(0.0)
         , theirToolPos(0.0)
         , theirToolQ(1, 0, 0, 0)
         , control(0.0)
@@ -60,6 +61,7 @@ class Leader : public barrett::systems::System {
         , policyJtIn(this)
         , policyTorqueScaleIn(this)
         , humanTorqueIn(this)
+        , filteredHumanTorqueIn(this)
         , wamJTOutput(this, &jtOutputValue)
         , theirJPOutput(this, &theirJPOutputValue)
         , policyJPOutput(this, &policyJPOutputValue)
@@ -116,6 +118,7 @@ class Leader : public barrett::systems::System {
     boost::tuple<cp_type, Eigen::Quaterniond> wamTP;
     jt_type dyngravcompTorque;
     jt_type humanTorque;
+    jt_type filteredHumanTorque;
     jt_type wamGrav;
     jt_type wamDyn;
     jp_type policyJp;
@@ -173,7 +176,8 @@ class Leader : public barrett::systems::System {
             theirJp        = received_data->jp;
             theirJv        = received_data->jv;
             theirDyngravcompTorque = received_data->dyngravcompTorque;
-            theirHumanTorque = received_data->humanTorque;
+            environmentTorque = received_data->environmentTorque;
+            filteredEnvironmentTorque = received_data->filteredEnvironmentTorque;
             theirToolPos = received_data->cart_pos.template head<3>();
             theirToolQ = received_data->quat;
             remote_gripper_torque.store(static_cast<double>(received_data->gripper_torque));
@@ -186,7 +190,8 @@ class Leader : public barrett::systems::System {
                 theirJp[i] = (theirJp[i] - config.sync_mapping.offsets[i]) / config.sync_mapping.scales[i];
                 theirJv[i] = theirJv[i] / config.sync_mapping.scales[i];
                 theirDyngravcompTorque[i] = theirDyngravcompTorque[i] / config.sync_mapping.scales[i];
-                theirHumanTorque[i] = theirHumanTorque[i] / config.sync_mapping.scales[i];
+                environmentTorque[i] = environmentTorque[i] / config.sync_mapping.scales[i];
+                filteredEnvironmentTorque[i] = filteredEnvironmentTorque[i] / config.sync_mapping.scales[i];
             }
 
             theirJPOutputValue->setData(&theirJp);
@@ -261,6 +266,11 @@ class Leader : public barrett::systems::System {
         }
         sendHumanTorqueMsg << humanTorque;
 
+        if (filteredHumanTorqueIn.valueDefined()) {
+            filteredHumanTorque = filteredHumanTorqueIn.getValue();
+        } else {
+            filteredHumanTorque.setZero();
+        }
 
         if (policyJtIn.valueDefined()) {
             policyJt = policyJtIn.getValue();
@@ -277,7 +287,7 @@ class Leader : public barrett::systems::System {
         // State machine
         if (isLinked()) {
             control = compute_control(
-                theirJp, theirJv, theirHumanTorque,
+                theirJp, theirJv, environmentTorque,
                 wamJP,   wamJV,   humanTorque,
                 wamGrav, wamDyn, policyTorqueScale.asDiagonal() * policyJt
             );
@@ -287,12 +297,13 @@ class Leader : public barrett::systems::System {
             jtOutputValue->setData(&control);
         }
 
+        sendHumanTorqueMsg << humanTorque;
 
         uint64_t loop_start = std::chrono::duration_cast<std::chrono::nanoseconds>(now_op.time_since_epoch()).count();
         auto send_start = std::chrono::steady_clock::now();
-        teleop_udp_handler.send(sendJpMsg, sendJvMsg, sendDyngravcompTorqueMsg, sendHumanTorqueMsg, toolPos, toolQ, policyTorqueScale, static_cast<double>(desired_gripper_pos.load()), static_cast<double>(cancel_policy.load()), loop_start);
+        teleop_udp_handler.send(sendJpMsg, sendJvMsg, sendDyngravcompTorqueMsg, sendHumanTorqueMsg, filteredHumanTorque, toolPos, toolQ, policyTorqueScale, static_cast<double>(desired_gripper_pos.load()), static_cast<double>(cancel_policy.load()), loop_start);
         // see how on_leader is used for the magic
-        policy_udp_handler.send(theirJp, theirJv, theirDyngravcompTorque, theirHumanTorque, sendJpMsg, sendJvMsg, sendDyngravcompTorqueMsg, sendHumanTorqueMsg, policyJp, policyJt, policyTorqueScale, theirToolPos, theirToolQ, toolPos, toolQ, static_cast<double>(remote_gripper_pos.load()), static_cast<double>(remote_gripper_vel.load()), static_cast<double>(remote_gripper_pos.load()), loop_start);
+        policy_udp_handler.send(theirJp, theirJv, theirDyngravcompTorque, environmentTorque, filteredEnvironmentTorque, sendJpMsg, sendJvMsg, sendDyngravcompTorqueMsg, sendHumanTorqueMsg, filteredHumanTorque, policyJp, policyJt, policyTorqueScale, theirToolPos, theirToolQ, toolPos, toolQ, static_cast<double>(remote_gripper_pos.load()), static_cast<double>(remote_gripper_vel.load()), static_cast<double>(remote_gripper_pos.load()), loop_start);
         auto send_end = std::chrono::steady_clock::now();
         double send_dt = std::chrono::duration<double, std::milli>(send_end - send_start).count();
 
@@ -336,7 +347,8 @@ class Leader : public barrett::systems::System {
     jp_type theirJp;
     jv_type theirJv;
     jt_type theirDyngravcompTorque;
-    jt_type theirHumanTorque;
+    jt_type environmentTorque;
+    jt_type filteredEnvironmentTorque;
     cp_type theirToolPos;
     jt_type policyTorqueScale;
     jt_type normalized_ext_torque;

@@ -169,7 +169,8 @@ int wam_main(int argc, char **argv, ProductManager &pm, systems::Wam<DOF> &wam) 
     systems::connect(wam.toolPose.output, leader.wamTPIn);
     systems::connect(policy_controller.controlOutput, leader.policyJtIn);
     systems::connect(policyTorque.policyTorqueScaleOutput, leader.policyTorqueScaleIn);
-    systems::connect(policyTorque.humanExtTorqueOutput, leader.humanTorqueIn);
+    systems::connect(policyTorque.extTorqueOutput, leader.humanTorqueIn);
+    systems::connect(extFilter.output, leader.filteredHumanTorqueIn);
     if (config.leader.vertical) {
         systems::connect(leaderVerticalDynamics->leaderVerticalDynamicsOut, leader.wamDynIn);
     } else {
@@ -189,15 +190,12 @@ int wam_main(int argc, char **argv, ProductManager &pm, systems::Wam<DOF> &wam) 
         systems::connect(leaderDynamics.dynamicsFeedFWD, dynamicExternalTorque.wamDynamicsIn);
     }
 
-    // remove policy torque from external torque
-    // systems::connect(extFilter.output, policyExternalTorque.wamExtTorqueIn);
-
     // find and rate limit the scale
     systems::connect(dynamicExternalTorque.wamExternalTorqueOut, policyTorque.wamExtTorqueIn);
     systems::connect(policy_controller.controlOutput, policyTorque.policyExtTorqueIn);
 
     // filter torques
-    // systems::connect(dynamicExternalTorque.wamExternalTorqueOut, extFilter.input);
+    systems::connect(policyTorque.extTorqueOutput, extFilter.input);
 
     // policy impedance control
     systems::connect(leader.policyJPOutput, policy_controller.referenceInput);

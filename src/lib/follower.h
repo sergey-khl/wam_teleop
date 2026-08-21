@@ -32,7 +32,8 @@ class Follower : public barrett::systems::System {
     Input<jt_type> wamGravIn;
     Input<jt_type> wamDynIn;
     Input<jt_type> policyJtIn;
-    Input<jt_type> humanTorqueIn;
+    Input<jt_type> environmentTorqueIn;
+    Input<jt_type> filteredEnvironmentTorqueIn;
 
     Output<jt_type> wamJTOutput;
     Output<jp_type> theirJPOutput;
@@ -48,7 +49,7 @@ class Follower : public barrett::systems::System {
         , theirJp(0.0)
         , theirJv(0.0)
         , theirDyngravcompTorque(0.0)
-        , theirHumanTorque(0.0)
+        , environmentTorque(0.0)
         , theirToolPos(0.0)
         , theirToolQ(1, 0, 0, 0)
         , control(0.0)
@@ -56,7 +57,8 @@ class Follower : public barrett::systems::System {
         , wamJVIn(this)
         , wamTPIn(this)
         , policyJtIn(this)
-        , humanTorqueIn(this)
+        , environmentTorqueIn(this)
+        , filteredEnvironmentTorqueIn(this)
         , dyngravcompTorqueIn(this)
         , wamGravIn(this)
         , wamDynIn(this)
@@ -108,7 +110,8 @@ class Follower : public barrett::systems::System {
     jv_type wamJV;
     boost::tuple<cp_type, Eigen::Quaterniond> wamTP;
     jt_type dyngravcompTorque;
-    jt_type humanTorque;
+    jt_type environmentTorque;
+    jt_type filteredEnvironmentTorque;
     jt_type wamGrav;
     jt_type wamDyn;
     jt_type policyJt;
@@ -117,7 +120,7 @@ class Follower : public barrett::systems::System {
     Eigen::Matrix<double, DOF, 1> sendJpMsg;
     Eigen::Matrix<double, DOF, 1> sendJvMsg;
     Eigen::Matrix<double, DOF, 1> sendDyngravcompTorqueMsg;
-    Eigen::Matrix<double, DOF, 1> sendHumanTorqueMsg;
+    Eigen::Matrix<double, DOF, 1> sendEnvironmentTorqueMsg;
 
     TeleopConfig config;
     
@@ -154,7 +157,8 @@ class Follower : public barrett::systems::System {
             theirJp = teleop_data->jp;
             theirJv = teleop_data->jv;
             theirDyngravcompTorque = teleop_data->dyngravcompTorque;
-            theirHumanTorque = teleop_data->humanTorque;
+            humanTorque = teleop_data->humanTorque;
+            filteredHumanTorque = teleop_data->filteredHumanTorque;
             theirToolPos = teleop_data->cart_pos.template head<3>();
             theirToolQ = teleop_data->quat;
             policyTorqueScale << teleop_data->policyTorqueScale;
@@ -166,7 +170,8 @@ class Follower : public barrett::systems::System {
                 theirJp[i] = theirJp[i] * config.sync_mapping.scales[i] + config.sync_mapping.offsets[i];
                 theirJv[i] = theirJv[i] * config.sync_mapping.scales[i];
                 theirDyngravcompTorque[i] = theirDyngravcompTorque[i] * config.sync_mapping.scales[i];
-                theirHumanTorque[i] = theirHumanTorque[i] * config.sync_mapping.scales[i];
+                humanTorque[i] = humanTorque[i] * config.sync_mapping.scales[i];
+                filteredHumanTorque[i] = filteredHumanTorque[i] * config.sync_mapping.scales[i];
             }
 
             theirJPOutputValue->setData(&theirJp);
@@ -234,12 +239,18 @@ class Follower : public barrett::systems::System {
         }
         sendDyngravcompTorqueMsg << dyngravcompTorque;
 
-        if (humanTorqueIn.valueDefined()) {
-            humanTorque = humanTorqueIn.getValue();
+        if (environmentTorqueIn.valueDefined()) {
+            environmentTorque = environmentTorqueIn.getValue();
         } else {
-            humanTorque.setZero();
+            environmentTorque.setZero();
         }
-        sendHumanTorqueMsg << humanTorque;
+        sendEnvironmentTorqueMsg << environmentTorque;
+
+        if (filteredEnvironmentTorqueIn.valueDefined()) {
+            filteredEnvironmentTorque = filteredEnvironmentTorqueIn.getValue();
+        } else {
+            filteredEnvironmentTorque.setZero();
+        }
 
 
         if (policyJtIn.valueDefined()) {
@@ -249,7 +260,7 @@ class Follower : public barrett::systems::System {
         }
 
         if (isLinked()) {
-            control = compute_control(theirJp, theirJv, theirHumanTorque, wamJP, wamJV, humanTorque, wamGrav, wamDyn, policyTorqueScale.asDiagonal() * policyJt);
+            control = compute_control(theirJp, theirJv, humanTorque, wamJP, wamJV, humanTorque, wamGrav, wamDyn, policyTorqueScale.asDiagonal() * policyJt);
             jtOutputValue->setData(&control);
         } else {
             control.setZero();
@@ -259,9 +270,9 @@ class Follower : public barrett::systems::System {
         uint64_t loop_start = std::chrono::duration_cast<std::chrono::nanoseconds>(now_op.time_since_epoch()).count();
         // auto send_start = std::chrono::steady_clock::now();
         // send to leader then send to policy
-        teleop_udp_handler.send(sendJpMsg, sendJvMsg, sendDyngravcompTorqueMsg, sendHumanTorqueMsg, toolPos, toolQ, static_cast<double>(current_gripper_torque.load()), static_cast<double>(current_gripper_pos.load()), static_cast<double>(current_gripper_vel.load()), loop_start);
+        teleop_udp_handler.send(sendJpMsg, sendJvMsg, sendDyngravcompTorqueMsg, sendEnvironmentTorqueMsg, filteredEnvironmentTorque, toolPos, toolQ, static_cast<double>(current_gripper_torque.load()), static_cast<double>(current_gripper_pos.load()), static_cast<double>(current_gripper_vel.load()), loop_start);
         // see how on_follower is used for the magic
-        policy_udp_handler.send(sendJpMsg, sendJvMsg, sendDyngravcompTorqueMsg, sendHumanTorqueMsg, theirJp, theirJv, theirDyngravcompTorque, theirHumanTorque, policyJp, policyJt, policyTorqueScale, toolPos, toolQ, theirToolPos, theirToolQ, static_cast<double>(current_gripper_pos.load()), static_cast<double>(current_gripper_vel.load()), static_cast<double>(current_gripper_torque.load()), loop_start);
+        policy_udp_handler.send(sendJpMsg, sendJvMsg, sendDyngravcompTorqueMsg, sendEnvironmentTorqueMsg, filteredEnvironmentTorque, theirJp, theirJv, theirDyngravcompTorque, humanTorque, filteredHumanTorque, policyJp, policyJt, policyTorqueScale, toolPos, toolQ, theirToolPos, theirToolQ, static_cast<double>(current_gripper_pos.load()), static_cast<double>(current_gripper_vel.load()), static_cast<double>(current_gripper_torque.load()), loop_start);
 
         // auto send_end = std::chrono::steady_clock::now();
         // double send_dt = std::chrono::duration<double, std::milli>(send_end - send_start).count();
@@ -277,7 +288,7 @@ class Follower : public barrett::systems::System {
             // std::cout << "  -> LEADER JP:    [" << theirJp.transpose() << "\n";
             // std::cout << "  -> FOLLOWER JV:      [" << sendJvMsg.transpose() << "]\n";
             // std::cout << "  -> LEADER JV:    [" << theirJv.transpose() << "]\n";
-            std::cout << "  -> FOLLOWER Trq:  [" << theirHumanTorque.transpose() << "]\n";
+            std::cout << "  -> FOLLOWER Trq:  [" << environmentTorque.transpose() << "]\n";
             std::cout << "  -> leader Trq:[" << humanTorque.transpose() << "]\n";
             // std::cout << "  -> follower Tool Pos:  [" << toolPos.transpose() << "]\n";
             // std::cout << "  -> follower Tool Quat: [" << toolQ.w() << " " << toolQ.x() << " " << toolQ.y() << " " << toolQ.z() << "]\n";
@@ -301,7 +312,8 @@ class Follower : public barrett::systems::System {
     jp_type theirJp;
     jv_type theirJv;
     jt_type theirDyngravcompTorque;
-    jt_type theirHumanTorque;
+    jt_type humanTorque;
+    jt_type filteredHumanTorque;
     cp_type theirToolPos;
     Eigen::Quaterniond theirToolQ;
     jt_type control;

@@ -51,6 +51,7 @@ typename FollowerUDPHandler<DOF>::TeleopReceivedData FollowerUDPHandler<DOF>::un
     std::memcpy(rd.jv.data(), pkt.jv, sizeof(double) * DOF);
     std::memcpy(rd.dyngravcompTorque.data(), pkt.dyngravcompTorque, sizeof(double) * DOF);
     std::memcpy(rd.humanTorque.data(), pkt.humanTorque, sizeof(double) * DOF);
+    std::memcpy(rd.filteredHumanTorque.data(), pkt.filteredHumanTorque, sizeof(double) * DOF);
     std::memcpy(rd.cart_pos.data(), pkt.cart_pos, sizeof(double) * 3);
     rd.quat = Eigen::Quaterniond(pkt.quat[0], pkt.quat[1], pkt.quat[2], pkt.quat[3]); // w, x, y, z
     std::memcpy(rd.policyTorqueScale.data(), pkt.policyTorqueScale, sizeof(double) * DOF);
@@ -81,7 +82,7 @@ void FollowerUDPHandler<DOF>::teleopReceiveLoop() {
 
 template <size_t DOF>
 void FollowerUDPHandler<DOF>::send(const jp_type& jp, const jv_type& jv,
-                                   const jt_type& dyngravcompTorque, const jt_type& humanTorque,
+                                   const jt_type& dyngravcompTorque, const jt_type& environmentTorque,  const jt_type& filteredEnvironmentTorque,
                                    const cp_type& cart_pos, const Eigen::Quaterniond& quat,
                                    double gripper_torque, double gripper_pos, double gripper_vel, uint64_t timestamp) {
     {
@@ -89,7 +90,8 @@ void FollowerUDPHandler<DOF>::send(const jp_type& jp, const jv_type& jv,
         std::memcpy(pending_teleop_packet.jp, jp.data(), sizeof(double) * DOF);
         std::memcpy(pending_teleop_packet.jv, jv.data(), sizeof(double) * DOF);
         std::memcpy(pending_teleop_packet.dyngravcompTorque, dyngravcompTorque.data(), sizeof(double) * DOF);
-        std::memcpy(pending_teleop_packet.humanTorque, humanTorque.data(), sizeof(double) * DOF);
+        std::memcpy(pending_teleop_packet.environmentTorque, environmentTorque.data(), sizeof(double) * DOF);
+        std::memcpy(pending_teleop_packet.filteredEnvironmentTorque, filteredEnvironmentTorque.data(), sizeof(double) * DOF);
         std::memcpy(pending_teleop_packet.cart_pos, cart_pos.data(), sizeof(double) * 3);
         pending_teleop_packet.quat[0] = quat.w();
         pending_teleop_packet.quat[1] = quat.x();

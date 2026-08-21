@@ -179,7 +179,8 @@ template <size_t DOF> int wam_main(int argc, char **argv, ProductManager &pm, sy
     systems::connect(wam.gravity.output, follower.wamGravIn);
     systems::connect(wam.toolPose.output, follower.wamTPIn);
     systems::connect(policy_controller.controlOutput, follower.policyJtIn);
-    systems::connect(policyTorque.humanExtTorqueOutput, follower.humanTorqueIn);
+    systems::connect(policyTorque.extTorqueOutput, follower.environmentTorqueIn);
+    systems::connect(extFilter.output, follower.filteredEnvironmentTorqueIn);
     if (config.follower.vertical) {
         systems::connect(followerVerticalDynamics->followerVerticalDynamicsOut, follower.wamDynIn);
     } else {
@@ -204,7 +205,7 @@ template <size_t DOF> int wam_main(int argc, char **argv, ProductManager &pm, sy
     systems::connect(policy_controller.controlOutput, policyTorque.policyExtTorqueIn);
 
     // filter torques
-    // systems::connect(dynamicExternalTorque.wamExternalTorqueOut, extFilter.input);
+    systems::connect(policyTorque.extTorqueOutput, extFilter.input);
 
     // policy impedance control
     systems::connect(follower.policyJpOutput, policy_controller.referenceInput);

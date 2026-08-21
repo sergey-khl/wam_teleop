@@ -11,7 +11,7 @@ class PolicyTorque : public barrett::systems::System {
   public:
     Input<jt_type> wamExtTorqueIn;
     Input<jt_type> policyExtTorqueIn;
-    Output<jt_type> humanExtTorqueOutput;
+    Output<jt_type> extTorqueOutput; // human if on leader and environment if on follower
     Output<jt_type> policyTorqueScaleOutput;
 
     explicit PolicyTorque(barrett::systems::ExecutionManager* em, const std::string& sysName = "PolicyTorque")
@@ -19,7 +19,7 @@ class PolicyTorque : public barrett::systems::System {
         , currPolicyTorqueScale(0.0)
         , wamExtTorqueIn(this)
         , policyExtTorqueIn(this)
-        , humanExtTorqueOutput(this, &humanExtTorqueOutputValue)
+        , extTorqueOutput(this, &extTorqueOutputValue)
         , policyTorqueScaleOutput(this, &policyTorqueScaleOutputValue) {
 
         if (em != NULL) {
@@ -32,12 +32,12 @@ class PolicyTorque : public barrett::systems::System {
     }
 
   protected:
-    typename Output<jt_type>::Value* humanExtTorqueOutputValue;
+    typename Output<jt_type>::Value* extTorqueOutputValue;
     typename Output<jt_type>::Value* policyTorqueScaleOutputValue;
     jt_type currPolicyTorqueScale;
     jt_type wamExtTorque;
     jt_type policyExtTorque;
-    jt_type humanExtTorque;
+    jt_type extTorque;
     jt_type normalized_ext_torque;
     jt_type nextPolicyTorqueScale;
 
@@ -50,11 +50,11 @@ class PolicyTorque : public barrett::systems::System {
         wamExtTorque = wamExtTorqueIn.getValue();
         policyExtTorque = policyExtTorqueIn.getValue();
 
-        humanExtTorque = wamExtTorque - currPolicyTorqueScale.asDiagonal() * policyExtTorque;
+        extTorque = wamExtTorque - currPolicyTorqueScale.asDiagonal() * policyExtTorque;
 
         max_torques << 3.5, 3, 3.5, 2;
         for (size_t i = 0; i < 4; ++i) {
-            normalized_ext_torque[i] = std::abs(humanExtTorque[i]) / max_torques[i]; // 1 means a lot of human, 0 is not
+            normalized_ext_torque[i] = std::abs(extTorque[i]) / max_torques[i]; // 1 means a lot of human, 0 is not
         }
         // flipped sigmoid. The higher the user input the lower the policy gains
         for (size_t i = 0; i < 4; ++i) {
@@ -75,7 +75,7 @@ class PolicyTorque : public barrett::systems::System {
         currPolicyTorqueScale << nextPolicyTorqueScale;
 
         policyTorqueScaleOutputValue->setData(&nextPolicyTorqueScale);
-        humanExtTorqueOutputValue->setData(&humanExtTorque);
+        extTorqueOutputValue->setData(&extTorque);
     }
 
   private:
