@@ -272,12 +272,12 @@ class Follower : public barrett::systems::System {
         // send to leader then send to policy
         teleop_udp_handler.send(sendJpMsg, sendJvMsg, sendDyngravcompTorqueMsg, sendEnvironmentTorqueMsg, filteredEnvironmentTorque, toolPos, toolQ, static_cast<double>(current_gripper_torque.load()), static_cast<double>(current_gripper_pos.load()), static_cast<double>(current_gripper_vel.load()), loop_start);
         // see how on_follower is used for the magic
-        policy_udp_handler.send(sendJpMsg, sendJvMsg, sendDyngravcompTorqueMsg, sendEnvironmentTorqueMsg, filteredEnvironmentTorque, theirJp, theirJv, theirDyngravcompTorque, humanTorque, filteredHumanTorque, policyJp, policyJt, policyTorqueScale, toolPos, toolQ, theirToolPos, theirToolQ, static_cast<double>(current_gripper_pos.load()), static_cast<double>(current_gripper_vel.load()), static_cast<double>(current_gripper_torque.load()), loop_start);
+        policy_udp_handler.send(sendJpMsg, sendJvMsg, sendDyngravcompTorqueMsg, sendEnvironmentTorqueMsg, filteredEnvironmentTorque, theirJp, theirJv, theirDyngravcompTorque, humanTorque, filteredHumanTorque, policyJp, policyJt, policyTorqueScale, toolPos, toolQ, theirToolPos, theirToolQ, static_cast<double>(current_gripper_pos.load()), static_cast<double>(current_gripper_vel.load()), static_cast<double>(current_gripper_torque.load()));
 
         // auto send_end = std::chrono::steady_clock::now();
         // double send_dt = std::chrono::duration<double, std::milli>(send_end - send_start).count();
 
-        if (++loop_counter % 50 == 0) {
+        if (++loop_counter % 250 == 0) {
             std::cout << std::fixed << std::setprecision(3);
 
             // std::cout << "[FOLLOWER] Loop dt: " << loop_dt

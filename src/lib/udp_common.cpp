@@ -79,8 +79,7 @@ void PolicyUDPHandler<DOF>::send(const jp_type& follower_jp, const jv_type& foll
                                           const jp_type& policyJp, const jt_type& policyJt, const jt_type& policyTorqueScale,
                                           const Eigen::Vector3d& follower_cart_pos, const Eigen::Quaterniond& follower_quat,
                                           const Eigen::Vector3d& leader_cart_pos, const Eigen::Quaterniond& leader_quat,
-                                          double gripper_pos, double gripper_vel, double gripper_torque,
-                                          uint64_t timestamp) {
+                                          double gripper_pos, double gripper_vel, double gripper_torque) {
     if (!send_active) return;
 
     {
@@ -121,7 +120,6 @@ void PolicyUDPHandler<DOF>::send(const jp_type& follower_jp, const jv_type& foll
         pending_packet.gripper_vel = gripper_vel;
         pending_packet.gripper_torque = gripper_torque;
         pending_packet.time_to_chunk_end = remaining_ns > 0 ? static_cast<uint64_t>(remaining_ns) : 0;
-        pending_packet.timestamp = timestamp;
         new_data_available = true;
     }
     send_condition.notify_one();

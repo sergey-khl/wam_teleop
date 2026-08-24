@@ -77,7 +77,6 @@ struct PolicyPacket {
     double gripper_vel;
     double gripper_torque;
     uint64_t time_to_chunk_end;
-    uint64_t timestamp;
 };
 
 struct RawAction {
@@ -159,8 +158,7 @@ public:
                        const jp_type& policyjp, const jt_type& policyJt, const jt_type& policyTorqueScale,
                        const Eigen::Vector3d& follower_cart_pos, const Eigen::Quaterniond& follower_quat,
                        const Eigen::Vector3d& leader_cart_pos, const Eigen::Quaterniond& leader_quat,
-                       double gripper_pos, double gripper_vel, double gripper_torque,
-                       uint64_t timestamp);
+                       double gripper_pos, double gripper_vel, double gripper_torque);
  
 private:
     static constexpr size_t SAMPLES_PER_SEGMENT = static_cast<size_t>(INTERP_HZ * SEGMENT_DURATION_SEC);

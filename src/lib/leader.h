@@ -303,19 +303,19 @@ class Leader : public barrett::systems::System {
         auto send_start = std::chrono::steady_clock::now();
         teleop_udp_handler.send(sendJpMsg, sendJvMsg, sendDyngravcompTorqueMsg, sendHumanTorqueMsg, filteredHumanTorque, toolPos, toolQ, policyTorqueScale, static_cast<double>(desired_gripper_pos.load()), static_cast<double>(cancel_policy.load()), loop_start);
         // see how on_leader is used for the magic
-        policy_udp_handler.send(theirJp, theirJv, theirDyngravcompTorque, environmentTorque, filteredEnvironmentTorque, sendJpMsg, sendJvMsg, sendDyngravcompTorqueMsg, sendHumanTorqueMsg, filteredHumanTorque, policyJp, policyJt, policyTorqueScale, theirToolPos, theirToolQ, toolPos, toolQ, static_cast<double>(remote_gripper_pos.load()), static_cast<double>(remote_gripper_vel.load()), static_cast<double>(remote_gripper_pos.load()), loop_start);
+        policy_udp_handler.send(theirJp, theirJv, theirDyngravcompTorque, environmentTorque, filteredEnvironmentTorque, sendJpMsg, sendJvMsg, sendDyngravcompTorqueMsg, sendHumanTorqueMsg, filteredHumanTorque, policyJp, policyJt, policyTorqueScale, theirToolPos, theirToolQ, toolPos, toolQ, static_cast<double>(remote_gripper_pos.load()), static_cast<double>(remote_gripper_vel.load()), static_cast<double>(remote_gripper_pos.load()));
         auto send_end = std::chrono::steady_clock::now();
         double send_dt = std::chrono::duration<double, std::milli>(send_end - send_start).count();
 
-        if (++loop_counter % 50 == 0) {
+        if (++loop_counter % 250 == 0) {
             std::cout << std::fixed << std::setprecision(3);
 
             // std::cout << "[LEADER] Loop dt: " << loop_dt 
                       // << " ms | UDP teleop Age: " << udp_teleop_age 
                       // << " ms | UDP Send latency: " << send_dt << " ms\n";
                
-            // std::cout << "  -> LEADER JP:      [" << sendJpMsg.transpose() << "]\n";
-            // std::cout << "  -> FOLLOWER JP:    [" << theirJp.transpose() << "\n";
+            std::cout << "  -> LEADER JP:      [" << sendJpMsg.transpose() << "]\n";
+            std::cout << "  -> FOLLOWER JP:    [" << theirJp.transpose() << "\n";
             // std::cout << "  -> LEADER JV:      [" << sendJvMsg.transpose() << "]\n";
             // std::cout << "  -> FOLLOWER JV:    [" << theirJv.transpose() << "]\n";
             // std::cout << "  -> leader Trq:  [" << sendTorqueMsg.transpose() << "]\n";
