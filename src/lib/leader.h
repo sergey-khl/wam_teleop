@@ -314,12 +314,12 @@ class Leader : public barrett::systems::System {
                       // << " ms | UDP teleop Age: " << udp_teleop_age 
                       // << " ms | UDP Send latency: " << send_dt << " ms\n";
                
-            std::cout << "  -> LEADER JP:      [" << sendJpMsg.transpose() << "]\n";
-            std::cout << "  -> FOLLOWER JP:    [" << theirJp.transpose() << "\n";
+            // std::cout << "  -> LEADER JP:      [" << sendJpMsg.transpose() << "]\n";
+            // std::cout << "  -> FOLLOWER JP:    [" << theirJp.transpose() << "\n";
             // std::cout << "  -> LEADER JV:      [" << sendJvMsg.transpose() << "]\n";
             // std::cout << "  -> FOLLOWER JV:    [" << theirJv.transpose() << "]\n";
-            // std::cout << "  -> leader Trq:  [" << sendTorqueMsg.transpose() << "]\n";
-            // std::cout << "  -> follower Trq:[" << theirTorque.transpose() << "]\n";
+            std::cout << "  -> leader Trq:  [" << filteredHumanTorque.transpose() << "]\n";
+            std::cout << "  -> follower Trq:[" << filteredEnvironmentTorque.transpose() << "]\n";
             // std::cout << "  -> Leader Tool Pos:  [" << toolPos.transpose() << "]\n";
             // std::cout << "  -> leader Tool Quat: [" << toolQ.w() << " " << toolQ.x() << " " << toolQ.y() << " " << toolQ.z() << "]\n";
             // std::cout << "  -> follower Tool Pos:  [" << theirToolPos.transpose() << "]\n";
@@ -327,7 +327,7 @@ class Leader : public barrett::systems::System {
             // std::cout << "  -> policy jp:      [" << policyJp.transpose() << "]\n";
             std::cout << "  -> policy jt:      [" << policyJt.transpose() << "]\n";
             std::cout << "  -> policy scale:[" << policyTorqueScale.transpose() << "]\n";
-            std::cout << "  -> human jt:    [" << humanTorque.transpose() << "]\n";
+            // std::cout << "  -> human jt:    [" << humanTorque.transpose() << "]\n";
             // std::cout << "  -> leader control: [" << compute_control(theirJp, theirJv, theirTorque, wamJP, wamJV, extTorque, wamGrav, wamDyn, policyTorque) << "]\n\n";
             // std::cout << "  -> dyn: [" << wamDyn.transpose() << "]\n\n";
             // std::cout << "  -> Their wrist:  " << theirWristJp.transpose() << "\n";

@@ -220,7 +220,7 @@ class Follower : public barrett::systems::System {
             }
 
             policyJp << clipped_jp;
-            policy_gripper_cmd.store(static_cast<double>(policy_data->gripper_cmd));
+            // policy_gripper_cmd.store(static_cast<double>(policy_data->gripper_cmd));
         }
         policyJpOutputValue->setData(&policyJp);
 
@@ -284,12 +284,12 @@ class Follower : public barrett::systems::System {
                       // << " ms | UDP Rx Age: " << udp_rx_age 
                       // << " ms | UDP Send latency: " << send_dt << " ms\n";
 
-            // std::cout << "  -> FOLLOWER JP:      [" << sendJpMsg.transpose() << "]\n";
-            // std::cout << "  -> LEADER JP:    [" << theirJp.transpose() << "\n";
+            std::cout << "  -> FOLLOWER JP:      [" << sendJpMsg.transpose() << "]\n";
+            std::cout << "  -> LEADER JP:    [" << theirJp.transpose() << "\n";
             // std::cout << "  -> FOLLOWER JV:      [" << sendJvMsg.transpose() << "]\n";
             // std::cout << "  -> LEADER JV:    [" << theirJv.transpose() << "]\n";
-            std::cout << "  -> FOLLOWER Trq:  [" << environmentTorque.transpose() << "]\n";
-            std::cout << "  -> leader Trq:[" << humanTorque.transpose() << "]\n";
+            // std::cout << "  -> FOLLOWER Trq:  [" << environmentTorque.transpose() << "]\n";
+            // std::cout << "  -> leader Trq:[" << humanTorque.transpose() << "]\n";
             // std::cout << "  -> follower Tool Pos:  [" << toolPos.transpose() << "]\n";
             // std::cout << "  -> follower Tool Quat: [" << toolQ.w() << " " << toolQ.x() << " " << toolQ.y() << " " << toolQ.z() << "]\n";
             // std::cout << "  -> leader Tool Pos:  [" << theirToolPos.transpose() << "]\n";
@@ -302,7 +302,7 @@ class Follower : public barrett::systems::System {
             // std::cout << "  -> grip pos:  " << current_gripper_pos.load() << "\n";
             // std::cout << "  -> grip vel:  " << current_gripper_vel.load() << "\n";
             // std::cout << "  -> grip toq:  " << current_gripper_torque.load() << "\n";
-            // std::cout << "  -> P JP:      [" << policyJp.transpose() << "]\n";
+            std::cout << "  -> P JP:      [" << policyJp.transpose() << "]\n";
             // std::cout << "  -> P G:      [" << policy_gripper_pos.load() << "]\n";
 
             std::cout << std::endl;

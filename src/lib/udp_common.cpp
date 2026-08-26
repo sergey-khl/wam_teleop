@@ -182,9 +182,9 @@ std::deque<PolicyReceivedData> PolicyUDPHandler<DOF>::interpolateSegment(
             rd.jv[k] = r.dpos_dt / dt_s;
             rd.ja[k] = r.d2pos_dt2 / (dt_s * dt_s);
         }
+        // CRResult rg = catmullRom(a0.gripper_cmd, a1.gripper_cmd, a2.gripper_cmd, a3.gripper_cmd, alpha);
+        // rd.gripper_cmd = rg.pos;
 
-        CRResult rg = catmullRom(a0.gripper_cmd, a1.gripper_cmd, a2.gripper_cmd, a3.gripper_cmd, alpha);
-        rd.gripper_cmd = rg.pos;
 
         queue.push_back(rd);
     }

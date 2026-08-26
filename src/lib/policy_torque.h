@@ -44,7 +44,7 @@ class PolicyTorque : public barrett::systems::System {
     jt_type max_torques;
 
     // rate limit the scale
-    static constexpr double maxDelta = 0.01;
+    static constexpr double maxDelta = 0.001;
 
     virtual void operate() {
         wamExtTorque = wamExtTorqueIn.getValue();
@@ -59,6 +59,10 @@ class PolicyTorque : public barrett::systems::System {
         // flipped sigmoid. The higher the user input the lower the policy gains
         for (size_t i = 0; i < 4; ++i) {
             nextPolicyTorqueScale[i] = 1.0 / (1.0 + std::exp(8 * (normalized_ext_torque[i] - 0.7)));
+        }
+        for (size_t i = 4; i < 7; ++i) {
+        // for (size_t i = 0; i < 7; ++i) {
+            nextPolicyTorqueScale[i] = 1.0;
         }
         // rate limit the torque scales
         for (size_t i = 0; i < 4; ++i) {

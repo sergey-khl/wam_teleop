@@ -126,7 +126,7 @@ struct PolicyReceivedData {
     Eigen::Matrix<double, 7, 1> jp;
     Eigen::Matrix<double, 7, 1> jv;
     Eigen::Matrix<double, 7, 1> ja;
-    double gripper_cmd;
+    // double gripper_cmd;
 };
 
 template <size_t DOF>
