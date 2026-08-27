@@ -25,10 +25,6 @@ struct PolicyConfig {
     bool on_follower;
 };
 
-struct HapticsConfig {
-    double torque_scaling;
-    double minStiffness, maxStiffness, alpha;
-};
 
 
 struct SyncMapping {
@@ -37,8 +33,16 @@ struct SyncMapping {
 
 struct RobotTeleopConfig {
     std::vector<double> sync_pos;
-    HapticsConfig haptics;
     bool vertical;
+};
+
+struct GripperConfig {
+    bool usable;
+};
+
+struct HandleConfig {
+    double torque_scaling;
+    double minStiffness, maxStiffness, alpha;
 };
 
 struct TeleopConfig {
@@ -46,6 +50,8 @@ struct TeleopConfig {
     PolicyConfig policy;
     SyncMapping sync_mapping;
     RobotTeleopConfig leader, follower;
+    HandleConfig handle;
+    GripperConfig gripper;
 };
 
 namespace YAML {
@@ -64,13 +70,19 @@ template<> struct convert<NetworkConfig> {
     }
 };
 
-template<> struct convert<HapticsConfig> {
-    static bool decode(const Node& node, HapticsConfig& c) {
-        if (!node) return true; // Follower might not have this
+template<> struct convert<HandleConfig> {
+    static bool decode(const Node& node, HandleConfig& c) {
         c.torque_scaling = node["torque_scaling"].as<double>();
         c.minStiffness = node["minStiffness"].as<double>();
         c.maxStiffness = node["maxStiffness"].as<double>();
         c.alpha = node["alpha"].as<double>();
+        return true;
+    }
+};
+
+template<> struct convert<GripperConfig> {
+    static bool decode(const Node& node, GripperConfig& c) {
+        c.usable = node["usable"].as<bool>();
         return true;
     }
 };
@@ -99,9 +111,6 @@ template<> struct convert<SyncMapping> {
 template<> struct convert<RobotTeleopConfig> {
     static bool decode(const Node& node, RobotTeleopConfig& c) {
         c.sync_pos = node["sync_pos"].as<std::vector<double>>();
-        if (node["haptics"]) {
-            c.haptics = node["haptics"].as<HapticsConfig>();
-        }
         c.vertical = node["vertical"].as<bool>();
         return true;
     }
@@ -114,6 +123,8 @@ template<> struct convert<TeleopConfig> {
         c.sync_mapping = node["sync_mapping"].as<SyncMapping>();
         c.leader = node["leader"].as<RobotTeleopConfig>();
         c.follower = node["follower"].as<RobotTeleopConfig>();
+        c.gripper = node["gripper"].as<GripperConfig>();
+        c.handle = node["handle"].as<HandleConfig>();
         return true;
     }
 };

@@ -220,7 +220,7 @@ class Follower : public barrett::systems::System {
             }
 
             policyJp << clipped_jp;
-            // policy_gripper_cmd.store(static_cast<double>(policy_data->gripper_cmd));
+            policy_gripper_cmd.store(static_cast<double>(policy_data->gripper_cmd));
         }
         policyJpOutputValue->setData(&policyJp);
 
@@ -303,7 +303,8 @@ class Follower : public barrett::systems::System {
             // std::cout << "  -> grip vel:  " << current_gripper_vel.load() << "\n";
             // std::cout << "  -> grip toq:  " << current_gripper_torque.load() << "\n";
             std::cout << "  -> P JP:      [" << policyJp.transpose() << "]\n";
-            // std::cout << "  -> P G:      [" << policy_gripper_pos.load() << "]\n";
+            std::cout << "  -> P G:      [" << policy_gripper_cmd.load() << "]\n";
+            std::cout << "  -> L G:      [" << target_gripper_pos.load() << "]\n";
 
             std::cout << std::endl;
         }
@@ -323,7 +324,11 @@ class Follower : public barrett::systems::System {
             float local_usr_gripper_pos = target_gripper_pos.load();
             float local_policy_gripper_cmd = policy_gripper_cmd.load();
             // operator can command an override
-            gripper->setPosition(local_usr_gripper_pos);
+            if (local_usr_gripper_pos == 0) {
+                gripper->setPosition(-local_policy_gripper_cmd);
+            } else {
+                gripper->setPosition(local_usr_gripper_pos);
+            }
             gripper->controlLoopCallback();
 
             GripperState gripper_state = gripper->getLatestState();

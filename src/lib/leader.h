@@ -78,10 +78,10 @@ class Leader : public barrett::systems::System {
         , io_running(false)
         , linked(false) {
 
-        torque_scaling   = config.leader.haptics.torque_scaling;
-        minStiffness     = config.leader.haptics.minStiffness;
-        maxStiffness     = config.leader.haptics.maxStiffness;
-        alpha            = config.leader.haptics.alpha;
+        torque_scaling   = config.handle.torque_scaling;
+        minStiffness     = config.handle.minStiffness;
+        maxStiffness     = config.handle.maxStiffness;
+        alpha            = config.handle.alpha;
 
         last_op_time = std::chrono::steady_clock::now();
 
@@ -376,6 +376,8 @@ class Leader : public barrett::systems::System {
                 target_position = -1;
             } else if (trigger && !bumper) {
                 target_position = 1;
+            } else {
+                target_position = 0;
             }
 
             desired_gripper_pos.store(target_position);

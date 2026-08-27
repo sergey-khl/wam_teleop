@@ -34,13 +34,17 @@ policy:
 
 leader:
   sync_pos: [0.0, -1.7, 0.0, 2.97, 0.0, 0.0, 0.0] 
-  haptics:
-    torque_scaling: 1.5
-    minStiffness: 0.05
-    maxStiffness: 1.0
-    alpha: 0.35
   vertical: false
 
 follower:
   sync_pos: [0.0, -1.7, 0.0, 2.97, 0.0, 0.0, 0.0] 
   vertical: false
+
+gripper:
+  usable: true
+
+handle:
+    torque_scaling: 1.5
+    minStiffness: 0.05
+    maxStiffness: 1.0
+    alpha: 0.35

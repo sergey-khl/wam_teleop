@@ -77,7 +77,9 @@ template <size_t DOF> int wam_main(int argc, char **argv, ProductManager &pm, sy
     GeckoGripper gripper;
     bool gripper_initialized = false;
     try {
-        gripper_initialized = gripper.initialize();
+        if (config.gripper.usable) {
+            gripper_initialized = gripper.initialize();
+        }
     } catch (const std::exception& e) {
         std::cerr << "WARNING: Gecko gripper init threw exception: " << e.what() << std::endl;
     }
