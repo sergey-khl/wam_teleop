@@ -376,8 +376,6 @@ class Leader : public barrett::systems::System {
                 target_position = -1;
             } else if (trigger && !bumper) {
                 target_position = 1;
-            } else {
-                target_position = 0;
             }
 
             desired_gripper_pos.store(target_position);

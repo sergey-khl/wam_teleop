@@ -145,7 +145,7 @@ class Follower : public barrett::systems::System {
 
         // policy defaults
         policyJp << wamJP;
-        policy_gripper_cmd.store(current_gripper_pos.load());
+        policy_gripper_cmd.store(0);
         policyTorqueScale.setZero();
 
         // teleop
@@ -324,8 +324,8 @@ class Follower : public barrett::systems::System {
             float local_usr_gripper_pos = target_gripper_pos.load();
             float local_policy_gripper_cmd = policy_gripper_cmd.load();
             // operator can command an override
-            if (local_usr_gripper_pos == 0) {
-                gripper->setPosition(-local_policy_gripper_cmd);
+            if (policy_gripper_cmd != 0) {
+                gripper->setPosition(local_policy_gripper_cmd);
             } else {
                 gripper->setPosition(local_usr_gripper_pos);
             }
