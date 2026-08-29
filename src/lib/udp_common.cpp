@@ -172,8 +172,10 @@ boost::optional<PolicyReceivedData> PolicyUDPHandler<DOF>::getLatestPolicyReceiv
 
     jp_type clip_val;
     clip_val << 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1;
+    // clip_val << 0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 0.01;
     jt_type clip_ff_torque;
-    clip_ff_torque << 0.5, 0.5, 0.5, 0.5, 0.0, 0.0, 0.0;
+    // clip_ff_torque << 0.5, 0.5, 0.5, 0.5, 0.0, 0.0, 0.0;
+    clip_ff_torque << 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0;
 
     if (action_queue.empty()) {
         return boost::none;
