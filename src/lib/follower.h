@@ -286,6 +286,7 @@ class Follower : public barrett::systems::System {
             std::cout << "  -> base p JP:      [" << basePolicyJp.transpose() << "]\n";
             std::cout << "  -> ff p toq:      [" << ffPolicyTorque.transpose() << "]\n";
             std::cout << "  -> P G:      [" << policy_gripper_cmd.load() << "]\n";
+            std::cout << "  -> L G:      [" << target_gripper_pos.load() << "]\n";
 
             std::cout << std::endl;
         }

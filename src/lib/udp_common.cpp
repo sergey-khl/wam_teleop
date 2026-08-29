@@ -9,8 +9,8 @@ template <size_t DOF>
 GenericAction PolicyUDPHandler<DOF>::toGeneric(const BaseRawAction& a) {
     GenericAction g{};
     std::memcpy(g.pos, a.jp, sizeof(g.pos));
-    // g.gripper_cmd = a.gripper_cmd;
-    g.gripper_cmd = 0;
+    g.gripper_cmd = a.gripper_cmd;
+    // g.gripper_cmd = 0;
     // as is base has no torque
     std::memset(g.torque, 0, sizeof(g.torque));
     return g;
@@ -173,7 +173,7 @@ boost::optional<PolicyReceivedData> PolicyUDPHandler<DOF>::getLatestPolicyReceiv
     jp_type clip_val;
     clip_val << 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1;
     jt_type clip_ff_torque;
-    clip_ff_torque << 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1;
+    clip_ff_torque << 0.5, 0.5, 0.5, 0.5, 0.0, 0.0, 0.0;
 
     if (action_queue.empty()) {
         return boost::none;
@@ -186,6 +186,7 @@ boost::optional<PolicyReceivedData> PolicyUDPHandler<DOF>::getLatestPolicyReceiv
 
     jp_type clipped_policy_jp = clipToRange(base_sample.jp, wamJP, clip_val, out.clipped_jp_joints_str);
     out.base_policy_jp = clipped_policy_jp;
+    out.gripper_cmd = base_sample.gripper_cmd;
  
     if (type == "cr") {
         if (cr_action_queue.empty()) {
@@ -200,7 +201,6 @@ boost::optional<PolicyReceivedData> PolicyUDPHandler<DOF>::getLatestPolicyReceiv
  
         out.jv = residual_sample.jv;
         out.ja = residual_sample.ja;
-        out.gripper_cmd = residual_sample.gripper_cmd;
  
         out.jp = clipped_policy_jp + clipped_delta;
  
@@ -368,7 +368,7 @@ void PolicyUDPHandler<DOF>::genericReceiveLoop(boost::asio::ip::udp::socket& soc
         size_t len = sock.receive_from(boost::asio::buffer(&pkt, sizeof(PacketT)), sender_endpoint, 0, ec);
  
         if (ec == boost::asio::error::operation_aborted || len != sizeof(PacketT)) {
-            // std::cout << "size mismatch. expected " << sizeof(PacketT) << " got " << len << std::endl;
+            std::cout << "size mismatch. expected " << sizeof(PacketT) << " got " << len << std::endl;
             continue;
         }
  
