@@ -9,7 +9,8 @@ template <size_t DOF>
 GenericAction PolicyUDPHandler<DOF>::toGeneric(const BaseRawAction& a) {
     GenericAction g{};
     std::memcpy(g.pos, a.jp, sizeof(g.pos));
-    g.gripper_cmd = a.gripper_cmd;
+    // g.gripper_cmd = a.gripper_cmd;
+    g.gripper_cmd = 0;
     // as is base has no torque
     std::memset(g.torque, 0, sizeof(g.torque));
     return g;
@@ -367,6 +368,7 @@ void PolicyUDPHandler<DOF>::genericReceiveLoop(boost::asio::ip::udp::socket& soc
         size_t len = sock.receive_from(boost::asio::buffer(&pkt, sizeof(PacketT)), sender_endpoint, 0, ec);
  
         if (ec == boost::asio::error::operation_aborted || len != sizeof(PacketT)) {
+            // std::cout << "size mismatch. expected " << sizeof(PacketT) << " got " << len << std::endl;
             continue;
         }
  

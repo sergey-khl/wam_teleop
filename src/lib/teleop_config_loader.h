@@ -98,8 +98,9 @@ template<> struct convert<PolicyConfig> {
         c.on_leader = node["on_leader"].as<bool>();
         c.on_follower = node["on_follower"].as<bool>();
         c.type = node["type"].as<std::string>();
-        if (c.type != "base" || c.type != "cr" || c.type != "dg") {
+        if (c.type != "base" && c.type != "cr" && c.type != "dg") {
             std::cerr << "Policy type must be one of base, cr or dg. Got: " << c.type << std::endl;
+            return false;
         }
         return true;
     }

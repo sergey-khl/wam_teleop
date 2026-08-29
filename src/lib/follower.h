@@ -118,6 +118,7 @@ class Follower : public barrett::systems::System {
     jt_type policyTorqueScale;
     jp_type policyJp;
     jp_type basePolicyJp;
+    jt_type ffPolicyTorque;
     Eigen::Matrix<double, DOF, 1> sendJpMsg;
     Eigen::Matrix<double, DOF, 1> sendJvMsg;
     Eigen::Matrix<double, DOF, 1> sendDyngravcompTorqueMsg;
@@ -147,6 +148,7 @@ class Follower : public barrett::systems::System {
         // policy defaults
         policyJp << wamJP;
         basePolicyJp << wamJP;
+        ffPolicyTorque.setZero();
         policy_gripper_cmd.store(0);
         policyTorqueScale.setZero();
 
@@ -197,6 +199,7 @@ class Follower : public barrett::systems::System {
         if (policy_data) {
             policyJp << policy_data->jp;
             basePolicyJp << policy_data->base_policy_jp;
+            ffPolicyTorque << policy_data->ff_torque;
             policy_gripper_cmd.store(static_cast<double>(policy_data->gripper_cmd));
         }
         policyJpOutputValue->setData(&policyJp);
@@ -237,7 +240,7 @@ class Follower : public barrett::systems::System {
         }
 
         if (isLinked()) {
-            control = compute_control(theirJp, theirJv, humanTorque, wamJP, wamJV, humanTorque, wamGrav, wamDyn, policyTorqueScale.asDiagonal() * policyJt);
+            control = compute_control(theirJp, theirJv, humanTorque, wamJP, wamJV, humanTorque, wamGrav, wamDyn, policyTorqueScale.asDiagonal() * policyJt, ffPolicyTorque);
             jtOutputValue->setData(&control);
         } else {
             control.setZero();
@@ -261,8 +264,8 @@ class Follower : public barrett::systems::System {
                       // << " ms | UDP Rx Age: " << udp_rx_age 
                       // << " ms | UDP Send latency: " << send_dt << " ms\n";
 
-            std::cout << "  -> FOLLOWER JP:      [" << sendJpMsg.transpose() << "]\n";
-            std::cout << "  -> LEADER JP:    [" << theirJp.transpose() << "\n";
+            // std::cout << "  -> FOLLOWER JP:      [" << sendJpMsg.transpose() << "]\n";
+            // std::cout << "  -> LEADER JP:    [" << theirJp.transpose() << "\n";
             // std::cout << "  -> FOLLOWER JV:      [" << sendJvMsg.transpose() << "]\n";
             // std::cout << "  -> LEADER JV:    [" << theirJv.transpose() << "]\n";
             // std::cout << "  -> FOLLOWER Trq:  [" << environmentTorque.transpose() << "]\n";
@@ -280,8 +283,9 @@ class Follower : public barrett::systems::System {
             // std::cout << "  -> grip vel:  " << current_gripper_vel.load() << "\n";
             // std::cout << "  -> grip toq:  " << current_gripper_torque.load() << "\n";
             std::cout << "  -> P JP:      [" << policyJp.transpose() << "]\n";
+            std::cout << "  -> base p JP:      [" << basePolicyJp.transpose() << "]\n";
+            std::cout << "  -> ff p toq:      [" << ffPolicyTorque.transpose() << "]\n";
             std::cout << "  -> P G:      [" << policy_gripper_cmd.load() << "]\n";
-            std::cout << "  -> L G:      [" << target_gripper_pos.load() << "]\n";
 
             std::cout << std::endl;
         }
@@ -337,7 +341,7 @@ class Follower : public barrett::systems::System {
 
     jt_type compute_control(const jp_type& ref_pos, const jv_type& ref_vel, const jt_type& ref_extTorque,
                             const jp_type& cur_pos, const jv_type& cur_vel, const jt_type& cur_extTorque,
-                            const jt_type& cur_grav, const jt_type& cur_dyn, const jt_type& policyJt) {
+                            const jt_type& cur_grav, const jt_type& cur_dyn, const jt_type& policyJt, const jt_type& ffPolicyTorque) {
         
         // cases where the follower and leader have the same control law
 
@@ -376,6 +380,8 @@ class Follower : public barrett::systems::System {
         }
 
         u += policyJt;
+
+        u += ffPolicyTorque;
 
         return u;
     };

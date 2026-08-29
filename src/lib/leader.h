@@ -123,6 +123,7 @@ class Leader : public barrett::systems::System {
     jt_type wamDyn;
     jp_type policyJp;
     jp_type basePolicyJp;
+    jt_type ffPolicyTorque;
 
     const float gripper_speed = 0.1f;
 
@@ -167,6 +168,7 @@ class Leader : public barrett::systems::System {
         // policy defaults
         policyJp << wamJP;
         basePolicyJp << wamJP;
+        ffPolicyTorque.setZero();
         policy_gripper_cmd.store(remote_gripper_pos.load());
 
         // teleop
@@ -216,6 +218,7 @@ class Leader : public barrett::systems::System {
         if (policy_data) {
             policyJp << policy_data->jp;
             basePolicyJp << policy_data->base_policy_jp;
+            ffPolicyTorque << policy_data->ff_torque;
             // policy_gripper_cmd.store(static_cast<double>(policy_data->gripper_cmd));
         }
         policyJPOutputValue->setData(&policyJp);
@@ -266,7 +269,8 @@ class Leader : public barrett::systems::System {
             control = compute_control(
                 theirJp, theirJv, environmentTorque,
                 wamJP,   wamJV,   humanTorque,
-                wamGrav, wamDyn, policyTorqueScale.asDiagonal() * policyJt
+                wamGrav, wamDyn, policyTorqueScale.asDiagonal() * policyJt,
+                ffPolicyTorque
             );
             jtOutputValue->setData(&control);
         } else {
@@ -301,9 +305,11 @@ class Leader : public barrett::systems::System {
             // std::cout << "  -> leader Tool Quat: [" << toolQ.w() << " " << toolQ.x() << " " << toolQ.y() << " " << toolQ.z() << "]\n";
             // std::cout << "  -> follower Tool Pos:  [" << theirToolPos.transpose() << "]\n";
             // std::cout << "  -> follower Tool Quat: [" << theirToolQ.w() << " " << theirToolQ.x() << " " << theirToolQ.y() << " " << theirToolQ.z() << "]\n";
-            // std::cout << "  -> policy jp:      [" << policyJp.transpose() << "]\n";
+            std::cout << "  -> policy jp:      [" << policyJp.transpose() << "]\n";
             std::cout << "  -> policy jt:      [" << policyJt.transpose() << "]\n";
             std::cout << "  -> policy scale:[" << policyTorqueScale.transpose() << "]\n";
+            std::cout << "  -> base policy jp:      [" << basePolicyJp.transpose() << "]\n";
+            std::cout << "  -> ff poliocy toq:      [" << ffPolicyTorque.transpose() << "]\n";
             // std::cout << "  -> human jt:    [" << humanTorque.transpose() << "]\n";
             // std::cout << "  -> leader control: [" << compute_control(theirJp, theirJv, theirTorque, wamJP, wamJV, extTorque, wamGrav, wamDyn, policyTorque) << "]\n\n";
             // std::cout << "  -> dyn: [" << wamDyn.transpose() << "]\n\n";
@@ -376,7 +382,7 @@ class Leader : public barrett::systems::System {
 
     jt_type compute_control(const jp_type& ref_pos, const jv_type& ref_vel, const jt_type& ref_extTorque,
                             const jp_type& cur_pos, const jv_type& cur_vel, const jt_type& cur_extTorque,
-                            const jt_type& cur_grav, const jt_type& cur_dyn, const jt_type& policyJt) {
+                            const jt_type& cur_grav, const jt_type& cur_dyn, const jt_type& policyJt, const jt_type& ffPolicyTorque) {
 
         jt_type u1 = 0.0 * cur_extTorque;                        // zero FF (P-P + g-comp only if you add it)
         jt_type u2 = cur_dyn - cur_grav;                          // P-P with dynamic comp (your comment)
@@ -397,6 +403,8 @@ class Leader : public barrett::systems::System {
         }
 
         u += policyJt;
+
+        u += ffPolicyTorque;
 
         return u;
     };
