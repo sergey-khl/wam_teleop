@@ -15,6 +15,7 @@ struct NetworkConfig {
     int policy_leader_recv;
     int policy_follower_recv;
 };
+
 struct PolicyConfig {
     std::vector<double> kp;
     std::vector<double> ki;
@@ -23,8 +24,8 @@ struct PolicyConfig {
     std::vector<double> integrator_limit;
     bool on_leader;
     bool on_follower;
+    std::string type;
 };
-
 
 
 struct SyncMapping {
@@ -96,6 +97,10 @@ template<> struct convert<PolicyConfig> {
         c.integrator_limit = node["integrator_limit"].as<std::vector<double>>();
         c.on_leader = node["on_leader"].as<bool>();
         c.on_follower = node["on_follower"].as<bool>();
+        c.type = node["type"].as<std::string>();
+        if (c.type != "base" || c.type != "cr" || c.type != "dg") {
+            std::cerr << "Policy type must be one of base, cr or dg. Got: " << c.type << std::endl;
+        }
         return true;
     }
 };

@@ -15,10 +15,23 @@
 #include <thread>
  
 
-static constexpr int ACTION_HORIZON = 8;
-static constexpr double SEGMENT_DURATION_SEC = 0.1;
 static constexpr double INTERP_HZ = 500.0;
-static constexpr double UNINTERP_HZ = 10.0;
+ 
+// used in base and cr
+static constexpr int BASE_ACTION_HORIZON = 8;
+static constexpr double BASE_SEGMENT_DURATION_SEC = 0.1;
+static constexpr double BASE_UNINTERP_HZ = 10.0;
+ 
+// the residual of cr-dagger
+static constexpr int CR_ACTION_HORIZON = 5;
+static constexpr double CR_SEGMENT_DURATION_SEC = 0.02;
+static constexpr double CR_UNINTERP_HZ = 50.0;
+ 
+// dg-dagger
+static constexpr int DG_ACTION_HORIZON = 64;
+static constexpr double DG_SEGMENT_DURATION_SEC = 0.02;
+static constexpr double DG_UNINTERP_HZ = 50.0;
+
 
 // tightly packed layouts
 #pragma pack(push, 1)
@@ -77,17 +90,41 @@ struct PolicyPacket {
     double gripper_vel;
     double gripper_torque;
     uint64_t time_to_chunk_end;
+    uint64_t res_time_to_chunk_end; // only cr-dagger cares about this
 };
 
-struct RawAction {
-    double jp[7];   // x, y, z
+struct BaseRawAction {
+    double jp[7];
     double gripper_cmd;
 };
-
-struct PolicyActionChunkPacket {
-    uint64_t time_to_skip;   // ns of the previous chunk still unconsumed when inference began
-    RawAction actions[ACTION_HORIZON];
+ 
+struct BasePolicyActionChunkPacket {
+    uint64_t time_to_skip;
+    BaseRawAction actions[BASE_ACTION_HORIZON];
 };
+ 
+struct CrRawAction {
+    double delta_jp[7];
+    double gripper_cmd;
+    double ext_torque[7];
+};
+ 
+struct CrPolicyActionChunkPacket {
+    uint64_t time_to_skip;
+    CrRawAction actions[CR_ACTION_HORIZON];
+};
+ 
+struct DgRawAction {
+    double jp[7];
+    double gripper_cmd;
+    double ext_torque[7];
+};
+ 
+struct DgPolicyActionChunkPacket {
+    uint64_t time_to_skip;
+    DgRawAction actions[DG_ACTION_HORIZON];
+};
+
 
 #pragma pack(pop)
 
@@ -122,11 +159,23 @@ struct FollowerReceivedData {
     uint64_t timestamp;
 };
 
-struct PolicyReceivedData {
-    Eigen::Matrix<double, 7, 1> jp;
-    Eigen::Matrix<double, 7, 1> jv;
-    Eigen::Matrix<double, 7, 1> ja;
+struct GenericAction {
+    double pos[7];
     double gripper_cmd;
+    double torque[7];
+};
+
+
+// all policies reuse this for simplicity. see getLatestPolicyReceived for how
+struct PolicyReceivedData {
+    Eigen::Matrix<double, 7, 1> jp = Eigen::Matrix<double, 7, 1>::Zero();
+    Eigen::Matrix<double, 7, 1> jv = Eigen::Matrix<double, 7, 1>::Zero();
+    Eigen::Matrix<double, 7, 1> ja = Eigen::Matrix<double, 7, 1>::Zero();
+    double gripper_cmd = 0.0;
+    Eigen::Matrix<double, 7, 1> base_policy_jp = Eigen::Matrix<double, 7, 1>::Zero();
+    Eigen::Matrix<double, 7, 1> ff_torque = Eigen::Matrix<double, 7, 1>::Zero();
+    std::string clipped_jp_joints_str;
+    std::string clipped_ff_torques_str;
 };
 
 template <size_t DOF>
@@ -137,16 +186,16 @@ public:
     using jt_type = Eigen::Matrix<double, DOF, 1>;
     using PolicyPacketType = PolicyPacket<DOF>;
  
-    PolicyUDPHandler(bool send_active, const std::string& policy_host, int policy_send_port, int policy_recv_port);
+    PolicyUDPHandler(const std::string& type, bool send_active, const std::string& policy_host, int policy_send_port, int policy_recv_port);
     ~PolicyUDPHandler();
  
     void stop();
  
     // Latest interpolated action received from the policy (pops the front of the queue).
-    boost::optional<PolicyReceivedData> getLatestPolicyReceived();
+    boost::optional<PolicyReceivedData> getLatestPolicyReceived(const jp_type& wamJP);
 
     void clearQueueAndPause(std::chrono::milliseconds duration = std::chrono::duration_cast<std::chrono::milliseconds>(
-        std::chrono::duration<double, std::milli>(ACTION_HORIZON * SEGMENT_DURATION_SEC * 1e3)));
+        std::chrono::duration<double, std::milli>(BASE_ACTION_HORIZON * BASE_SEGMENT_DURATION_SEC * 1e3)));
     void clearQueue();
 
  
@@ -159,10 +208,13 @@ public:
                        const Eigen::Vector3d& follower_cart_pos, const Eigen::Quaterniond& follower_quat,
                        const Eigen::Vector3d& leader_cart_pos, const Eigen::Quaterniond& leader_quat,
                        double gripper_pos, double gripper_vel, double gripper_torque);
- 
+
 private:
-    static constexpr size_t SAMPLES_PER_SEGMENT = static_cast<size_t>(INTERP_HZ * SEGMENT_DURATION_SEC);
+    static constexpr size_t BASE_SAMPLES_PER_SEGMENT = static_cast<size_t>(INTERP_HZ * BASE_SEGMENT_DURATION_SEC);
+    static constexpr size_t CR_SAMPLES_PER_SEGMENT = static_cast<size_t>(INTERP_HZ * CR_SEGMENT_DURATION_SEC);
+    static constexpr size_t DG_SAMPLES_PER_SEGMENT = static_cast<size_t>(INTERP_HZ * DG_SEGMENT_DURATION_SEC);
  
+    const std::string type;
     bool send_active;
     std::atomic<bool> stop_threads;
  
@@ -185,23 +237,60 @@ private:
     std::deque<PolicyReceivedData> action_queue;
  
     void sendLoop();
-    void receiveLoop();
+    template <typename PacketT, typename RawT>
+    void genericReceiveLoop(boost::asio::ip::udp::socket& sock,
+                             std::deque<RawT>& raw_queue,
+                             std::mutex& raw_mtx,
+                             std::condition_variable& raw_cv,
+                             std::atomic<uint64_t>& skip_counter,
+                             std::atomic<int64_t>& chunk_end_ns_out,
+                             int action_horizon,
+                             double segment_duration_sec);
 
-    std::deque<RawAction> raw_waypoint_queue;
+
+    std::thread interp_thread;
+    template <typename RawT>
+    void genericInterpLoop(std::deque<RawT>& raw_queue,
+                            std::mutex& raw_mtx,
+                            std::condition_variable& raw_cv,
+                            bool& first_segment_flag,
+                            std::atomic<uint64_t>& skip_counter,
+                            size_t samples_per_segment,
+                            double dt_s,
+                            std::deque<PolicyReceivedData>& out_queue);
+
+    static GenericAction toGeneric(const BaseRawAction& a);
+    static GenericAction toGeneric(const DgRawAction& a);
+    static GenericAction toGeneric(const CrRawAction& a);
+
+    // always use unique points for a0-3
+    static std::deque<PolicyReceivedData> interpolateSegment(const GenericAction& a0, const GenericAction& a1, const GenericAction& a2, const GenericAction& a3, size_t samples_per_segment, double dt_s);
+ 
+    static jp_type clipToRange(const jp_type& value, const jp_type& center, const jp_type& clip_val, std::string& joints_str_out);
+ 
+    std::deque<BaseRawAction> base_raw_waypoint_queue; // for base or the base part of cr
+    std::deque<DgRawAction> dg_raw_waypoint_queue;
     std::mutex raw_mutex;
     std::condition_variable raw_condition;
     bool first_segment_ever = true;
 
-    std::thread interp_thread;
-    void interpLoop();
-
     std::atomic<uint64_t> samples_to_skip{0};
- 
     std::atomic<int64_t> chunk_end_ns{0};
- 
-    // always use unique points for a0-3
-    static std::deque<PolicyReceivedData> interpolateSegment(const RawAction& a0, const RawAction& a1, const RawAction& a2, const RawAction& a3);
 
+    boost::asio::ip::udp::socket cr_recv_socket;
+    std::thread cr_recv_thread;
+    std::thread cr_interp_thread;
+ 
+    std::deque<CrRawAction> cr_raw_waypoint_queue;
+    std::mutex cr_raw_mutex;
+    std::condition_variable cr_raw_condition;
+    bool cr_first_segment_ever = true;
+ 
+    std::atomic<uint64_t> cr_samples_to_skip{0};
+    std::atomic<int64_t> cr_chunk_end_ns{0};
+ 
+    std::deque<PolicyReceivedData> cr_action_queue;
+ 
     std::chrono::steady_clock::time_point pause_until{};
 };
 

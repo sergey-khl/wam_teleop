@@ -7,6 +7,7 @@ network:
   policy_host: "127.0.0.1"
   # if policy.on_leader the ports are from persepctive of leader. Similar for follower
   policy_send: 6554
+  # CR-DAgger will assume recieving on the below ports + 1
   policy_follower_recv: 20000
   policy_leader_recv: 10000
 
@@ -32,6 +33,8 @@ policy:
   on_leader: true
   on_follower: false
 
+  type: "base" # one of base, cr or dg
+
 leader:
   sync_pos: [0.0, -1.7, 0.0, 2.97, 0.0, 0.0, 0.0] 
   vertical: false
@@ -41,7 +44,7 @@ follower:
   vertical: false
 
 gripper:
-  usable: true
+  usable: false
 
 handle:
     torque_scaling: 1.5

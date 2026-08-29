@@ -66,7 +66,7 @@ class Follower : public barrett::systems::System {
         , theirJPOutput(this, &theirJPOutputValue)
         , policyJpOutput(this, &policyJpOutputValue)
         , teleop_udp_handler(config.network.leader_host, config.network.teleop_recv, config.network.teleop_send)
-        , policy_udp_handler(config.policy.on_follower, config.network.policy_host, config.network.policy_send, config.network.policy_follower_recv)
+        , policy_udp_handler(config.policy.type, config.policy.on_follower, config.network.policy_host, config.network.policy_send, config.network.policy_follower_recv)
         , gripper(gripper)
         , target_gripper_pos(0.0f)
         , current_gripper_pos(0.0f)
@@ -117,6 +117,7 @@ class Follower : public barrett::systems::System {
     jt_type policyJt;
     jt_type policyTorqueScale;
     jp_type policyJp;
+    jp_type basePolicyJp;
     Eigen::Matrix<double, DOF, 1> sendJpMsg;
     Eigen::Matrix<double, DOF, 1> sendJvMsg;
     Eigen::Matrix<double, DOF, 1> sendDyngravcompTorqueMsg;
@@ -145,6 +146,7 @@ class Follower : public barrett::systems::System {
 
         // policy defaults
         policyJp << wamJP;
+        basePolicyJp << wamJP;
         policy_gripper_cmd.store(0);
         policyTorqueScale.setZero();
 
@@ -191,35 +193,10 @@ class Follower : public barrett::systems::System {
 
 
         // inference.
-        boost::optional<PolicyReceivedData> policy_data = policy_udp_handler.getLatestPolicyReceived();
+        boost::optional<PolicyReceivedData> policy_data = policy_udp_handler.getLatestPolicyReceived(wamJP);
         if (policy_data) {
-            jp_type clipped_jp;
-            clipped_jp << policy_data->jp;
-            jp_type clip_val;
-            clip_val << 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1;
-
-            bool jp_was_clipped = false;
-            std::string clipped_jp_joints_str = "";
-            for (size_t i = 0; i < DOF; ++i) {
-                double delta = policy_data->jp[i] - wamJP[i];
-                bool joint_clipped = false;
-
-                if (delta > clip_val[i]) {
-                    clipped_jp[i] = wamJP[i] + clip_val[i];
-                    joint_clipped = true;
-                } else if (delta < -clip_val[i]) {
-                    clipped_jp[i] = wamJP[i] - clip_val[i];
-                    joint_clipped = true;
-                }
-
-                if (joint_clipped) {
-                    jp_was_clipped = true;
-                    if (!clipped_jp_joints_str.empty()) clipped_jp_joints_str += ", ";
-                    clipped_jp_joints_str += std::to_string(i);
-                }
-            }
-
-            policyJp << clipped_jp;
+            policyJp << policy_data->jp;
+            basePolicyJp << policy_data->base_policy_jp;
             policy_gripper_cmd.store(static_cast<double>(policy_data->gripper_cmd));
         }
         policyJpOutputValue->setData(&policyJp);
@@ -272,7 +249,7 @@ class Follower : public barrett::systems::System {
         // send to leader then send to policy
         teleop_udp_handler.send(sendJpMsg, sendJvMsg, sendDyngravcompTorqueMsg, sendEnvironmentTorqueMsg, filteredEnvironmentTorque, toolPos, toolQ, static_cast<double>(current_gripper_torque.load()), static_cast<double>(current_gripper_pos.load()), static_cast<double>(current_gripper_vel.load()), loop_start);
         // see how on_follower is used for the magic
-        policy_udp_handler.send(sendJpMsg, sendJvMsg, sendDyngravcompTorqueMsg, sendEnvironmentTorqueMsg, filteredEnvironmentTorque, theirJp, theirJv, theirDyngravcompTorque, humanTorque, filteredHumanTorque, policyJp, policyJt, policyTorqueScale, toolPos, toolQ, theirToolPos, theirToolQ, static_cast<double>(current_gripper_pos.load()), static_cast<double>(current_gripper_vel.load()), static_cast<double>(current_gripper_torque.load()));
+        policy_udp_handler.send(sendJpMsg, sendJvMsg, sendDyngravcompTorqueMsg, sendEnvironmentTorqueMsg, filteredEnvironmentTorque, theirJp, theirJv, theirDyngravcompTorque, humanTorque, filteredHumanTorque, basePolicyJp, policyJt, policyTorqueScale, toolPos, toolQ, theirToolPos, theirToolQ, static_cast<double>(current_gripper_pos.load()), static_cast<double>(current_gripper_vel.load()), static_cast<double>(current_gripper_torque.load()));
 
         // auto send_end = std::chrono::steady_clock::now();
         // double send_dt = std::chrono::duration<double, std::milli>(send_end - send_start).count();

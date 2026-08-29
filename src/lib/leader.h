@@ -66,7 +66,7 @@ class Leader : public barrett::systems::System {
         , theirJPOutput(this, &theirJPOutputValue)
         , policyJPOutput(this, &policyJPOutputValue)
         , teleop_udp_handler(config.network.follower_host, config.network.teleop_send, config.network.teleop_recv)
-        , policy_udp_handler(config.policy.on_leader, config.network.policy_host, config.network.policy_send, config.network.policy_leader_recv)
+        , policy_udp_handler(config.policy.type, config.policy.on_leader, config.network.policy_host, config.network.policy_send, config.network.policy_leader_recv)
         , handle(handle)
     	, bumper(0.0f)
     	, trigger(0.0f)
@@ -122,6 +122,7 @@ class Leader : public barrett::systems::System {
     jt_type wamGrav;
     jt_type wamDyn;
     jp_type policyJp;
+    jp_type basePolicyJp;
 
     const float gripper_speed = 0.1f;
 
@@ -165,6 +166,7 @@ class Leader : public barrett::systems::System {
 
         // policy defaults
         policyJp << wamJP;
+        basePolicyJp << wamJP;
         policy_gripper_cmd.store(remote_gripper_pos.load());
 
         // teleop
@@ -210,35 +212,10 @@ class Leader : public barrett::systems::System {
         }
 
         // inference.
-        boost::optional<PolicyReceivedData> policy_data = policy_udp_handler.getLatestPolicyReceived();
+        boost::optional<PolicyReceivedData> policy_data = policy_udp_handler.getLatestPolicyReceived(wamJP);
         if (policy_data) {
-            jp_type clipped_jp;
-            clipped_jp << policy_data->jp;
-            jp_type clip_val;
-            clip_val << 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1;
-
-            bool jp_was_clipped = false;
-            std::string clipped_jp_joints_str = "";
-            for (size_t i = 0; i < DOF; ++i) {
-                double delta = policy_data->jp[i] - wamJP[i];
-                bool joint_clipped = false;
-
-                if (delta > clip_val[i]) {
-                    clipped_jp[i] = wamJP[i] + clip_val[i];
-                    joint_clipped = true;
-                } else if (delta < -clip_val[i]) {
-                    clipped_jp[i] = wamJP[i] - clip_val[i];
-                    joint_clipped = true;
-                }
-
-                if (joint_clipped) {
-                    jp_was_clipped = true;
-                    if (!clipped_jp_joints_str.empty()) clipped_jp_joints_str += ", ";
-                    clipped_jp_joints_str += std::to_string(i);
-                }
-            }
-
-            policyJp << clipped_jp;
+            policyJp << policy_data->jp;
+            basePolicyJp << policy_data->base_policy_jp;
             // policy_gripper_cmd.store(static_cast<double>(policy_data->gripper_cmd));
         }
         policyJPOutputValue->setData(&policyJp);
@@ -303,7 +280,7 @@ class Leader : public barrett::systems::System {
         auto send_start = std::chrono::steady_clock::now();
         teleop_udp_handler.send(sendJpMsg, sendJvMsg, sendDyngravcompTorqueMsg, sendHumanTorqueMsg, filteredHumanTorque, toolPos, toolQ, policyTorqueScale, static_cast<double>(desired_gripper_pos.load()), static_cast<double>(cancel_policy.load()), loop_start);
         // see how on_leader is used for the magic
-        policy_udp_handler.send(theirJp, theirJv, theirDyngravcompTorque, environmentTorque, filteredEnvironmentTorque, sendJpMsg, sendJvMsg, sendDyngravcompTorqueMsg, sendHumanTorqueMsg, filteredHumanTorque, policyJp, policyJt, policyTorqueScale, theirToolPos, theirToolQ, toolPos, toolQ, static_cast<double>(remote_gripper_pos.load()), static_cast<double>(remote_gripper_vel.load()), static_cast<double>(remote_gripper_pos.load()));
+        policy_udp_handler.send(theirJp, theirJv, theirDyngravcompTorque, environmentTorque, filteredEnvironmentTorque, sendJpMsg, sendJvMsg, sendDyngravcompTorqueMsg, sendHumanTorqueMsg, filteredHumanTorque, basePolicyJp, policyJt, policyTorqueScale, theirToolPos, theirToolQ, toolPos, toolQ, static_cast<double>(remote_gripper_pos.load()), static_cast<double>(remote_gripper_vel.load()), static_cast<double>(remote_gripper_pos.load()));
         auto send_end = std::chrono::steady_clock::now();
         double send_dt = std::chrono::duration<double, std::milli>(send_end - send_start).count();
 
