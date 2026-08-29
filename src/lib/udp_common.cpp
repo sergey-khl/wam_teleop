@@ -52,25 +52,25 @@ PolicyUDPHandler<DOF>::PolicyUDPHandler(const std::string& type, bool send_activ
     if (type == "dg") {
         recv_thread = std::thread([this] {
             genericReceiveLoop<DgPolicyActionChunkPacket, DgRawAction>(
-                recv_socket, dg_raw_waypoint_queue, raw_mutex, raw_condition,
-                samples_to_skip, chunk_end_ns, DG_ACTION_HORIZON, DG_SEGMENT_DURATION_SEC);
+                recv_socket, dg_raw_waypoint_queue, valid_sample_queue, raw_mutex, raw_condition,
+                chunk_end_ns, DG_ACTION_HORIZON, DG_SEGMENT_DURATION_SEC);
         });
         interp_thread = std::thread([this] {
             genericInterpLoop<DgRawAction>(
-                dg_raw_waypoint_queue, raw_mutex, raw_condition, first_segment_ever,
-                samples_to_skip, DG_SAMPLES_PER_SEGMENT, 1.0 / DG_UNINTERP_HZ, action_queue);
+                dg_raw_waypoint_queue, valid_sample_queue, raw_mutex, raw_condition, first_segment_ever,
+                DG_SAMPLES_PER_SEGMENT, 1.0 / DG_UNINTERP_HZ, action_queue);
         });
     } else {
         // base or cr base part
         recv_thread = std::thread([this] {
             genericReceiveLoop<BasePolicyActionChunkPacket, BaseRawAction>(
-                recv_socket, base_raw_waypoint_queue, raw_mutex, raw_condition,
-                samples_to_skip, chunk_end_ns, BASE_ACTION_HORIZON, BASE_SEGMENT_DURATION_SEC);
+                recv_socket, base_raw_waypoint_queue, valid_sample_queue, raw_mutex, raw_condition,
+                chunk_end_ns, BASE_ACTION_HORIZON, BASE_SEGMENT_DURATION_SEC);
         });
         interp_thread = std::thread([this] {
             genericInterpLoop<BaseRawAction>(
-                base_raw_waypoint_queue, raw_mutex, raw_condition, first_segment_ever,
-                samples_to_skip, BASE_SAMPLES_PER_SEGMENT, 1.0 / BASE_UNINTERP_HZ, action_queue);
+                base_raw_waypoint_queue, valid_sample_queue, raw_mutex, raw_condition, first_segment_ever,
+                BASE_SAMPLES_PER_SEGMENT, 1.0 / BASE_UNINTERP_HZ, action_queue);
         });
     }
  
@@ -79,13 +79,13 @@ PolicyUDPHandler<DOF>::PolicyUDPHandler(const std::string& type, bool send_activ
         cr_recv_socket.bind(boost::asio::ip::udp::endpoint(boost::asio::ip::udp::v4(), policy_recv_port + 1));
         cr_recv_thread = std::thread([this] {
             genericReceiveLoop<CrPolicyActionChunkPacket, CrRawAction>(
-                cr_recv_socket, cr_raw_waypoint_queue, cr_raw_mutex, cr_raw_condition,
-                cr_samples_to_skip, cr_chunk_end_ns, CR_ACTION_HORIZON, CR_SEGMENT_DURATION_SEC);
+                cr_recv_socket, cr_raw_waypoint_queue, cr_valid_sample_queue, cr_raw_mutex, cr_raw_condition,
+                cr_chunk_end_ns, CR_ACTION_HORIZON, CR_SEGMENT_DURATION_SEC);
         });
         cr_interp_thread = std::thread([this] {
             genericInterpLoop<CrRawAction>(
-                cr_raw_waypoint_queue, cr_raw_mutex, cr_raw_condition, cr_first_segment_ever,
-                cr_samples_to_skip, CR_SAMPLES_PER_SEGMENT, 1.0 / CR_UNINTERP_HZ, cr_action_queue);
+                cr_raw_waypoint_queue, cr_valid_sample_queue, cr_raw_mutex, cr_raw_condition, cr_first_segment_ever,
+                CR_SAMPLES_PER_SEGMENT, 1.0 / CR_UNINTERP_HZ, cr_action_queue);
         });
     }
  
@@ -295,17 +295,17 @@ void PolicyUDPHandler<DOF>::clearQueue() {
         std::lock_guard<std::mutex> lock(raw_mutex);
         base_raw_waypoint_queue.clear();
         dg_raw_waypoint_queue.clear();
+        valid_sample_queue.clear();
         first_segment_ever = true;
     }
     {
         std::lock_guard<std::mutex> lock(cr_raw_mutex);
         cr_raw_waypoint_queue.clear();
+        cr_valid_sample_queue.clear();
         cr_first_segment_ever = true;
     }
     {
         std::lock_guard<std::mutex> lock(send_mutex);
-        samples_to_skip.store(0);
-        cr_samples_to_skip.store(0);
         int64_t now_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
         chunk_end_ns = now_ns;
         cr_chunk_end_ns = now_ns;
@@ -356,14 +356,16 @@ template <size_t DOF>
 template <typename PacketT, typename RawT>
 void PolicyUDPHandler<DOF>::genericReceiveLoop(boost::asio::ip::udp::socket& sock,
                                                 std::deque<RawT>& raw_queue,
+                                                std::deque<uint8_t>& valid_sample_queue,
                                                 std::mutex& raw_mtx,
                                                 std::condition_variable& raw_cv,
-                                                std::atomic<uint64_t>& skip_counter,
                                                 std::atomic<int64_t>& chunk_end_ns_out,
                                                 int action_horizon,
                                                 double segment_duration_sec) {
     boost::asio::ip::udp::endpoint sender_endpoint;
     PacketT pkt;
+    const size_t samples_per_segment = static_cast<size_t>(INTERP_HZ * segment_duration_sec);
+    const int64_t segment_duration_ns = static_cast<int64_t>(segment_duration_sec * 1e9);
  
     while (!stop_threads) {
         boost::system::error_code ec;
@@ -379,19 +381,27 @@ void PolicyUDPHandler<DOF>::genericReceiveLoop(boost::asio::ip::udp::socket& soc
             continue;
         }
  
-        skip_counter = static_cast<uint64_t>(pkt.time_to_skip / (1e9 / INTERP_HZ));
+        uint64_t total_new_samples = static_cast<uint64_t>(action_horizon) * samples_per_segment;
+        uint64_t skip_samples = static_cast<uint64_t>(pkt.time_to_skip / (1e9 / INTERP_HZ));
+        skip_samples = std::min(skip_samples, total_new_samples);
  
-        int64_t nominal_duration_ns = static_cast<int64_t>(action_horizon * segment_duration_sec * 1e9);
         int64_t now_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(
             std::chrono::steady_clock::now().time_since_epoch()).count();
-        chunk_end_ns_out = now_ns + nominal_duration_ns - static_cast<int64_t>(pkt.time_to_skip);
-        // TODO: sub one segment duration and add the duration of the segments in the raw_waypoints_queue. 
-        // TODO: samples should be skipped of the incoming chunk only. right now we are skipping starting from the last action of the last chunk
- 
+
         {
             std::lock_guard<std::mutex> raw_lock(raw_mtx);
+
+            for (uint64_t i = 0; i < total_new_samples; ++i) {
+                valid_sample_queue.push_back(i < skip_samples ? 0 : 1);
+            }
             raw_queue.insert(raw_queue.end(), std::begin(pkt.actions), std::end(pkt.actions));
+
+            // we can only interpolate up to the N-1'th action for a chunk until we need a new one
+            int64_t playable_segments = static_cast<int64_t>(raw_queue.size()) >= 2 ? static_cast<int64_t>(raw_queue.size()) - 2 : 0;
+            int64_t nominal_duration_ns = playable_segments * segment_duration_ns;
+            chunk_end_ns_out = now_ns + nominal_duration_ns - static_cast<int64_t>(pkt.time_to_skip);
         }
+
         raw_cv.notify_one();
     }
     sock.close();
@@ -400,14 +410,16 @@ void PolicyUDPHandler<DOF>::genericReceiveLoop(boost::asio::ip::udp::socket& soc
 template <size_t DOF>
 template <typename RawT>
 void PolicyUDPHandler<DOF>::genericInterpLoop(std::deque<RawT>& raw_queue,
+                                               std::deque<uint8_t>& valid_sample_queue,
                                                std::mutex& raw_mtx,
                                                std::condition_variable& raw_cv,
                                                bool& first_segment_flag,
-                                               std::atomic<uint64_t>& skip_counter,
                                                size_t samples_per_segment,
                                                double dt_s,
                                                std::deque<PolicyReceivedData>& out_queue) {
     while (!stop_threads) {
+        // size of the segment. 1 
+        std::deque<uint8_t> seg_valid;
         RawT a0, a1, a2, a3;
         {
             std::unique_lock<std::mutex> lock(raw_mtx);
@@ -429,28 +441,33 @@ void PolicyUDPHandler<DOF>::genericInterpLoop(std::deque<RawT>& raw_queue,
                 a3 = raw_queue[3];
                 raw_queue.pop_front(); // slide the window by one support point
             }
+
+            size_t n = std::min(samples_per_segment, valid_sample_queue.size());
+            seg_valid.assign(valid_sample_queue.begin(), valid_sample_queue.begin() + static_cast<std::ptrdiff_t>(n));
+            valid_sample_queue.erase(valid_sample_queue.begin(), valid_sample_queue.begin() + static_cast<std::ptrdiff_t>(n));
         }
  
-        uint64_t skip_now = skip_counter.load();
-        if (skip_now >= samples_per_segment) {
-            // The whole segment would be discarded, so don't bother interpolating it at all.
-            skip_counter.fetch_sub(static_cast<uint64_t>(samples_per_segment));
+        // skip the whole segment
+         bool any_valid = std::any_of(seg_valid.begin(), seg_valid.end(), [](uint8_t v) { return v != 0; });
+        if (!any_valid) {
             continue;
         }
  
         std::deque<PolicyReceivedData> new_samples =
             interpolateSegment(toGeneric(a0), toGeneric(a1), toGeneric(a2), toGeneric(a3), samples_per_segment, dt_s);
  
-        if (skip_now > 0) {
-            // Interpolation can start partway through a segment
-            new_samples.erase(new_samples.begin(), new_samples.begin() + static_cast<std::ptrdiff_t>(skip_now));
-            skip_counter.fetch_sub(skip_now);
-        }
- 
+        // seg_valid and new_samples should always be same size
+        // TODO: add safety check
+        size_t idx = 0;
+        new_samples.erase(
+            std::remove_if(new_samples.begin(), new_samples.end(),
+                            [&](const PolicyReceivedData&) { return seg_valid[idx++] == 0; }),
+            new_samples.end());
+
         std::lock_guard<std::mutex> lock(state_mutex);
         out_queue.insert(out_queue.end(),
-                          std::make_move_iterator(new_samples.begin()),
-                          std::make_move_iterator(new_samples.end()));
+                  std::make_move_iterator(new_samples.begin()),
+                  std::make_move_iterator(new_samples.end()));
     }
 }
 

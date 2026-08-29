@@ -240,9 +240,9 @@ private:
     template <typename PacketT, typename RawT>
     void genericReceiveLoop(boost::asio::ip::udp::socket& sock,
                              std::deque<RawT>& raw_queue,
+                             std::deque<uint8_t>& valid_sample_queue,
                              std::mutex& raw_mtx,
                              std::condition_variable& raw_cv,
-                             std::atomic<uint64_t>& skip_counter,
                              std::atomic<int64_t>& chunk_end_ns_out,
                              int action_horizon,
                              double segment_duration_sec);
@@ -251,10 +251,10 @@ private:
     std::thread interp_thread;
     template <typename RawT>
     void genericInterpLoop(std::deque<RawT>& raw_queue,
+                            std::deque<uint8_t>& valid_sample_queue,
                             std::mutex& raw_mtx,
                             std::condition_variable& raw_cv,
                             bool& first_segment_flag,
-                            std::atomic<uint64_t>& skip_counter,
                             size_t samples_per_segment,
                             double dt_s,
                             std::deque<PolicyReceivedData>& out_queue);
@@ -270,11 +270,11 @@ private:
  
     std::deque<BaseRawAction> base_raw_waypoint_queue; // for base or the base part of cr
     std::deque<DgRawAction> dg_raw_waypoint_queue;
+    std::deque<uint8_t> valid_sample_queue;
     std::mutex raw_mutex;
     std::condition_variable raw_condition;
     bool first_segment_ever = true;
 
-    std::atomic<uint64_t> samples_to_skip{0};
     std::atomic<int64_t> chunk_end_ns{0};
 
     boost::asio::ip::udp::socket cr_recv_socket;
@@ -282,11 +282,11 @@ private:
     std::thread cr_interp_thread;
  
     std::deque<CrRawAction> cr_raw_waypoint_queue;
+    std::deque<uint8_t> cr_valid_sample_queue;
     std::mutex cr_raw_mutex;
     std::condition_variable cr_raw_condition;
     bool cr_first_segment_ever = true;
  
-    std::atomic<uint64_t> cr_samples_to_skip{0};
     std::atomic<int64_t> cr_chunk_end_ns{0};
  
     std::deque<PolicyReceivedData> cr_action_queue;
