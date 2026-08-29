@@ -446,18 +446,26 @@ void PolicyUDPHandler<DOF>::genericInterpLoop(std::deque<RawT>& raw_queue,
             seg_valid.assign(valid_sample_queue.begin(), valid_sample_queue.begin() + static_cast<std::ptrdiff_t>(n));
             valid_sample_queue.erase(valid_sample_queue.begin(), valid_sample_queue.begin() + static_cast<std::ptrdiff_t>(n));
         }
+
  
         // skip the whole segment
-         bool any_valid = std::any_of(seg_valid.begin(), seg_valid.end(), [](uint8_t v) { return v != 0; });
+        bool any_valid = std::any_of(seg_valid.begin(), seg_valid.end(), [](uint8_t v) { return v != 0; });
         if (!any_valid) {
             continue;
         }
  
         std::deque<PolicyReceivedData> new_samples =
             interpolateSegment(toGeneric(a0), toGeneric(a1), toGeneric(a2), toGeneric(a3), samples_per_segment, dt_s);
- 
+
         // seg_valid and new_samples should always be same size
-        // TODO: add safety check
+        if (seg_valid.size() != new_samples.size()) {
+            std::cerr << "seg_valid size (" << seg_valid.size()
+                      << ") != new_samples size (" << new_samples.size()
+                      << ") -- pausing policy queue" << std::endl;
+            clearQueueAndPause(std::chrono::seconds(30));
+            continue;
+        }
+ 
         size_t idx = 0;
         new_samples.erase(
             std::remove_if(new_samples.begin(), new_samples.end(),
