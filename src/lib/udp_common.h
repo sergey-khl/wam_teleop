@@ -290,6 +290,15 @@ private:
     std::atomic<int64_t> cr_chunk_end_ns{0};
  
     std::deque<PolicyReceivedData> cr_action_queue;
+
+    // use to interpolate for the first time
+    struct LeaderState {
+        jp_type jp = jp_type::Zero();
+        jt_type filtered_human_torque = jt_type::Zero();
+        double gripper_pos = 0.0;
+    };
+    std::mutex leader_state_mutex;
+    LeaderState latest_leader_state;
  
     std::chrono::steady_clock::time_point pause_until{};
 };

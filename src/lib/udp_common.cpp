@@ -230,6 +230,14 @@ void PolicyUDPHandler<DOF>::send(const jp_type& follower_jp, const jv_type& foll
                                           const Eigen::Vector3d& follower_cart_pos, const Eigen::Quaterniond& follower_quat,
                                           const Eigen::Vector3d& leader_cart_pos, const Eigen::Quaterniond& leader_quat,
                                           double gripper_pos, double gripper_vel, double gripper_torque) {
+    // always captured no matter if on_leader or on_follower
+    {
+        std::lock_guard<std::mutex> lock(leader_state_mutex);
+        latest_leader_state.jp = leader_jp;
+        latest_leader_state.filtered_human_torque = filtered_human_torque;
+        latest_leader_state.gripper_pos = gripper_pos;
+    }
+
     if (!send_active) return;
 
     {
@@ -420,7 +428,8 @@ void PolicyUDPHandler<DOF>::genericInterpLoop(std::deque<RawT>& raw_queue,
     while (!stop_threads) {
         // size of the segment. 1 
         std::deque<uint8_t> seg_valid;
-        RawT a0, a1, a2, a3;
+        GenericAction a0, a1, a2, a3;
+        bool leader_jp_uninitialized = false;
         {
             std::unique_lock<std::mutex> lock(raw_mtx);
             raw_cv.wait(lock, [this, &raw_queue] {
@@ -429,16 +438,29 @@ void PolicyUDPHandler<DOF>::genericInterpLoop(std::deque<RawT>& raw_queue,
             if (stop_threads) break;
  
             if (first_segment_flag) {
-                a0 = raw_queue[0];
-                a1 = raw_queue[0];
-                a2 = raw_queue[1];
-                a3 = raw_queue[2];
-                first_segment_flag = false;
+                LeaderState leader_state;
+                {
+                    std::lock_guard<std::mutex> jp_lock(leader_state_mutex);
+                    leader_state = latest_leader_state;
+                }
+                // should always have a jp
+                if (leader_state.jp == jp_type::Zero()) {
+                    leader_jp_uninitialized = true;
+                } else {
+                    std::memcpy(a0.pos, leader_state.jp.data(), sizeof(a0.pos));
+                    std::memcpy(a0.torque, leader_state.filtered_human_torque.data(), sizeof(a0.torque));
+                    a0.gripper_cmd = leader_state.gripper_pos;
+
+                    a1 = toGeneric(raw_queue[0]);
+                    a2 = toGeneric(raw_queue[1]);
+                    a3 = toGeneric(raw_queue[2]);
+                    first_segment_flag = false;
+                }
             } else {
-                a0 = raw_queue[0];
-                a1 = raw_queue[1];
-                a2 = raw_queue[2];
-                a3 = raw_queue[3];
+                a0 = toGeneric(raw_queue[0]);
+                a1 = toGeneric(raw_queue[1]);
+                a2 = toGeneric(raw_queue[2]);
+                a3 = toGeneric(raw_queue[3]);
                 raw_queue.pop_front(); // slide the window by one support point
             }
 
@@ -447,6 +469,11 @@ void PolicyUDPHandler<DOF>::genericInterpLoop(std::deque<RawT>& raw_queue,
             valid_sample_queue.erase(valid_sample_queue.begin(), valid_sample_queue.begin() + static_cast<std::ptrdiff_t>(n));
         }
 
+        if (leader_jp_uninitialized) {
+            std::cerr << "no intialization point -- pausing policy queue" << std::endl;
+            clearQueueAndPause(std::chrono::seconds(30));
+            continue;
+        }
  
         // skip the whole segment
         bool any_valid = std::any_of(seg_valid.begin(), seg_valid.end(), [](uint8_t v) { return v != 0; });
@@ -454,8 +481,7 @@ void PolicyUDPHandler<DOF>::genericInterpLoop(std::deque<RawT>& raw_queue,
             continue;
         }
  
-        std::deque<PolicyReceivedData> new_samples =
-            interpolateSegment(toGeneric(a0), toGeneric(a1), toGeneric(a2), toGeneric(a3), samples_per_segment, dt_s);
+        std::deque<PolicyReceivedData> new_samples = interpolateSegment(a0, a1, a2, a3, samples_per_segment, dt_s);
 
         // seg_valid and new_samples should always be same size
         if (seg_valid.size() != new_samples.size()) {
