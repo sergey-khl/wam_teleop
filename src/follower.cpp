@@ -124,7 +124,7 @@ template <size_t DOF> int wam_main(int argc, char **argv, ProductManager &pm, sy
     }
     
     barrett::systems::FirstOrderFilter<jt_type> extFilter;
-    jt_type omega_p(180.0);
+    jt_type omega_p(80.0);
     extFilter.setLowPass(omega_p);
     pm.getExecutionManager()->startManaging(extFilter);
 
