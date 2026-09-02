@@ -10,6 +10,7 @@
 
 // This a version of 7dof-7dof control
 
+#include "lib/utils.h"
 #include <iostream>
 #include <string>
 
@@ -82,23 +83,7 @@ int wam_main(int argc, char **argv, ProductManager &pm, systems::Wam<DOF> &wam) 
     barrett::systems::Summer<jt_type, 3> customjtSum;
     pm.getExecutionManager()->startManaging(customjtSum);
 
-    // create libbarret gains settings from our teleop_config.yaml
-    libconfig::Config policy_config;
-    libconfig::Setting& policy_settings = policy_config.getRoot().add("policy_gains", libconfig::Setting::TypeGroup);
-    libconfig::Setting& kp_setting = policy_settings.add("kp", libconfig::Setting::TypeList);
-    libconfig::Setting& ki_setting = policy_settings.add("ki", libconfig::Setting::TypeList);
-    libconfig::Setting& kd_setting = policy_settings.add("kd", libconfig::Setting::TypeList);
-    libconfig::Setting& control_signal_limit_setting = policy_settings.add("control_signal", libconfig::Setting::TypeList);
-    libconfig::Setting& integrator_limit_setting = policy_settings.add("integrator_limit", libconfig::Setting::TypeList);
-    for (int i = 0; i < DOF; ++i) {
-        kp_setting.add(libconfig::Setting::TypeFloat) = config.policy.kp[i];
-        ki_setting.add(libconfig::Setting::TypeFloat) = config.policy.ki[i];
-        kd_setting.add(libconfig::Setting::TypeFloat) = config.policy.kd[i];
-        control_signal_limit_setting.add(libconfig::Setting::TypeFloat) = config.policy.control_signal_limit[i];
-        integrator_limit_setting.add(libconfig::Setting::TypeFloat) = config.policy.integrator_limit[i];
-    }
-
-    barrett::systems::PIDController<jp_type, jt_type> policy_controller(policy_config.lookup("policy_gains"));
+    barrett::systems::PIDController<jp_type, jt_type> policy_controller(get_barrett_gains<DOF>(config.policy.base));
 
     LeaderDynamics<DOF> leaderDynamics(pm.getExecutionManager());
     DynamicExternalTorque<DOF> dynamicExternalTorque(pm.getExecutionManager());

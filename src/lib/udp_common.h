@@ -16,21 +16,24 @@
  
 
 static constexpr double INTERP_HZ = 500.0;
+
+// 1 is real time exec. the larger the number the slower the execution
+static constexpr int SLOW_DOWN_FACTOR = 2;
  
 // used in base and cr
 static constexpr int BASE_ACTION_HORIZON = 8;
 static constexpr double BASE_UNINTERP_HZ = 10.0;
-static constexpr double BASE_SEGMENT_DURATION_SEC = 2 / BASE_UNINTERP_HZ;
+static constexpr double BASE_SEGMENT_DURATION_SEC = SLOW_DOWN_FACTOR / BASE_UNINTERP_HZ;
  
 // the residual of cr-dagger
 static constexpr int CR_ACTION_HORIZON = 5;
 static constexpr double CR_UNINTERP_HZ = 50.0;
-static constexpr double CR_SEGMENT_DURATION_SEC = 1/ CR_UNINTERP_HZ;
+static constexpr double CR_SEGMENT_DURATION_SEC = SLOW_DOWN_FACTOR / CR_UNINTERP_HZ;
  
 // dg-dagger
 static constexpr int DG_ACTION_HORIZON = 64;
 static constexpr double DG_UNINTERP_HZ = 50.0;
-static constexpr double DG_SEGMENT_DURATION_SEC = 1 / DG_UNINTERP_HZ;
+static constexpr double DG_SEGMENT_DURATION_SEC = SLOW_DOWN_FACTOR / DG_UNINTERP_HZ;
 
 
 // tightly packed layouts

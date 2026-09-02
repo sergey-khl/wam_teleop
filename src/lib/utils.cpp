@@ -1,5 +1,8 @@
 #include "utils.h"
+#include <barrett/systems.h>
+#include <barrett/units.h>
 
+using namespace barrett;
 namespace fs = boost::filesystem;
 
 void print_leader_banner(const TeleopConfig& config) {
@@ -96,3 +99,25 @@ std::string get_teleop_config_directory() {
     std::cerr << "No valid configuration directory found.\n";
     return "";
 }
+
+template <size_t DOF>
+libconfig::Setting& get_barrett_gains(const PolicyGains& gains) {
+    libconfig::Config policy_config;
+    libconfig::Setting& policy_settings = policy_config.getRoot().add("policy_gains", libconfig::Setting::TypeGroup);
+    libconfig::Setting& kp_setting = policy_settings.add("kp", libconfig::Setting::TypeList);
+    libconfig::Setting& ki_setting = policy_settings.add("ki", libconfig::Setting::TypeList);
+    libconfig::Setting& kd_setting = policy_settings.add("kd", libconfig::Setting::TypeList);
+    libconfig::Setting& control_signal_limit_setting = policy_settings.add("control_signal", libconfig::Setting::TypeList);
+    libconfig::Setting& integrator_limit_setting = policy_settings.add("integrator_limit", libconfig::Setting::TypeList);
+    for (int i = 0; i < DOF; ++i) {
+        kp_setting.add(libconfig::Setting::TypeFloat) = gains.kp[i];
+        ki_setting.add(libconfig::Setting::TypeFloat) = gains.ki[i];
+        kd_setting.add(libconfig::Setting::TypeFloat) = gains.kd[i];
+        control_signal_limit_setting.add(libconfig::Setting::TypeFloat) = gains.control_signal_limit[i];
+        integrator_limit_setting.add(libconfig::Setting::TypeFloat) = gains.integrator_limit[i];
+    }
+
+    return policy_config.lookup("policy_gains");
+}
+
+template libconfig::Setting& get_barrett_gains<7>(const PolicyGains& gains);

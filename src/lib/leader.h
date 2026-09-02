@@ -309,6 +309,7 @@ class Leader : public barrett::systems::System {
             std::cout << "  -> policy jt:      [" << policyJt.transpose() << "]\n";
             std::cout << "  -> policy scale:[" << policyTorqueScale.transpose() << "]\n";
             std::cout << "  -> base policy jp:      [" << basePolicyJp.transpose() << "]\n";
+            std::cout << "  -> res policy jp:      [" << (policyJp - basePolicyJp).transpose() << "]\n";
             std::cout << "  -> ff poliocy toq:      [" << ffPolicyTorque.transpose() << "]\n";
             // std::cout << "  -> human jt:    [" << humanTorque.transpose() << "]\n";
             // std::cout << "  -> leader control: [" << compute_control(theirJp, theirJv, theirTorque, wamJP, wamJV, extTorque, wamGrav, wamDyn, policyTorque) << "]\n\n";

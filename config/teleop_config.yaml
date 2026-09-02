@@ -16,36 +16,52 @@ sync_mapping:
   offsets: [0, 0.0,  0.0,  0.0, 0, 0, 0]
 
 policy:
-  # kp: [5.0, 3.0, 2.0, 2.0, 0.0, 0.0, 0.0]
-  # ki: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
-  # kd: [0.05, 0.05, 0.03, 0.01, 0.0, 0.0, 0.0]
-  # control_signal_limit: [1, 1, 1, 1.0, 0.0, 0.0, 0.0]
-  # integrator_limit: [0, 0, 0, 0, 0, 0, 0]
+  # base_kp: [50.0, 35.0, 25.0, 20.0, 0.0, 0.0, 0.0]
+  # base_ki: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+  # base_kd: [0.5, 0.5, 0.3, 0.1, 0.0, 0.0, 0.0]
+  # base_control_signal_limit: [5, 4, 3, 2.0, 0.0, 0.0, 0.0]
+  # base_integrator_limit: [0, 0, 0, 0, 0, 0, 0]
 
-  # kp: [50.0, 35.0, 25.0, 20.0, 0.0, 0.0, 0.0]
-  # ki: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
-  # kd: [0.5, 0.5, 0.3, 0.1, 0.0, 0.0, 0.0]
-  # control_signal_limit: [5, 4, 3, 2.0, 0.0, 0.0, 0.0]
-  # integrator_limit: [0, 0, 0, 0, 0, 0, 0]
+  # base_kp: [100.0, 70.0, 60.0, 60.0, 3.0, 3.0, 3.0]
+  # base_ki: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+  # base_kd: [1.5, 1.5, 1.0, 0.5, 0.05, 0.05, 0.03]
+  # base_control_signal_limit: [5, 4, 3, 2.0, 0.5, 0.5, 0.3]
+  # base_integrator_limit: [0, 0, 0, 0, 0, 0, 0]
 
-  # kp: [100.0, 70.0, 60.0, 60.0, 3.0, 3.0, 3.0]
-  # ki: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
-  # kd: [1.5, 1.5, 1.0, 0.5, 0.05, 0.05, 0.03]
-  # control_signal_limit: [5, 4, 3, 2.0, 0.5, 0.5, 0.3]
-  # integrator_limit: [0, 0, 0, 0, 0, 0, 0]
+  # used by base, cr dagger base component and dg dagger
+  base:
+    kp: [140.0, 140.0, 120.0, 120.0, 5.0, 5.0, 5.0]
+    ki: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+    kd: [3.0, 3.0, 1.5, 0.8, 0.05, 0.05, 0.05]
+    control_signal_limit: [8, 8, 5.0, 5.0, 0.9, 0.9, 0.5]
+    integrator_limit: [0, 0, 0, 0, 0, 0, 0]
 
-  kp: [140.0, 140.0, 120.0, 120.0, 5.0, 5.0, 5.0]
-  ki: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
-  kd: [3.0, 3.0, 1.5, 0.8, 0.05, 0.05, 0.05]
-  control_signal_limit: [8, 8, 5.0, 5.0, 0.9, 0.9, 0.5]
-  integrator_limit: [0, 0, 0, 0, 0, 0, 0]
+  # =============================================================
+
+  # for the delta jp part of cr dagger
+  res:
+    kp: [140.0, 140.0, 120.0, 120.0, 5.0, 5.0, 5.0]
+    ki: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+    kd: [3.0, 3.0, 1.5, 0.8, 0.05, 0.05, 0.05]
+    control_signal_limit: [8, 8, 5.0, 5.0, 0.9, 0.9, 0.5]
+    integrator_limit: [0, 0, 0, 0, 0, 0, 0]
+
+  # =============================================================
+
+  # for the torque parts of cr dagger and dg dagger
+  torque:
+    kp: [1.0, 1.0, 1.0, 1.0, 0.0, 0.0, 0.0]
+    ki: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+    kd: [0.01, 0.01, 0.01, 0.01, 0.0, 0.0, 0.0]
+    control_signal_limit: [1, 1, 1.0, 1.0, 0.0, 0.0, 0.0]
+    integrator_limit: [0, 0, 0, 0, 0, 0, 0]
 
   # only one of these should be true. Whether leader or follower sends the data to the policy
   # NOTE: maybe kinda broken right now. policy scales are determined by the leader only
   on_leader: true
   on_follower: false
 
-  type: "base" # one of base, cr or dg
+  type: "cr" # one of base, cr or dg
 
 leader:
   sync_pos: [0.0, -1.7, 0.0, 2.97, 0.0, 0.0, 0.0] 

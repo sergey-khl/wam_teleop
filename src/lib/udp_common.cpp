@@ -174,8 +174,9 @@ boost::optional<PolicyReceivedData> PolicyUDPHandler<DOF>::getLatestPolicyReceiv
     clip_val << 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05;
     // clip_val << 0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 0.01;
     jt_type clip_ff_torque;
+    clip_ff_torque << 2.5, 2.5, 2.5, 2.5, 0.0, 0.0, 0.0;
     // clip_ff_torque << 0.5, 0.5, 0.5, 0.5, 0.0, 0.0, 0.0;
-    clip_ff_torque << 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0;
+    // clip_ff_torque << 0.1, 0.1, 0.1, 0.1, 0.0, 0.0, 0.0;
 
     if (action_queue.empty()) {
         return boost::none;
@@ -207,6 +208,7 @@ boost::optional<PolicyReceivedData> PolicyUDPHandler<DOF>::getLatestPolicyReceiv
         out.jp = clipped_policy_jp + clipped_delta;
  
         out.ff_torque = clipped_ff_torque;
+        // out.ff_torque = jt_type::Zero();
         return out;
     }
 

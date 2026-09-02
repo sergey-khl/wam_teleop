@@ -16,17 +16,22 @@ struct NetworkConfig {
     int policy_follower_recv;
 };
 
-struct PolicyConfig {
+struct PolicyGains {
     std::vector<double> kp;
     std::vector<double> ki;
     std::vector<double> kd;
     std::vector<double> control_signal_limit;
     std::vector<double> integrator_limit;
+};
+
+struct PolicyConfig {
+    PolicyGains base;
+    PolicyGains res;
+    PolicyGains torque;
     bool on_leader;
     bool on_follower;
     std::string type;
 };
-
 
 struct SyncMapping {
     std::vector<double> scales, offsets;
@@ -88,13 +93,22 @@ template<> struct convert<GripperConfig> {
     }
 };
 
-template<> struct convert<PolicyConfig> {
-    static bool decode(const Node& node, PolicyConfig& c) {
+template<> struct convert<PolicyGains> {
+    static bool decode(const Node& node, PolicyGains& c) {
         c.kp = node["kp"].as<std::vector<double>>();
         c.ki = node["ki"].as<std::vector<double>>();
         c.kd = node["kd"].as<std::vector<double>>();
         c.control_signal_limit = node["control_signal_limit"].as<std::vector<double>>();
         c.integrator_limit = node["integrator_limit"].as<std::vector<double>>();
+        return true;
+    }
+};
+
+template<> struct convert<PolicyConfig> {
+    static bool decode(const Node& node, PolicyConfig& c) {
+        c.base = node["base"].as<PolicyGains>();
+        c.res = node["res"].as<PolicyGains>();
+        c.torque = node["torque"].as<PolicyGains>();
         c.on_leader = node["on_leader"].as<bool>();
         c.on_follower = node["on_follower"].as<bool>();
         c.type = node["type"].as<std::string>();
