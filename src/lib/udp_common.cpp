@@ -155,7 +155,7 @@ typename PolicyUDPHandler<DOF>::jp_type PolicyUDPHandler<DOF>::clipToRange(
 }
 
 template <size_t DOF>
-boost::optional<PolicyReceivedData> PolicyUDPHandler<DOF>::getLatestPolicyReceived(const jp_type& wamJP) {
+boost::optional<PolicyReceivedData> PolicyUDPHandler<DOF>::getLatestPolicyReceived() {
     std::lock_guard<std::mutex> lock(state_mutex);
     bool queues_have_data = !action_queue.empty() || !cr_action_queue.empty();
     {
@@ -173,10 +173,8 @@ boost::optional<PolicyReceivedData> PolicyUDPHandler<DOF>::getLatestPolicyReceiv
     jp_type clip_val;
     clip_val << 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05;
     // clip_val << 0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 0.01;
-    jt_type clip_ff_torque;
-    clip_ff_torque << 2.5, 2.5, 2.5, 2.5, 0.0, 0.0, 0.0;
-    // clip_ff_torque << 0.5, 0.5, 0.5, 0.5, 0.0, 0.0, 0.0;
-    // clip_ff_torque << 0.1, 0.1, 0.1, 0.1, 0.0, 0.0, 0.0;
+    jt_type clip_ref_torque;
+    clip_ref_torque << 2.5, 2.5, 2.5, 2.5, 0.0, 0.0, 0.0;
 
     if (action_queue.empty()) {
         return boost::none;
@@ -184,39 +182,42 @@ boost::optional<PolicyReceivedData> PolicyUDPHandler<DOF>::getLatestPolicyReceiv
 
     PolicyReceivedData out;
 
-    PolicyReceivedData base_sample = action_queue.front();
+    GenericAction base_sample = action_queue.front();
     if (action_queue.size() > 1) action_queue.pop_front();
 
-    jp_type clipped_policy_jp = clipToRange(base_sample.jp, wamJP, clip_val, out.clipped_jp_joints_str);
+    jp_type base_jp;
+    for (size_t i = 0; i < DOF; ++i) base_jp[i] = base_sample.pos[i];
+
+    jp_type clipped_policy_jp = clipToRange(base_jp, latest_leader_state.jp, clip_val, out.clipped_base_jp_joints_str);
     out.base_policy_jp = clipped_policy_jp;
+    // cr dagger paper combines base and res for gripper action but they also dont use a gripper
     out.gripper_cmd = base_sample.gripper_cmd;
  
     if (type == "cr") {
         if (cr_action_queue.empty()) {
             return boost::none;
         }
-        PolicyReceivedData residual_sample = cr_action_queue.front();
+        GenericAction residual_sample = cr_action_queue.front();
         if (cr_action_queue.size() > 1) cr_action_queue.pop_front();
 
-
-        jp_type clipped_delta = clipToRange(residual_sample.jp, jp_type::Zero(), clip_val, out.clipped_jp_joints_str);
-        jt_type clipped_ff_torque = clipToRange(residual_sample.ff_torque, jt_type::Zero(), clip_ff_torque, out.clipped_ff_torques_str);
+        jp_type res_jp;
+        for (size_t i = 0; i < DOF; ++i) res_jp[i] = residual_sample.pos[i];
+        jp_type clipped_delta = clipToRange(res_jp, jp_type::Zero(), clip_val, out.clipped_res_jp_joints_str);
+        
+        jt_type ref_torque;
+        for (size_t i = 0; i < DOF; ++i) ref_torque[i] = residual_sample.torque[i];
+        jt_type clipped_ref_torque = clipToRange(ref_torque, latest_leader_state.filtered_human_torque, clip_ref_torque, out.clipped_ref_torques_str);
  
-        out.jv = residual_sample.jv;
-        out.ja = residual_sample.ja;
- 
-        out.jp = clipped_policy_jp + clipped_delta;
- 
-        out.ff_torque = clipped_ff_torque;
-        // out.ff_torque = jt_type::Zero();
+        out.res_policy_jp = clipped_delta;
+        out.ref_torque = clipped_ref_torque;
         return out;
     }
-
-    out.jp = clipped_policy_jp;
  
     // technically this can be done without an if but adds clarity
     if (type == "dg") {
-        out.ff_torque = clipToRange(base_sample.ff_torque, jt_type::Zero(), clip_ff_torque, out.clipped_ff_torques_str);
+        jt_type ref_torque;
+        for (size_t i = 0; i < DOF; ++i) ref_torque[i] = base_sample.torque[i];
+        out.ref_torque = clipToRange(ref_torque, latest_leader_state.filtered_human_torque, clip_ref_torque, out.clipped_ref_torques_str);
     }
  
     return out;
@@ -323,10 +324,10 @@ void PolicyUDPHandler<DOF>::clearQueue() {
 }
 
 template <size_t DOF>
-std::deque<PolicyReceivedData> PolicyUDPHandler<DOF>::interpolateSegment(
+std::deque<GenericAction> PolicyUDPHandler<DOF>::interpolateSegment(
         const GenericAction& a0, const GenericAction& a1, const GenericAction& a2, const GenericAction& a3,
         size_t samples_per_segment, double dt_s) {
-    std::deque<PolicyReceivedData> queue;
+    std::deque<GenericAction> queue;
  
     struct CRResult { double pos, dpos_dt, d2pos_dt2; };
     auto catmullRom = [](double p0, double p1, double p2, double p3, double t) -> CRResult {
@@ -344,20 +345,20 @@ std::deque<PolicyReceivedData> PolicyUDPHandler<DOF>::interpolateSegment(
     for (size_t j = 0; j < samples_per_segment; ++j) {
         double alpha = static_cast<double>(j) / static_cast<double>(samples_per_segment);
  
-        PolicyReceivedData rd;
+        GenericAction ga;
         for (size_t k = 0; k < 7; ++k) {
             CRResult r = catmullRom(a0.pos[k], a1.pos[k], a2.pos[k], a3.pos[k], alpha);
-            rd.jp[k] = r.pos;
-            rd.jv[k] = r.dpos_dt / dt_s;
-            rd.ja[k] = r.d2pos_dt2 / (dt_s * dt_s);
+            ga.pos[k] = r.pos;
+            // rd.jv[k] = r.dpos_dt / dt_s;
+            // rd.ja[k] = r.d2pos_dt2 / (dt_s * dt_s);
  
             CRResult rt = catmullRom(a0.torque[k], a1.torque[k], a2.torque[k], a3.torque[k], alpha);
-            rd.ff_torque[k] = rt.pos;
+            ga.torque[k] = rt.pos;
         }
         CRResult rg = catmullRom(a0.gripper_cmd, a1.gripper_cmd, a2.gripper_cmd, a3.gripper_cmd, alpha);
-        rd.gripper_cmd = rg.pos;
+        ga.gripper_cmd = rg.pos;
  
-        queue.push_back(rd);
+        queue.push_back(ga);
     }
     return queue;
 }
@@ -426,7 +427,7 @@ void PolicyUDPHandler<DOF>::genericInterpLoop(std::deque<RawT>& raw_queue,
                                                bool& first_segment_flag,
                                                size_t samples_per_segment,
                                                double dt_s,
-                                               std::deque<PolicyReceivedData>& out_queue) {
+                                               std::deque<GenericAction>& out_queue) {
     while (!stop_threads) {
         // size of the segment. 1 
         std::deque<uint8_t> seg_valid;
@@ -483,7 +484,7 @@ void PolicyUDPHandler<DOF>::genericInterpLoop(std::deque<RawT>& raw_queue,
             continue;
         }
  
-        std::deque<PolicyReceivedData> new_samples = interpolateSegment(a0, a1, a2, a3, samples_per_segment, dt_s);
+        std::deque<GenericAction> new_samples = interpolateSegment(a0, a1, a2, a3, samples_per_segment, dt_s);
 
         // seg_valid and new_samples should always be same size
         if (seg_valid.size() != new_samples.size()) {
@@ -497,7 +498,7 @@ void PolicyUDPHandler<DOF>::genericInterpLoop(std::deque<RawT>& raw_queue,
         size_t idx = 0;
         new_samples.erase(
             std::remove_if(new_samples.begin(), new_samples.end(),
-                            [&](const PolicyReceivedData&) { return seg_valid[idx++] == 0; }),
+                            [&](const GenericAction&) { return seg_valid[idx++] == 0; }),
             new_samples.end());
 
         std::lock_guard<std::mutex> lock(state_mutex);

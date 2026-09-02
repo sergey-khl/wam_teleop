@@ -94,7 +94,9 @@ template <size_t DOF> int wam_main(int argc, char **argv, ProductManager &pm, sy
     barrett::systems::Summer<jt_type, 3> customjtSum;
     pm.getExecutionManager()->startManaging(customjtSum);
 
-    barrett::systems::PIDController<jp_type, jt_type> policy_controller(get_barrett_gains<DOF>(config.policy.base));
+    barrett::systems::PIDController<jp_type, jt_type> base_policy_controller(get_barrett_gains<DOF>(config.policy.base));
+    barrett::systems::PIDController<jp_type, jt_type> res_policy_controller(get_barrett_gains<DOF>(config.policy.res));
+    barrett::systems::PIDController<jt_type, jt_type> torque_policy_controller(get_barrett_gains<DOF>(config.policy.torque));
 
     FollowerDynamics<DOF> followerDynamics(pm.getExecutionManager());
     DynamicExternalTorque<DOF> dynamicExternalTorque(pm.getExecutionManager());
@@ -111,6 +113,11 @@ template <size_t DOF> int wam_main(int argc, char **argv, ProductManager &pm, sy
     jt_type omega_p(80.0);
     extFilter.setLowPass(omega_p);
     pm.getExecutionManager()->startManaging(extFilter);
+
+    jp_type jp;
+    jp.setConstant(0.0);
+    systems::Constant<jp_type> zeroPosition(jp);
+    pm.getExecutionManager()->startManaging(zeroPosition);
 
     jv_type jv;
     jv.setConstant(0.0);
@@ -164,7 +171,9 @@ template <size_t DOF> int wam_main(int argc, char **argv, ProductManager &pm, sy
     systems::connect(dynamicExternalTorque.wamExternalTorqueOut, follower.dyngravcompTorqueIn);
     systems::connect(wam.gravity.output, follower.wamGravIn);
     systems::connect(wam.toolPose.output, follower.wamTPIn);
-    systems::connect(policy_controller.controlOutput, follower.policyJtIn);
+    systems::connect(base_policy_controller.controlOutput, follower.basePolicyJtIn);
+    systems::connect(res_policy_controller.controlOutput, follower.resPolicyJtIn);
+    systems::connect(torque_policy_controller.controlOutput, follower.refTorquePolicyJtIn);
     systems::connect(policyTorque.extTorqueOutput, follower.environmentTorqueIn);
     systems::connect(extFilter.output, follower.filteredEnvironmentTorqueIn);
     if (config.follower.vertical) {
@@ -188,14 +197,18 @@ template <size_t DOF> int wam_main(int argc, char **argv, ProductManager &pm, sy
 
     // find and rate limit the scale
     systems::connect(dynamicExternalTorque.wamExternalTorqueOut, policyTorque.wamExtTorqueIn);
-    systems::connect(policy_controller.controlOutput, policyTorque.policyExtTorqueIn);
+    systems::connect(base_policy_controller.controlOutput, policyTorque.policyExtTorqueIn);
 
     // filter torques
     systems::connect(policyTorque.extTorqueOutput, extFilter.input);
 
     // policy impedance control
-    systems::connect(follower.policyJpOutput, policy_controller.referenceInput);
-    systems::connect(wam.jpOutput, policy_controller.feedbackInput);
+    systems::connect(follower.basePolicyJpOutput, base_policy_controller.referenceInput);
+    systems::connect(wam.jpOutput, base_policy_controller.feedbackInput);
+    systems::connect(follower.resPolicyJpOutput, res_policy_controller.referenceInput);
+    systems::connect(zeroPosition.output, res_policy_controller.feedbackInput);
+    systems::connect(follower.refPolicyJtOutput, torque_policy_controller.referenceInput);
+    systems::connect(follower.filteredHumanTorqueOutput, torque_policy_controller.feedbackInput);
 
     // systems::connect(customjtSum.output, printTOQ.input);
 

@@ -171,14 +171,13 @@ struct GenericAction {
 
 // all policies reuse this for simplicity. see getLatestPolicyReceived for how
 struct PolicyReceivedData {
-    Eigen::Matrix<double, 7, 1> jp = Eigen::Matrix<double, 7, 1>::Zero();
-    Eigen::Matrix<double, 7, 1> jv = Eigen::Matrix<double, 7, 1>::Zero();
-    Eigen::Matrix<double, 7, 1> ja = Eigen::Matrix<double, 7, 1>::Zero();
     double gripper_cmd = 0.0;
     Eigen::Matrix<double, 7, 1> base_policy_jp = Eigen::Matrix<double, 7, 1>::Zero();
-    Eigen::Matrix<double, 7, 1> ff_torque = Eigen::Matrix<double, 7, 1>::Zero();
-    std::string clipped_jp_joints_str;
-    std::string clipped_ff_torques_str;
+    Eigen::Matrix<double, 7, 1> res_policy_jp = Eigen::Matrix<double, 7, 1>::Zero();
+    Eigen::Matrix<double, 7, 1> ref_torque = Eigen::Matrix<double, 7, 1>::Zero();
+    std::string clipped_base_jp_joints_str;
+    std::string clipped_res_jp_joints_str;
+    std::string clipped_ref_torques_str;
 };
 
 template <size_t DOF>
@@ -195,7 +194,7 @@ public:
     void stop();
  
     // Latest interpolated action received from the policy (pops the front of the queue).
-    boost::optional<PolicyReceivedData> getLatestPolicyReceived(const jp_type& wamJP);
+    boost::optional<PolicyReceivedData> getLatestPolicyReceived();
 
     void clearQueueAndPause(std::chrono::milliseconds duration = std::chrono::duration_cast<std::chrono::milliseconds>(
         std::chrono::duration<double, std::milli>(BASE_ACTION_HORIZON * BASE_SEGMENT_DURATION_SEC * 1e3)));
@@ -237,7 +236,7 @@ private:
     PolicyPacketType pending_packet;
     bool new_data_available = false;
  
-    std::deque<PolicyReceivedData> action_queue;
+    std::deque<GenericAction> action_queue;
  
     void sendLoop();
     template <typename PacketT, typename RawT>
@@ -260,14 +259,14 @@ private:
                             bool& first_segment_flag,
                             size_t samples_per_segment,
                             double dt_s,
-                            std::deque<PolicyReceivedData>& out_queue);
+                            std::deque<GenericAction>& out_queue);
 
     static GenericAction toGeneric(const BaseRawAction& a);
     static GenericAction toGeneric(const DgRawAction& a);
     static GenericAction toGeneric(const CrRawAction& a);
 
     // always use unique points for a0-3
-    static std::deque<PolicyReceivedData> interpolateSegment(const GenericAction& a0, const GenericAction& a1, const GenericAction& a2, const GenericAction& a3, size_t samples_per_segment, double dt_s);
+    static std::deque<GenericAction> interpolateSegment(const GenericAction& a0, const GenericAction& a1, const GenericAction& a2, const GenericAction& a3, size_t samples_per_segment, double dt_s);
  
     static jp_type clipToRange(const jp_type& value, const jp_type& center, const jp_type& clip_val, std::string& joints_str_out);
  
@@ -292,9 +291,9 @@ private:
  
     std::atomic<int64_t> cr_chunk_end_ns{0};
  
-    std::deque<PolicyReceivedData> cr_action_queue;
+    std::deque<GenericAction> cr_action_queue;
 
-    // use to interpolate for the first time
+    // used in first time interpolation and clipping to reasonable values
     struct LeaderState {
         jp_type jp = jp_type::Zero();
         jt_type filtered_human_torque = jt_type::Zero();

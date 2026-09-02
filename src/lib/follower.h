@@ -31,13 +31,18 @@ class Follower : public barrett::systems::System {
     Input<jt_type> dyngravcompTorqueIn;   // may be undefined
     Input<jt_type> wamGravIn;
     Input<jt_type> wamDynIn;
-    Input<jt_type> policyJtIn;
+    Input<jt_type> basePolicyJtIn;
+    Input<jt_type> resPolicyJtIn;
+    Input<jt_type> refTorquePolicyJtIn;
     Input<jt_type> environmentTorqueIn;
     Input<jt_type> filteredEnvironmentTorqueIn;
 
     Output<jt_type> wamJTOutput;
     Output<jp_type> theirJPOutput;
-    Output<jp_type> policyJpOutput;
+    Output<jp_type> basePolicyJpOutput;
+    Output<jp_type> resPolicyJpOutput;
+    Output<jt_type> refPolicyJtOutput;
+    Output<jt_type> filteredHumanTorqueOutput;
 
     std::atomic<bool> linked;
     
@@ -50,13 +55,16 @@ class Follower : public barrett::systems::System {
         , theirJv(0.0)
         , theirDyngravcompTorque(0.0)
         , environmentTorque(0.0)
+        , filteredHumanTorque(0.0)
         , theirToolPos(0.0)
         , theirToolQ(1, 0, 0, 0)
         , control(0.0)
         , wamJPIn(this)
         , wamJVIn(this)
         , wamTPIn(this)
-        , policyJtIn(this)
+        , basePolicyJtIn(this)
+        , resPolicyJtIn(this)
+        , refTorquePolicyJtIn(this)
         , environmentTorqueIn(this)
         , filteredEnvironmentTorqueIn(this)
         , dyngravcompTorqueIn(this)
@@ -64,7 +72,10 @@ class Follower : public barrett::systems::System {
         , wamDynIn(this)
         , wamJTOutput(this, &jtOutputValue)
         , theirJPOutput(this, &theirJPOutputValue)
-        , policyJpOutput(this, &policyJpOutputValue)
+        , basePolicyJpOutput(this, &basePolicyJpOutputValue)
+        , resPolicyJpOutput(this, &resPolicyJpOutputValue)
+        , refPolicyJtOutput(this, &refPolicyJtOutputValue)
+        , filteredHumanTorqueOutput(this, &filteredHumanTorqueOutputValue)
         , teleop_udp_handler(config.network.leader_host, config.network.teleop_recv, config.network.teleop_send)
         , policy_udp_handler(config.policy.type, config.policy.on_follower, config.network.policy_host, config.network.policy_send, config.network.policy_follower_recv)
         , gripper(gripper)
@@ -105,7 +116,10 @@ class Follower : public barrett::systems::System {
   protected:
     typename Output<jt_type>::Value* jtOutputValue;
     typename Output<jp_type>::Value* theirJPOutputValue;
-    typename Output<jp_type>::Value* policyJpOutputValue;
+    typename Output<jp_type>::Value* basePolicyJpOutputValue;
+    typename Output<jp_type>::Value* resPolicyJpOutputValue;
+    typename Output<jt_type>::Value* refPolicyJtOutputValue;
+    typename Output<jt_type>::Value* filteredHumanTorqueOutputValue;
     jp_type wamJP;
     jv_type wamJV;
     boost::tuple<cp_type, Eigen::Quaterniond> wamTP;
@@ -114,11 +128,13 @@ class Follower : public barrett::systems::System {
     jt_type filteredEnvironmentTorque;
     jt_type wamGrav;
     jt_type wamDyn;
-    jt_type policyJt;
+    jt_type basePolicyJt;
+    jt_type resPolicyJt;
+    jt_type refTorquePolicyJt;
     jt_type policyTorqueScale;
-    jp_type policyJp;
     jp_type basePolicyJp;
-    jt_type ffPolicyTorque;
+    jp_type resPolicyJp;
+    jt_type refPolicyTorque;
     Eigen::Matrix<double, DOF, 1> sendJpMsg;
     Eigen::Matrix<double, DOF, 1> sendJvMsg;
     Eigen::Matrix<double, DOF, 1> sendDyngravcompTorqueMsg;
@@ -146,9 +162,9 @@ class Follower : public barrett::systems::System {
         wamDyn = wamDynIn.getValue();
 
         // policy defaults
-        policyJp << wamJP;
         basePolicyJp << wamJP;
-        ffPolicyTorque.setZero();
+        resPolicyJp.setZero();
+        refPolicyTorque.setZero();
         policy_gripper_cmd.store(0);
         policyTorqueScale.setZero();
 
@@ -195,14 +211,17 @@ class Follower : public barrett::systems::System {
 
 
         // inference.
-        boost::optional<PolicyReceivedData> policy_data = policy_udp_handler.getLatestPolicyReceived(wamJP);
+        boost::optional<PolicyReceivedData> policy_data = policy_udp_handler.getLatestPolicyReceived();
         if (policy_data) {
-            policyJp << policy_data->jp;
             basePolicyJp << policy_data->base_policy_jp;
-            ffPolicyTorque << policy_data->ff_torque;
+            resPolicyJp << policy_data->res_policy_jp;
+            refPolicyTorque << policy_data->ref_torque;
             policy_gripper_cmd.store(static_cast<double>(policy_data->gripper_cmd));
         }
-        policyJpOutputValue->setData(&policyJp);
+        basePolicyJpOutputValue->setData(&basePolicyJp);
+        resPolicyJpOutputValue->setData(&resPolicyJp);
+        filteredHumanTorqueOutputValue->setData(&filteredHumanTorque);
+        refPolicyJtOutputValue->setData(&refPolicyTorque);
 
         sendJpMsg << wamJP;
         sendJvMsg << wamJV;
@@ -232,15 +251,25 @@ class Follower : public barrett::systems::System {
             filteredEnvironmentTorque.setZero();
         }
 
-
-        if (policyJtIn.valueDefined()) {
-            policyJt = policyJtIn.getValue();
+        // impedance results
+        if (basePolicyJtIn.valueDefined()) {
+            basePolicyJt = basePolicyJtIn.getValue();
         } else {
-            policyJt << 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0;
+            basePolicyJt << 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0;
+        }
+        if (resPolicyJtIn.valueDefined()) {
+            resPolicyJt = resPolicyJtIn.getValue();
+        } else {
+            resPolicyJt << 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0;
+        }
+        if (refTorquePolicyJtIn.valueDefined()) {
+            refTorquePolicyJt = refTorquePolicyJtIn.getValue();
+        } else {
+            refTorquePolicyJt << 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0;
         }
 
         if (isLinked()) {
-            control = compute_control(theirJp, theirJv, humanTorque, wamJP, wamJV, humanTorque, wamGrav, wamDyn, policyTorqueScale.asDiagonal() * policyJt, ffPolicyTorque);
+            control = compute_control(theirJp, theirJv, humanTorque, wamJP, wamJV, humanTorque, wamGrav, wamDyn, policyTorqueScale.asDiagonal() * basePolicyJt, resPolicyJt, refTorquePolicyJt);
             jtOutputValue->setData(&control);
         } else {
             control.setZero();
@@ -252,7 +281,7 @@ class Follower : public barrett::systems::System {
         // send to leader then send to policy
         teleop_udp_handler.send(sendJpMsg, sendJvMsg, sendDyngravcompTorqueMsg, sendEnvironmentTorqueMsg, filteredEnvironmentTorque, toolPos, toolQ, static_cast<double>(current_gripper_torque.load()), static_cast<double>(current_gripper_pos.load()), static_cast<double>(current_gripper_vel.load()), loop_start);
         // see how on_follower is used for the magic
-        policy_udp_handler.send(sendJpMsg, sendJvMsg, sendDyngravcompTorqueMsg, sendEnvironmentTorqueMsg, filteredEnvironmentTorque, theirJp, theirJv, theirDyngravcompTorque, humanTorque, filteredHumanTorque, basePolicyJp, policyJt, policyTorqueScale, toolPos, toolQ, theirToolPos, theirToolQ, static_cast<double>(current_gripper_pos.load()), static_cast<double>(current_gripper_vel.load()), static_cast<double>(current_gripper_torque.load()));
+        policy_udp_handler.send(sendJpMsg, sendJvMsg, sendDyngravcompTorqueMsg, sendEnvironmentTorqueMsg, filteredEnvironmentTorque, theirJp, theirJv, theirDyngravcompTorque, humanTorque, filteredHumanTorque, basePolicyJp, basePolicyJt, policyTorqueScale, toolPos, toolQ, theirToolPos, theirToolQ, static_cast<double>(current_gripper_pos.load()), static_cast<double>(current_gripper_vel.load()), static_cast<double>(current_gripper_torque.load()));
 
         // auto send_end = std::chrono::steady_clock::now();
         // double send_dt = std::chrono::duration<double, std::milli>(send_end - send_start).count();
@@ -342,7 +371,7 @@ class Follower : public barrett::systems::System {
 
     jt_type compute_control(const jp_type& ref_pos, const jv_type& ref_vel, const jt_type& ref_extTorque,
                             const jp_type& cur_pos, const jv_type& cur_vel, const jt_type& cur_extTorque,
-                            const jt_type& cur_grav, const jt_type& cur_dyn, const jt_type& policyJt, const jt_type& ffPolicyTorque) {
+                            const jt_type& cur_grav, const jt_type& cur_dyn, const jt_type& basePolicyJt, const jt_type& resPolicyJt, const jt_type& refTorquePolicyJt) {
         
         // cases where the follower and leader have the same control law
 
@@ -380,9 +409,11 @@ class Follower : public barrett::systems::System {
             u[i] = 0.0;
         }
 
-        u += policyJt;
+        u += basePolicyJt;
 
-        u += ffPolicyTorque;
+        // u += resPolicyJt;
+        //
+        // u += refTorquePolicyJt;
 
         return u;
     };
