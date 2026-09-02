@@ -334,8 +334,11 @@ class Leader : public barrett::systems::System {
             // std::cout << "  -> follower Tool Quat: [" << theirToolQ.w() << " " << theirToolQ.x() << " " << theirToolQ.y() << " " << theirToolQ.z() << "]\n";
             std::cout << "  -> policy scale:[" << policyTorqueScale.transpose() << "]\n";
             std::cout << "  -> base policy jp:      [" << basePolicyJp.transpose() << "]\n";
+            std::cout << "  -> base policy jt:      [" << basePolicyJt.transpose() << "]\n";
             std::cout << "  -> res policy jp:      [" << resPolicyJp.transpose() << "]\n";
+            std::cout << "  -> res policy jt:      [" << resPolicyJt.transpose() << "]\n";
             std::cout << "  -> ref poliocy toq:      [" << refPolicyTorque.transpose() << "]\n";
+            std::cout << "  -> ref correction torque:      [" << refTorquePolicyJt.transpose() << "]\n";
             // std::cout << "  -> human jt:    [" << humanTorque.transpose() << "]\n";
             // std::cout << "  -> leader control: [" << compute_control(theirJp, theirJv, theirTorque, wamJP, wamJV, extTorque, wamGrav, wamDyn, policyTorque) << "]\n\n";
             // std::cout << "  -> dyn: [" << wamDyn.transpose() << "]\n\n";

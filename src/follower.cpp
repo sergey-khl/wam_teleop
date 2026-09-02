@@ -94,9 +94,12 @@ template <size_t DOF> int wam_main(int argc, char **argv, ProductManager &pm, sy
     barrett::systems::Summer<jt_type, 3> customjtSum;
     pm.getExecutionManager()->startManaging(customjtSum);
 
-    barrett::systems::PIDController<jp_type, jt_type> base_policy_controller(get_barrett_gains<DOF>(config.policy.base));
-    barrett::systems::PIDController<jp_type, jt_type> res_policy_controller(get_barrett_gains<DOF>(config.policy.res));
-    barrett::systems::PIDController<jt_type, jt_type> torque_policy_controller(get_barrett_gains<DOF>(config.policy.torque));
+    barrett::systems::PIDController<jp_type, jt_type> base_policy_controller;
+    apply_gains<DOF>(base_policy_controller, config.policy.base);
+    barrett::systems::PIDController<jp_type, jt_type> res_policy_controller;
+    apply_gains<DOF>(res_policy_controller, config.policy.res);
+    barrett::systems::PIDController<jt_type, jt_type> torque_policy_controller;
+    apply_gains<DOF>(torque_policy_controller, config.policy.torque);
 
     FollowerDynamics<DOF> followerDynamics(pm.getExecutionManager());
     DynamicExternalTorque<DOF> dynamicExternalTorque(pm.getExecutionManager());
@@ -235,7 +238,7 @@ template <size_t DOF> int wam_main(int argc, char **argv, ProductManager &pm, sy
                 waitForEnter();
                 follower.tryLink();
                 wam.trackReferenceSignal(follower.theirJPOutput);
-                systems::connect(follower.wamJTOutput, wam.input); // CAREFUL WITH THIS. CAN BE IN BOTH LINK AND IN INFERENCE
+                // systems::connect(follower.wamJTOutput, wam.input); // CAREFUL WITH THIS. CAN BE IN BOTH LINK AND IN INFERENCE
 
                 btsleep(0.1); // wait an execution cycle or two
                 if (follower.isLinked()) {

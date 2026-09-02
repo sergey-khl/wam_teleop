@@ -13,5 +13,5 @@ std::string get_teleop_config_directory();
 int read_can_port();
 
 // create libbarret gains settings from our teleop_config.yaml
-template <size_t DOF>
-libconfig::Setting& get_barrett_gains(const PolicyGains& gains);
+template <size_t DOF, typename Controller>
+void apply_gains(Controller& controller, const PolicyGains& gains);

@@ -83,9 +83,12 @@ int wam_main(int argc, char **argv, ProductManager &pm, systems::Wam<DOF> &wam) 
     barrett::systems::Summer<jt_type, 3> customjtSum;
     pm.getExecutionManager()->startManaging(customjtSum);
 
-    barrett::systems::PIDController<jp_type, jt_type> base_policy_controller(get_barrett_gains<DOF>(config.policy.base));
-    barrett::systems::PIDController<jp_type, jt_type> res_policy_controller(get_barrett_gains<DOF>(config.policy.res));
-    barrett::systems::PIDController<jt_type, jt_type> torque_policy_controller(get_barrett_gains<DOF>(config.policy.torque));
+    barrett::systems::PIDController<jp_type, jt_type> base_policy_controller;
+    apply_gains<DOF>(base_policy_controller, config.policy.base);
+    barrett::systems::PIDController<jp_type, jt_type> res_policy_controller;
+    apply_gains<DOF>(res_policy_controller, config.policy.res);
+    barrett::systems::PIDController<jt_type, jt_type> torque_policy_controller;
+    apply_gains<DOF>(torque_policy_controller, config.policy.torque);
 
     LeaderDynamics<DOF> leaderDynamics(pm.getExecutionManager());
     DynamicExternalTorque<DOF> dynamicExternalTorque(pm.getExecutionManager());
@@ -224,7 +227,7 @@ int wam_main(int argc, char **argv, ProductManager &pm, systems::Wam<DOF> &wam) 
                 leader.tryLink();
                 wam.trackReferenceSignal(leader.theirJPOutput);
                 // NOTE: avoid connecting multiple signals to wam.input because it causes free motion to be worse. even if the signal is 0
-                connect(leader.wamJTOutput, wam.input);
+                // connect(leader.wamJTOutput, wam.input);
 
                 btsleep(0.1); // wait an execution cycle or two
                 if (leader.isLinked()) {

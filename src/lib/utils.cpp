@@ -1,6 +1,7 @@
 #include "utils.h"
 #include <barrett/systems.h>
 #include <barrett/units.h>
+#include <barrett/systems/pid_controller.h>
 
 using namespace barrett;
 namespace fs = boost::filesystem;
@@ -100,24 +101,27 @@ std::string get_teleop_config_directory() {
     return "";
 }
 
-template <size_t DOF>
-libconfig::Setting& get_barrett_gains(const PolicyGains& gains) {
-    libconfig::Config policy_config;
-    libconfig::Setting& policy_settings = policy_config.getRoot().add("policy_gains", libconfig::Setting::TypeGroup);
-    libconfig::Setting& kp_setting = policy_settings.add("kp", libconfig::Setting::TypeList);
-    libconfig::Setting& ki_setting = policy_settings.add("ki", libconfig::Setting::TypeList);
-    libconfig::Setting& kd_setting = policy_settings.add("kd", libconfig::Setting::TypeList);
-    libconfig::Setting& control_signal_limit_setting = policy_settings.add("control_signal", libconfig::Setting::TypeList);
-    libconfig::Setting& integrator_limit_setting = policy_settings.add("integrator_limit", libconfig::Setting::TypeList);
+template <size_t DOF, typename Controller>
+void apply_gains(Controller& controller, const PolicyGains& gains) {
+    typename Controller::unitless_type kp, ki, kd, int_limit, cs_limit;
+    
     for (int i = 0; i < DOF; ++i) {
-        kp_setting.add(libconfig::Setting::TypeFloat) = gains.kp[i];
-        ki_setting.add(libconfig::Setting::TypeFloat) = gains.ki[i];
-        kd_setting.add(libconfig::Setting::TypeFloat) = gains.kd[i];
-        control_signal_limit_setting.add(libconfig::Setting::TypeFloat) = gains.control_signal_limit[i];
-        integrator_limit_setting.add(libconfig::Setting::TypeFloat) = gains.integrator_limit[i];
+        kp[i] = gains.kp[i];
+        ki[i] = gains.ki[i];
+        kd[i] = gains.kd[i];
+        int_limit[i] = gains.integrator_limit[i];
+        cs_limit[i] = gains.control_signal_limit[i];
     }
-
-    return policy_config.lookup("policy_gains");
+    
+    controller.setKp(kp);
+    controller.setKi(ki);
+    controller.setKd(kd);
+    controller.setIntegratorLimit(int_limit);
+    controller.setControlSignalLimit(cs_limit);
 }
 
-template libconfig::Setting& get_barrett_gains<7>(const PolicyGains& gains);
+BARRETT_UNITS_TEMPLATE_TYPEDEFS(7);
+template void apply_gains<7, systems::PIDController<jp_type, jt_type>>(
+    systems::PIDController<jp_type, jt_type>&, const PolicyGains&);
+template void apply_gains<7, systems::PIDController<jt_type, jt_type>>(
+    systems::PIDController<jt_type, jt_type>&, const PolicyGains&);

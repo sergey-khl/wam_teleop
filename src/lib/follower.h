@@ -410,7 +410,7 @@ class Follower : public barrett::systems::System {
         }
 
         u += basePolicyJt;
-
+        //
         // u += resPolicyJt;
         //
         // u += refTorquePolicyJt;
