@@ -85,6 +85,10 @@ struct PolicyPacket {
     double policyJp[DOF]; // latest recived policy command. Clipped
     double policyJt[DOF]; // policy torque to be executed
     double policyTorqueScale[DOF]; // (0, 1)
+    double resPolicyJp[DOF]; // cr dagger residual
+    double resPolicyJt[DOF]; // calculated residual torque to be executed
+    double refPolicyTorque[DOF]; // ext torque we want our arms at
+    double refTorquePolicyJt[DOF]; // torque we execute to get to the reference torque
     double follower_cart_pos[3];   // x, y, z
     double follower_quat[4];   // w, x, y, z
     double leader_cart_pos[3];   // x, y, z
@@ -207,6 +211,8 @@ public:
                        const jp_type& leader_jp, const jv_type& leader_jv,
                        const jt_type& leader_dyngravcomp_torque, const jt_type& human_torque, const jt_type& filtered_human_torque,
                        const jp_type& policyjp, const jt_type& policyJt, const jt_type& policyTorqueScale,
+                       const jp_type& resPolicyJp, const jt_type& resPolicyJt,
+                       const jt_type& refPolicyTorque, const jt_type& refTorquePolicyJt,
                        const Eigen::Vector3d& follower_cart_pos, const Eigen::Quaterniond& follower_quat,
                        const Eigen::Vector3d& leader_cart_pos, const Eigen::Quaterniond& leader_quat,
                        double gripper_pos, double gripper_vel, double gripper_torque);

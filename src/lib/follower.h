@@ -269,7 +269,7 @@ class Follower : public barrett::systems::System {
         }
 
         if (isLinked()) {
-            control = compute_control(theirJp, theirJv, humanTorque, wamJP, wamJV, humanTorque, wamGrav, wamDyn, policyTorqueScale.asDiagonal() * basePolicyJt, resPolicyJt, refTorquePolicyJt);
+            control = compute_control(theirJp, theirJv, humanTorque, wamJP, wamJV, environmentTorque, wamGrav, wamDyn, policyTorqueScale.asDiagonal() * basePolicyJt, resPolicyJt, refTorquePolicyJt);
             jtOutputValue->setData(&control);
         } else {
             control.setZero();
@@ -281,7 +281,7 @@ class Follower : public barrett::systems::System {
         // send to leader then send to policy
         teleop_udp_handler.send(sendJpMsg, sendJvMsg, sendDyngravcompTorqueMsg, sendEnvironmentTorqueMsg, filteredEnvironmentTorque, toolPos, toolQ, static_cast<double>(current_gripper_torque.load()), static_cast<double>(current_gripper_pos.load()), static_cast<double>(current_gripper_vel.load()), loop_start);
         // see how on_follower is used for the magic
-        policy_udp_handler.send(sendJpMsg, sendJvMsg, sendDyngravcompTorqueMsg, sendEnvironmentTorqueMsg, filteredEnvironmentTorque, theirJp, theirJv, theirDyngravcompTorque, humanTorque, filteredHumanTorque, basePolicyJp, basePolicyJt, policyTorqueScale, toolPos, toolQ, theirToolPos, theirToolQ, static_cast<double>(current_gripper_pos.load()), static_cast<double>(current_gripper_vel.load()), static_cast<double>(current_gripper_torque.load()));
+        policy_udp_handler.send(sendJpMsg, sendJvMsg, sendDyngravcompTorqueMsg, sendEnvironmentTorqueMsg, filteredEnvironmentTorque, theirJp, theirJv, theirDyngravcompTorque, humanTorque, filteredHumanTorque, basePolicyJp, basePolicyJt, policyTorqueScale, resPolicyJp, resPolicyJt, refPolicyTorque, refTorquePolicyJt, toolPos, toolQ, theirToolPos, theirToolQ, static_cast<double>(current_gripper_pos.load()), static_cast<double>(current_gripper_vel.load()), static_cast<double>(current_gripper_torque.load()));
 
         // auto send_end = std::chrono::steady_clock::now();
         // double send_dt = std::chrono::duration<double, std::milli>(send_end - send_start).count();
@@ -410,10 +410,10 @@ class Follower : public barrett::systems::System {
         }
 
         u += basePolicyJt;
-        //
-        // u += resPolicyJt;
-        //
-        // u += refTorquePolicyJt;
+
+        u += resPolicyJt;
+
+        u += refTorquePolicyJt;
 
         return u;
     };
