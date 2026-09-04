@@ -268,8 +268,35 @@ class Follower : public barrett::systems::System {
             refTorquePolicyJt << 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0;
         }
 
+        jt_type zero_torque;
+        zero_torque.setZero();
+
         if (isLinked()) {
-            control = compute_control(theirJp, theirJv, humanTorque, wamJP, wamJV, environmentTorque, wamGrav, wamDyn, policyTorqueScale.asDiagonal() * basePolicyJt, resPolicyJt, refTorquePolicyJt);
+            if (config.policy.type == "dg") {
+                // apply policy torque as feed forward
+                control = compute_control(
+                    theirJp, theirJv, humanTorque,
+                    wamJP,   wamJV,   environmentTorque,
+                    wamGrav, wamDyn, policyTorqueScale.asDiagonal() * basePolicyJt,
+                    zero_torque, refPolicyTorque
+                );
+
+            } else if (config.policy.type == "cr") {
+                // treat policy torque as a desired torque and apply a pid towards it
+                control = compute_control(
+                    theirJp, theirJv, environmentTorque,
+                    wamJP,   wamJV,   humanTorque,
+                    wamGrav, wamDyn, policyTorqueScale.asDiagonal() * basePolicyJt,
+                    resPolicyJt, refTorquePolicyJt
+                );
+            } else if (config.policy.type == "base") {
+                control = compute_control(
+                    theirJp, theirJv, environmentTorque,
+                    wamJP,   wamJV,   humanTorque,
+                    wamGrav, wamDyn, policyTorqueScale.asDiagonal() * basePolicyJt,
+                    zero_torque, zero_torque
+                );
+            }
             jtOutputValue->setData(&control);
         } else {
             control.setZero();

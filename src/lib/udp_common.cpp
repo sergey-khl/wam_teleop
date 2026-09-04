@@ -21,6 +21,7 @@ GenericAction PolicyUDPHandler<DOF>::toGeneric(const DgRawAction& a) {
     GenericAction g{};
     std::memcpy(g.pos, a.jp, sizeof(g.pos));
     g.gripper_cmd = a.gripper_cmd;
+    // g.gripper_cmd = 0;
     std::memcpy(g.torque, a.ext_torque, sizeof(g.torque));
     return g;
 }
@@ -30,6 +31,7 @@ GenericAction PolicyUDPHandler<DOF>::toGeneric(const CrRawAction& a) {
     GenericAction g{};
     std::memcpy(g.pos, a.delta_jp, sizeof(g.pos));
     g.gripper_cmd = a.gripper_cmd;
+    // g.gripper_cmd = 0;
     std::memcpy(g.torque, a.ext_torque, sizeof(g.torque));
     return g;
 }
@@ -202,7 +204,7 @@ boost::optional<PolicyReceivedData> PolicyUDPHandler<DOF>::getLatestPolicyReceiv
         if (cr_action_queue.size() > 1) cr_action_queue.pop_front();
 
         jp_type res_jp;
-        for (size_t i = 0; i < DOF; ++i) res_jp[i] = residual_sample.pos[i];
+        for (size_t i = 0; i < DOF; ++i) res_jp[i] = -residual_sample.pos[i];
         jp_type clipped_delta = clipToRange(res_jp, jp_type::Zero(), clip_val, out.clipped_res_jp_joints_str);
         
         jt_type ref_torque;

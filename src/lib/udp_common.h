@@ -31,8 +31,11 @@ static constexpr double CR_UNINTERP_HZ = 50.0;
 static constexpr double CR_SEGMENT_DURATION_SEC = SLOW_DOWN_FACTOR / CR_UNINTERP_HZ;
  
 // dg-dagger
-static constexpr int DG_ACTION_HORIZON = 64;
-static constexpr double DG_UNINTERP_HZ = 50.0;
+// static constexpr int DG_ACTION_HORIZON = 64;
+// static constexpr double DG_UNINTERP_HZ = 50.0;
+// static constexpr double DG_SEGMENT_DURATION_SEC = SLOW_DOWN_FACTOR / DG_UNINTERP_HZ;
+static constexpr int DG_ACTION_HORIZON = 12;
+static constexpr double DG_UNINTERP_HZ = 10.0;
 static constexpr double DG_SEGMENT_DURATION_SEC = SLOW_DOWN_FACTOR / DG_UNINTERP_HZ;
 
 

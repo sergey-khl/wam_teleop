@@ -45,6 +45,11 @@ policy:
     kd: [3.0, 3.0, 1.5, 0.8, 0.05, 0.05, 0.05]
     control_signal_limit: [8, 8, 5.0, 5.0, 0.9, 0.9, 0.5]
     integrator_limit: [0, 0, 0, 0, 0, 0, 0]
+    # kp: [100.0, 70.0, 60.0, 60.0, 3.0, 3.0, 3.0]
+    # ki: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+    # kd: [1.5, 1.5, 1.0, 0.5, 0.05, 0.05, 0.03]
+    # control_signal_limit: [5, 4, 3, 2.0, 0.5, 0.5, 0.3]
+    # integrator_limit: [0, 0, 0, 0, 0, 0, 0]
 
   # =============================================================
 
@@ -55,6 +60,12 @@ policy:
     kd: [0.001, 0.001, 0.001, 0.001, 0.0, 0.0, 0.0]
     control_signal_limit: [5, 5, 5.0, 5.0, 0.0, 0.0, 0.0]
     integrator_limit: [0, 0, 0, 0, 0, 0, 0]
+  # torque:
+  #   kp: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+  #   ki: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+  #   kd: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+  #   control_signal_limit: [0, 0, 0.0, 0.0, 0.0, 0.0, 0.0]
+  #   integrator_limit: [0, 0, 0, 0, 0, 0, 0]
 
   # only one of these should be true. Whether leader or follower sends the data to the policy
   # NOTE: maybe kinda broken right now. policy scales are determined by the leader only
