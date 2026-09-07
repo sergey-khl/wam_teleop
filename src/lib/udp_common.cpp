@@ -176,7 +176,7 @@ boost::optional<PolicyReceivedData> PolicyUDPHandler<DOF>::getLatestPolicyReceiv
     clip_val << 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05;
     // clip_val << 0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 0.01;
     jt_type clip_ref_torque;
-    clip_ref_torque << 2.5, 2.5, 2.5, 2.5, 0.0, 0.0, 0.0;
+    clip_ref_torque << 5.5, 5.5, 5.5, 5.5, 0.0, 0.0, 0.0;
     // clip_ref_torque << 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0;
 
     if (action_queue.empty()) {
@@ -204,7 +204,7 @@ boost::optional<PolicyReceivedData> PolicyUDPHandler<DOF>::getLatestPolicyReceiv
         if (cr_action_queue.size() > 1) cr_action_queue.pop_front();
 
         jp_type res_jp;
-        for (size_t i = 0; i < DOF; ++i) res_jp[i] = -residual_sample.pos[i];
+        for (size_t i = 0; i < DOF; ++i) res_jp[i] = residual_sample.pos[i];
         jp_type clipped_delta = clipToRange(res_jp, jp_type::Zero(), clip_val, out.clipped_res_jp_joints_str);
         
         jt_type ref_torque;
