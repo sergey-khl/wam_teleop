@@ -200,7 +200,7 @@ int wam_main(int argc, char **argv, ProductManager &pm, systems::Wam<DOF> &wam) 
     systems::connect(leader.resPolicyJpOutput, res_policy_controller.referenceInput);
     systems::connect(zeroPosition.output, res_policy_controller.feedbackInput);
     systems::connect(leader.refPolicyJtOutput, torque_policy_controller.referenceInput);
-    systems::connect(extFilter.output, torque_policy_controller.feedbackInput);
+    systems::connect(leader.filteredEnvironmentTorqueOutput, torque_policy_controller.feedbackInput);
 
 
     wam.gravityCompensate();

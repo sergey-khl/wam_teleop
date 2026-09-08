@@ -211,7 +211,7 @@ template <size_t DOF> int wam_main(int argc, char **argv, ProductManager &pm, sy
     systems::connect(follower.resPolicyJpOutput, res_policy_controller.referenceInput);
     systems::connect(zeroPosition.output, res_policy_controller.feedbackInput);
     systems::connect(follower.refPolicyJtOutput, torque_policy_controller.referenceInput);
-    systems::connect(follower.filteredHumanTorqueOutput, torque_policy_controller.feedbackInput);
+    systems::connect(extFilter.output, torque_policy_controller.feedbackInput);
 
     // systems::connect(customjtSum.output, printTOQ.input);
 

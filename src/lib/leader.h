@@ -41,6 +41,7 @@ class Leader : public barrett::systems::System {
     Output<jp_type> basePolicyJpOutput;
     Output<jp_type> resPolicyJpOutput;
     Output<jt_type> refPolicyJtOutput;
+    Output<jt_type> filteredEnvironmentTorqueOutput;
 
     std::atomic<bool> linked;
 
@@ -53,6 +54,7 @@ class Leader : public barrett::systems::System {
         , theirJv(0.0)
         , theirDyngravcompTorque(0.0)
         , environmentTorque(0.0)
+        , filteredEnvironmentTorque(0.0)
         , theirToolPos(0.0)
         , theirToolQ(1, 0, 0, 0)
         , control(0.0)
@@ -73,6 +75,7 @@ class Leader : public barrett::systems::System {
         , basePolicyJpOutput(this, &basePolicyJpOutputValue)
         , resPolicyJpOutput(this, &resPolicyJpOutputValue)
         , refPolicyJtOutput(this, &refPolicyJtOutputValue)
+        , filteredEnvironmentTorqueOutput(this, &filteredEnvironmentTorqueOutputValue)
         , teleop_udp_handler(config.network.follower_host, config.network.teleop_send, config.network.teleop_recv)
         , policy_udp_handler(config.policy.type, config.policy.on_leader, config.network.policy_host, config.network.policy_send, config.network.policy_leader_recv)
         , handle(handle)
@@ -120,6 +123,7 @@ class Leader : public barrett::systems::System {
     typename Output<jp_type>::Value* basePolicyJpOutputValue;
     typename Output<jp_type>::Value* resPolicyJpOutputValue;
     typename Output<jt_type>::Value* refPolicyJtOutputValue;
+    typename Output<jt_type>::Value* filteredEnvironmentTorqueOutputValue;
 
     TeleopConfig config;
 
@@ -236,6 +240,7 @@ class Leader : public barrett::systems::System {
         }
         basePolicyJpOutputValue->setData(&basePolicyJp);
         resPolicyJpOutputValue->setData(&resPolicyJp);
+        filteredEnvironmentTorqueOutputValue->setData(&filteredEnvironmentTorque);
         refPolicyJtOutputValue->setData(&refPolicyTorque);
 
         // Pack outgoing messages

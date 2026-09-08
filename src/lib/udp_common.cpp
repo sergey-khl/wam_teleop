@@ -9,8 +9,8 @@ template <size_t DOF>
 GenericAction PolicyUDPHandler<DOF>::toGeneric(const BaseRawAction& a) {
     GenericAction g{};
     std::memcpy(g.pos, a.jp, sizeof(g.pos));
-    g.gripper_cmd = a.gripper_cmd;
-    // g.gripper_cmd = 0;
+    // g.gripper_cmd = a.gripper_cmd;
+    g.gripper_cmd = 0;
     // as is base has no torque
     std::memset(g.torque, 0, sizeof(g.torque));
     return g;
@@ -20,8 +20,8 @@ template <size_t DOF>
 GenericAction PolicyUDPHandler<DOF>::toGeneric(const DgRawAction& a) {
     GenericAction g{};
     std::memcpy(g.pos, a.jp, sizeof(g.pos));
-    g.gripper_cmd = a.gripper_cmd;
-    // g.gripper_cmd = 0;
+    // g.gripper_cmd = a.gripper_cmd;
+    g.gripper_cmd = 0;
     std::memcpy(g.torque, a.ext_torque, sizeof(g.torque));
     return g;
 }
@@ -30,8 +30,8 @@ template <size_t DOF>
 GenericAction PolicyUDPHandler<DOF>::toGeneric(const CrRawAction& a) {
     GenericAction g{};
     std::memcpy(g.pos, a.delta_jp, sizeof(g.pos));
-    g.gripper_cmd = a.gripper_cmd;
-    // g.gripper_cmd = 0;
+    // g.gripper_cmd = a.gripper_cmd;
+    g.gripper_cmd = 0;
     std::memcpy(g.torque, a.ext_torque, sizeof(g.torque));
     return g;
 }
@@ -209,7 +209,7 @@ boost::optional<PolicyReceivedData> PolicyUDPHandler<DOF>::getLatestPolicyReceiv
         
         jt_type ref_torque;
         for (size_t i = 0; i < DOF; ++i) ref_torque[i] = residual_sample.torque[i];
-        jt_type clipped_ref_torque = clipToRange(ref_torque, latest_leader_state.filtered_human_torque, clip_ref_torque, out.clipped_ref_torques_str);
+        jt_type clipped_ref_torque = clipToRange(ref_torque, latest_leader_state.filtered_environment_torque, clip_ref_torque, out.clipped_ref_torques_str);
  
         out.res_policy_jp = clipped_delta;
         out.ref_torque = clipped_ref_torque;
@@ -243,6 +243,7 @@ void PolicyUDPHandler<DOF>::send(const jp_type& follower_jp, const jv_type& foll
         std::lock_guard<std::mutex> lock(leader_state_mutex);
         latest_leader_state.jp = leader_jp;
         latest_leader_state.filtered_human_torque = filtered_human_torque;
+        latest_leader_state.filtered_environment_torque = filtered_environment_torque;
         latest_leader_state.gripper_pos = gripper_pos;
     }
 

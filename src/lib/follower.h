@@ -42,7 +42,6 @@ class Follower : public barrett::systems::System {
     Output<jp_type> basePolicyJpOutput;
     Output<jp_type> resPolicyJpOutput;
     Output<jt_type> refPolicyJtOutput;
-    Output<jt_type> filteredHumanTorqueOutput;
 
     std::atomic<bool> linked;
     
@@ -75,7 +74,6 @@ class Follower : public barrett::systems::System {
         , basePolicyJpOutput(this, &basePolicyJpOutputValue)
         , resPolicyJpOutput(this, &resPolicyJpOutputValue)
         , refPolicyJtOutput(this, &refPolicyJtOutputValue)
-        , filteredHumanTorqueOutput(this, &filteredHumanTorqueOutputValue)
         , teleop_udp_handler(config.network.leader_host, config.network.teleop_recv, config.network.teleop_send)
         , policy_udp_handler(config.policy.type, config.policy.on_follower, config.network.policy_host, config.network.policy_send, config.network.policy_follower_recv)
         , gripper(gripper)
@@ -119,7 +117,6 @@ class Follower : public barrett::systems::System {
     typename Output<jp_type>::Value* basePolicyJpOutputValue;
     typename Output<jp_type>::Value* resPolicyJpOutputValue;
     typename Output<jt_type>::Value* refPolicyJtOutputValue;
-    typename Output<jt_type>::Value* filteredHumanTorqueOutputValue;
     jp_type wamJP;
     jv_type wamJV;
     boost::tuple<cp_type, Eigen::Quaterniond> wamTP;
@@ -220,7 +217,6 @@ class Follower : public barrett::systems::System {
         }
         basePolicyJpOutputValue->setData(&basePolicyJp);
         resPolicyJpOutputValue->setData(&resPolicyJp);
-        filteredHumanTorqueOutputValue->setData(&filteredHumanTorque);
         refPolicyJtOutputValue->setData(&refPolicyTorque);
 
         sendJpMsg << wamJP;

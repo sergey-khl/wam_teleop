@@ -102,7 +102,7 @@ struct PolicyPacket {
 
 struct BaseRawAction {
     double jp[7];
-    double gripper_cmd;
+    // double gripper_cmd;
 };
  
 struct BasePolicyActionChunkPacket {
@@ -112,7 +112,7 @@ struct BasePolicyActionChunkPacket {
  
 struct CrRawAction {
     double delta_jp[7];
-    double gripper_cmd;
+    // double gripper_cmd;
     double ext_torque[7];
 };
  
@@ -303,6 +303,7 @@ private:
     struct LeaderState {
         jp_type jp = jp_type::Zero();
         jt_type filtered_human_torque = jt_type::Zero();
+        jt_type filtered_environment_torque = jt_type::Zero();
         double gripper_pos = 0.0;
     };
     std::mutex leader_state_mutex;
