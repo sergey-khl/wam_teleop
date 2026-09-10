@@ -9,8 +9,8 @@ template <size_t DOF>
 GenericAction PolicyUDPHandler<DOF>::toGeneric(const BaseRawAction& a) {
     GenericAction g{};
     std::memcpy(g.pos, a.jp, sizeof(g.pos));
-    // g.gripper_cmd = a.gripper_cmd;
-    g.gripper_cmd = 0;
+    g.gripper_cmd = a.gripper_cmd;
+    // g.gripper_cmd = 0;
     // as is base has no torque
     std::memset(g.torque, 0, sizeof(g.torque));
     return g;
@@ -20,8 +20,8 @@ template <size_t DOF>
 GenericAction PolicyUDPHandler<DOF>::toGeneric(const DgRawAction& a) {
     GenericAction g{};
     std::memcpy(g.pos, a.jp, sizeof(g.pos));
-    // g.gripper_cmd = a.gripper_cmd;
-    g.gripper_cmd = 0;
+    g.gripper_cmd = a.gripper_cmd;
+    // g.gripper_cmd = 0;
     std::memcpy(g.torque, a.ext_torque, sizeof(g.torque));
     return g;
 }
@@ -30,8 +30,8 @@ template <size_t DOF>
 GenericAction PolicyUDPHandler<DOF>::toGeneric(const CrRawAction& a) {
     GenericAction g{};
     std::memcpy(g.pos, a.delta_jp, sizeof(g.pos));
-    // g.gripper_cmd = a.gripper_cmd;
-    g.gripper_cmd = 0;
+    g.gripper_cmd = a.gripper_cmd;
+    // g.gripper_cmd = 0;
     std::memcpy(g.torque, a.ext_torque, sizeof(g.torque));
     return g;
 }

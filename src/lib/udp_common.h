@@ -102,7 +102,7 @@ struct PolicyPacket {
 
 struct BaseRawAction {
     double jp[7];
-    // double gripper_cmd;
+    double gripper_cmd;
 };
  
 struct BasePolicyActionChunkPacket {
@@ -112,7 +112,7 @@ struct BasePolicyActionChunkPacket {
  
 struct CrRawAction {
     double delta_jp[7];
-    // double gripper_cmd;
+    double gripper_cmd;
     double ext_torque[7];
 };
  

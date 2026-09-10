@@ -464,7 +464,7 @@ class Leader : public barrett::systems::System {
 
         u += resPolicyJt;
 
-        // u += refTorquePolicyJt;
+        u += refTorquePolicyJt;
 
         return u;
     };
