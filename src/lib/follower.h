@@ -178,7 +178,7 @@ class Follower : public barrett::systems::System {
             filteredHumanTorque = teleop_data->filteredHumanTorque;
             theirToolPos = teleop_data->cart_pos.template head<3>();
             theirToolQ = teleop_data->quat;
-            policyTorqueScale << teleop_data->policyTorqueScale;
+            // policyTorqueScale << teleop_data->policyTorqueScale;
             target_gripper_pos.store(static_cast<double>(teleop_data->gripper_cmd));
             cancel_policy.store(static_cast<double>(teleop_data->cancel_policy));
 
@@ -205,6 +205,8 @@ class Follower : public barrett::systems::System {
         if (cancel_policy.load() == 1) {
             policy_udp_handler.clearQueueAndPause();
         }
+
+        policyTorqueScale << 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0;
 
 
         // inference.
@@ -287,8 +289,8 @@ class Follower : public barrett::systems::System {
                 );
             } else if (config.policy.type == "base") {
                 control = compute_control(
-                    theirJp, theirJv, environmentTorque,
-                    wamJP,   wamJV,   humanTorque,
+                    theirJp, theirJv, humanTorque,
+                    wamJP,   wamJV,   environmentTorque,
                     wamGrav, wamDyn, policyTorqueScale.asDiagonal() * basePolicyJt,
                     zero_torque, zero_torque
                 );
@@ -404,7 +406,7 @@ class Follower : public barrett::systems::System {
 
         jt_type u3 = -0.5 * ref_extTorque; // PF-PF with ref external torque feedback
 
-        jt_type u4 = -0.1 * ref_extTorque + cur_dyn - cur_grav; // PF-PF with ref external torque feedback and dynamic compensation (Lawrence's perfect transparency architecture);
+        jt_type u4 = -0.5 * ref_extTorque + cur_dyn - cur_grav; // PF-PF with ref external torque feedback and dynamic compensation (Lawrence's perfect transparency architecture);
 
 
         jt_type u5 = -0.5 * ref_extTorque -0.15 * (ref_extTorque + cur_extTorque); // PF-PF with ref external torque and cur external torque feedback
@@ -432,12 +434,12 @@ class Follower : public barrett::systems::System {
             u[i] = 0.0;
         }
 
-        u += basePolicyJt;
-
-        u += resPolicyJt;
-
-        u += refTorquePolicyJt;
-
+        // u += basePolicyJt;
+        //
+        // u += resPolicyJt;
+        //
+        // u += refTorquePolicyJt;
+        //
         return u;
     };
 };

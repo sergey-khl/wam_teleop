@@ -290,11 +290,12 @@ class Leader : public barrett::systems::System {
         }
 
         // scale only applied to base policy
-        if (policyTorqueScaleIn.valueDefined()) {
-            policyTorqueScale = policyTorqueScaleIn.getValue();
-        } else {
-            policyTorqueScale << 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0;
-        }
+        // if (policyTorqueScaleIn.valueDefined()) {
+        //     // policyTorqueScale = policyTorqueScaleIn.getValue();
+        // } else {
+        //     policyTorqueScale << 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0;
+        // }
+        policyTorqueScale << 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0;
 
         jt_type zero_torque;
         zero_torque.setZero();
@@ -442,7 +443,7 @@ class Leader : public barrett::systems::System {
         jt_type u1 = 0.0 * cur_extTorque;                        // zero FF (P-P + g-comp only if you add it)
         jt_type u2 = cur_dyn - cur_grav;                          // P-P with dynamic comp (your comment)
         jt_type u3 = -0.5 * ref_extTorque;                        // PF-PF (ref ext torque FF)
-        jt_type u4 = -0.1 * ref_extTorque + cur_dyn - cur_grav;   // PF-PF + dyn comp (Lawrence ideal)
+        jt_type u4 = -0.5 * ref_extTorque + cur_dyn - cur_grav;   // PF-PF + dyn comp (Lawrence ideal)
         jt_type u5 = -0.5 * ref_extTorque - 0.15 * (ref_extTorque + cur_extTorque);
         jt_type u6 = -0.1 * ref_extTorque - 0.03 * (ref_extTorque + cur_extTorque) + cur_dyn - cur_grav;
 
@@ -453,18 +454,18 @@ class Leader : public barrett::systems::System {
         jt_type u = u2;
 
 
-        u += refTorquePolicyJt;
+        // u += refTorquePolicyJt;
 
         // j5-7 does not give a usable ext torque
         for (size_t i = 4; i < 7; ++i) {
             u[i] = 0.0;
         }
 
-        u += basePolicyJt;
+        // u += basePolicyJt;
 
-        u += resPolicyJt;
-
-        u += refTorquePolicyJt;
+        // u += resPolicyJt;
+        //
+        // u += refTorquePolicyJt;
 
         return u;
     };

@@ -71,7 +71,7 @@ policy:
   on_leader: true
   on_follower: false
 
-  type: "cr" # one of base, cr or dg
+  type: "base" # one of base, cr or dg
 
 leader:
   sync_pos: [0.0, -1.7, 0.0, 2.97, 0.0, 0.0, 0.0] 
@@ -82,7 +82,7 @@ follower:
   vertical: false
 
 gripper:
-  usable: true
+  usable: false
 
 handle:
     torque_scaling: 1.5

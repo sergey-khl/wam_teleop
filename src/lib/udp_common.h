@@ -18,7 +18,7 @@
 static constexpr double INTERP_HZ = 500.0;
 
 // 1 is real time exec. the larger the number the slower the execution
-static constexpr int SLOW_DOWN_FACTOR = 2;
+static constexpr int SLOW_DOWN_FACTOR = 1;
  
 // used in base and cr
 static constexpr int BASE_ACTION_HORIZON = 8;
