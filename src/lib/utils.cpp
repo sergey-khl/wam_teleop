@@ -1,5 +1,9 @@
 #include "utils.h"
+#include <barrett/systems.h>
+#include <barrett/units.h>
+#include <barrett/systems/pid_controller.h>
 
+using namespace barrett;
 namespace fs = boost::filesystem;
 
 void print_leader_banner(const TeleopConfig& config) {
@@ -8,9 +12,10 @@ void print_leader_banner(const TeleopConfig& config) {
 
     std::vector<double> sync_pos  = config.leader.sync_pos;
     bool vertical = config.leader.vertical;
+    bool on_leader = config.policy.on_leader;
 
     printf("\n========================================\n");
-    printf("  WAM LEADER — startup\n");
+    printf("  LEADER \n");
     printf("========================================\n");
     printf("  Sync pos      : [");
     for (int i = 0; i < 7; ++i)
@@ -20,6 +25,7 @@ void print_leader_banner(const TeleopConfig& config) {
     printf("]\n");
     printf("  config    : %s\n", barrett_cfg ? barrett_cfg : "(BARRETT_CONFIG_FILE not set)");
     printf("  CAN port  : %d\n",   barrett_port);
+    printf("  policy on leader  : %s\n",   on_leader ? "yes" : "no");
     printf("========================================\n\n");
 }
 
@@ -29,11 +35,11 @@ void print_follower_banner(const TeleopConfig& config) {
 
     std::vector<double> sync_pos  = config.follower.sync_pos;
     bool vertical = config.follower.vertical;
-
+    bool on_follower = config.policy.on_follower;
+  
     printf("\n========================================\n");
-    printf("  WAM FOLLOWER — startup\n");
+    printf("  FOLLOWER \n");
     printf("========================================\n");
-    printf("  Recording     : %s\n",   config.network.recording ? "yes" : "no");
     printf("  Sync pos      : [");
     for (int i = 0; i < 7; ++i)
         printf("%s%.4f", i ? ", " : "", sync_pos[i]);
@@ -49,6 +55,7 @@ void print_follower_banner(const TeleopConfig& config) {
     printf("]\n");
     printf("  config    : %s\n", barrett_cfg ? barrett_cfg : "(BARRETT_CONFIG_FILE not set)");
     printf("  CAN port  : %d\n",   barrett_port);
+    printf("  policy on follower  : %s\n",   on_follower ? "yes" : "no");
     printf("========================================\n\n");
 }
 
@@ -93,3 +100,28 @@ std::string get_teleop_config_directory() {
     std::cerr << "No valid configuration directory found.\n";
     return "";
 }
+
+template <size_t DOF, typename Controller>
+void apply_gains(Controller& controller, const PolicyGains& gains) {
+    typename Controller::unitless_type kp, ki, kd, int_limit, cs_limit;
+    
+    for (int i = 0; i < DOF; ++i) {
+        kp[i] = gains.kp[i];
+        ki[i] = gains.ki[i];
+        kd[i] = gains.kd[i];
+        int_limit[i] = gains.integrator_limit[i];
+        cs_limit[i] = gains.control_signal_limit[i];
+    }
+    
+    controller.setKp(kp);
+    controller.setKi(ki);
+    controller.setKd(kd);
+    controller.setIntegratorLimit(int_limit);
+    controller.setControlSignalLimit(cs_limit);
+}
+
+BARRETT_UNITS_TEMPLATE_TYPEDEFS(7);
+template void apply_gains<7, systems::PIDController<jp_type, jt_type>>(
+    systems::PIDController<jp_type, jt_type>&, const PolicyGains&);
+template void apply_gains<7, systems::PIDController<jt_type, jt_type>>(
+    systems::PIDController<jt_type, jt_type>&, const PolicyGains&);
