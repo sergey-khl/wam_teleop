@@ -10,7 +10,6 @@
 
 // This a version of 7dof-7dof control
 
-#include "lib/utils.h"
 #include <iostream>
 #include <string>
 
@@ -27,11 +26,10 @@
 
 #include <haptic_wrist/handle.h>
 #include "lib/leader.h"
-#include "lib/background_state_publisher.h"
-#include "lib/leader_dynamics_4dof.h"
-#include "lib/dynamic_external_torque.h"
-#include "lib/policy_torque.h"
-#include "lib/leader_vertical_dynamics.h"
+#include "lib/dynamics/leader_dynamics_4dof.h"
+#include "lib/dynamics/dynamic_external_torque.h"
+#include "lib/dynamics/leader_vertical_dynamics.h"
+#include "lib/policy/policy_torque.h"
 
 using namespace barrett;
 using detail::waitForEnter;
@@ -74,11 +72,7 @@ int wam_main(int argc, char **argv, ProductManager &pm, systems::Wam<DOF> &wam) 
         return false;
     }
 
-    ros::init(argc, argv, "leader");
-
     haptic_wrist::Handle handle;
-
-    // BackgroundStatePublisher<DOF> state_publisher(pm.getExecutionManager(), wam, &hw);
 
     barrett::systems::Summer<jt_type, 3> customjtSum;
     pm.getExecutionManager()->startManaging(customjtSum);

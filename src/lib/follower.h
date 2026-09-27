@@ -10,13 +10,13 @@
 #include <iomanip>
 
 
-#include "follower_udp_handler.h"
+#include "udp/follower_udp_handler.h"
 #include <barrett/detail/ca_macro.h>
 #include <barrett/systems/abstract/single_io.h>
 #include <barrett/thread/abstract/mutex.h>
 #include <barrett/units.h>
-#include "teleop_config_loader.h"
-#include "utils.h"
+#include "utils/teleop_config_loader.h"
+#include "utils/utils.h"
 
 using namespace gripper::gecko;
 

@@ -1,20 +1,20 @@
 // This file calculates the inverse dynamics of only the first four dofs of the WAM.
 
-#ifndef LEADER_DYNAMICS_H_
-#define LEADER_DYNAMICS_H_
+#ifndef FOLLOWER_DYNAMICS_H_
+#define FOLLOWER_DYNAMICS_H_
 
 #pragma once
 #include <eigen3/Eigen/Dense>
 #include <barrett/units.h>
 #include <barrett/systems.h>
 #include <barrett/math/kinematics.h> 
-#include "leader_beta_zeus_bwrist_4dof.h"
+#include "follower_beta/slax_skid_hand_4dof.h"
 #include "regressor_W_4dof.h"
 
 using namespace barrett;
 
 template<size_t DOF>
-class LeaderDynamics: public systems::System {
+class FollowerDynamics: public systems::System {
 
 	BARRETT_UNITS_TEMPLATE_TYPEDEFS(DOF);
 
@@ -30,14 +30,14 @@ protected:
 	typename Output<jt_type>::Value* dynamicsFeedFWDValue;
 
 public:
-	explicit LeaderDynamics(systems::ExecutionManager* em) :
+	explicit FollowerDynamics(systems::ExecutionManager* em) :
 			jpInputDynamics(this), jvInputDynamics(this), jaInputDynamics(this), dynamicsFeedFWD(this,
 					&dynamicsFeedFWDValue) {
 	//		      em->startManaging(*this);
 //		    }
 	}
 
-	virtual ~LeaderDynamics() {
+	virtual ~FollowerDynamics() {
 		this->mandatoryCleanUp();
 	}
 
@@ -62,7 +62,7 @@ protected:
 		ThetaddotInput << 0.25 * tmp_theta_acc[0], 0.25 * tmp_theta_acc[1],  0.25 * tmp_theta_acc[2], 0.25 * tmp_theta_acc[3];
 		W = calculate_W_eigen(ThetaInput, ThetadotInput, ThetaddotInput);
 
-		beta = initialize_leader_beta();
+		beta = initialize_follower_beta();
 		
 		FeedFwd = W * beta;
 
@@ -72,6 +72,6 @@ protected:
 
 	}
 private:
-	DISALLOW_COPY_AND_ASSIGN(LeaderDynamics);
+	DISALLOW_COPY_AND_ASSIGN(FollowerDynamics);
 };
-#endif /* LEADER_DYNAMICS_H_ */
+#endif /* FOLLOWER_DYNAMICS_H_ */

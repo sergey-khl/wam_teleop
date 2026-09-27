@@ -27,11 +27,10 @@
 #include <barrett/standard_main_function.h>
 
 #include "lib/follower.h"
-#include "lib/background_state_publisher.h"
-#include "lib/follower_dynamics_4dof.h"
-#include "lib/dynamic_external_torque.h"
-#include "lib/policy_torque.h"
-#include "lib/follower_vertical_dynamics.h"
+#include "lib/dynamics/follower_dynamics_4dof.h"
+#include "lib/dynamics/dynamic_external_torque.h"
+#include "lib/dynamics/follower_vertical_dynamics.h"
+#include "lib/policy/policy_torque.h"
 // #include "lib/trajectory_smoother.h"
 
 using namespace barrett;
@@ -87,9 +86,6 @@ template <size_t DOF> int wam_main(int argc, char **argv, ProductManager &pm, sy
         std::cerr << "WARNING: Gecko gripper not initialized. Trigger/bumper commands will be ignored." << std::endl;
     }
 
-
-    ros::init(argc, argv, "follower");
-    // BackgroundStatePublisher<DOF> state_publisher(pm.getExecutionManager(), wam);
 
     barrett::systems::Summer<jt_type, 3> customjtSum;
     pm.getExecutionManager()->startManaging(customjtSum);

@@ -10,13 +10,13 @@
 #include <chrono>
 #include <iomanip>
 
-#include "leader_udp_handler.h"
+#include "udp/leader_udp_handler.h"
 #include <barrett/detail/ca_macro.h>
 #include <barrett/systems/abstract/single_io.h>
 #include <barrett/thread/abstract/mutex.h>
 #include <barrett/units.h>
-#include "teleop_config_loader.h"
-#include "utils.h"
+#include "utils/teleop_config_loader.h"
+#include "utils/utils.h"
 
 template <size_t DOF>
 class Leader : public barrett::systems::System {
