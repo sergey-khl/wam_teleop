@@ -178,7 +178,7 @@ class Follower : public barrett::systems::System {
             filteredHumanTorque = teleop_data->filteredHumanTorque;
             theirToolPos = teleop_data->cart_pos.template head<3>();
             theirToolQ = teleop_data->quat;
-            // policyTorqueScale << teleop_data->policyTorqueScale;
+            policyTorqueScale << teleop_data->policyTorqueScale;
             target_gripper_pos.store(static_cast<double>(teleop_data->gripper_cmd));
             cancel_policy.store(static_cast<double>(teleop_data->cancel_policy));
 
@@ -205,8 +205,6 @@ class Follower : public barrett::systems::System {
         if (cancel_policy.load() == 1) {
             policy_udp_handler.clearQueueAndPause();
         }
-
-        policyTorqueScale << 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0;
 
 
         // inference.
@@ -434,12 +432,12 @@ class Follower : public barrett::systems::System {
             u[i] = 0.0;
         }
 
-        // u += basePolicyJt;
-        //
-        // u += resPolicyJt;
-        //
-        // u += refTorquePolicyJt;
-        //
+        u += basePolicyJt;
+
+        u += resPolicyJt;
+
+        u += refTorquePolicyJt;
+
         return u;
     };
 };

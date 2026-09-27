@@ -60,8 +60,8 @@ class PolicyTorque : public barrett::systems::System {
         for (size_t i = 0; i < 4; ++i) {
             nextPolicyTorqueScale[i] = 1.0 / (1.0 + std::exp(8 * (normalized_ext_torque[i] - 0.7)));
         }
-        for (size_t i = 4; i < 7; ++i) {
-        // for (size_t i = 0; i < 7; ++i) {
+        // for (size_t i = 4; i < 7; ++i) {
+        for (size_t i = 0; i < 7; ++i) {
             nextPolicyTorqueScale[i] = 1.0;
         }
         // rate limit the torque scales

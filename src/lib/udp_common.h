@@ -18,7 +18,7 @@
 static constexpr double INTERP_HZ = 500.0;
 
 // 1 is real time exec. the larger the number the slower the execution
-static constexpr int SLOW_DOWN_FACTOR = 1;
+static constexpr int SLOW_DOWN_FACTOR = 2;
  
 // used in base and cr
 static constexpr int BASE_ACTION_HORIZON = 8;
@@ -102,7 +102,7 @@ struct PolicyPacket {
 
 struct BaseRawAction {
     double jp[7];
-    double gripper_cmd;
+    // double gripper_cmd;
 };
  
 struct BasePolicyActionChunkPacket {
@@ -112,7 +112,7 @@ struct BasePolicyActionChunkPacket {
  
 struct CrRawAction {
     double delta_jp[7];
-    double gripper_cmd;
+    // double gripper_cmd;
     double ext_torque[7];
 };
  
@@ -123,7 +123,7 @@ struct CrPolicyActionChunkPacket {
  
 struct DgRawAction {
     double jp[7];
-    double gripper_cmd;
+    // double gripper_cmd;
     double ext_torque[7];
 };
  

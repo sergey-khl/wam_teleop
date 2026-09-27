@@ -290,12 +290,11 @@ class Leader : public barrett::systems::System {
         }
 
         // scale only applied to base policy
-        // if (policyTorqueScaleIn.valueDefined()) {
-        //     // policyTorqueScale = policyTorqueScaleIn.getValue();
-        // } else {
-        //     policyTorqueScale << 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0;
-        // }
-        policyTorqueScale << 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0;
+        if (policyTorqueScaleIn.valueDefined()) {
+            policyTorqueScale = policyTorqueScaleIn.getValue();
+        } else {
+            policyTorqueScale << 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0;
+        }
 
         jt_type zero_torque;
         zero_torque.setZero();
@@ -453,19 +452,16 @@ class Leader : public barrett::systems::System {
 
         jt_type u = u2;
 
-
-        // u += refTorquePolicyJt;
-
         // j5-7 does not give a usable ext torque
         for (size_t i = 4; i < 7; ++i) {
             u[i] = 0.0;
         }
 
-        // u += basePolicyJt;
+        u += basePolicyJt;
 
-        // u += resPolicyJt;
-        //
-        // u += refTorquePolicyJt;
+        u += resPolicyJt;
+
+        u += refTorquePolicyJt;
 
         return u;
     };
