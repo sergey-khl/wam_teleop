@@ -74,7 +74,7 @@ class Leader : public barrett::systems::System {
         , teleop_udp_handler(config.network.follower_host, config.network.teleop_send, config.network.teleop_recv,
                              config.data_routing.teleop_send_leader, config.data_routing.teleop_send_follower)
         , policy_udp_handler(config, config.policy.on_leader, config.network.policy_leader_recv,
-                             config.data_routing.policy_send_leader)
+                             config.data_routing.policy_send_wam)
         , handle(handle)
     	, bumper(0.0f)
     	, trigger(0.0f)

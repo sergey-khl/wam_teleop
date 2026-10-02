@@ -72,7 +72,7 @@ class Follower : public barrett::systems::System {
         , teleop_udp_handler(config.network.leader_host, config.network.teleop_recv, config.network.teleop_send,
                              config.data_routing.teleop_send_follower, config.data_routing.teleop_send_leader)
         , policy_udp_handler(config, config.policy.on_follower, config.network.policy_follower_recv,
-                             config.data_routing.policy_send_follower)
+                             config.data_routing.policy_send_wam)
         , gripper(gripper)
         , target_gripper_pos(0.0f)
         , current_gripper_pos(0.0f)

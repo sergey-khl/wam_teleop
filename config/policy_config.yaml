@@ -13,8 +13,7 @@ network:
 # Which fields of the shared TeleopData are packed into the packet sent to the
 # policy. Names must match a field in src/lib/utils/data_packets.h.
 data_routing:
-  # used when policy.on_leader is true
-  policy_send_leader: [follower_jp, follower_jv, follower_dyngravcomp_torque,
+  policy_send_wam: [follower_jp, follower_jv, follower_dyngravcomp_torque,
                        environment_torque, filtered_environment_torque,
                        leader_jp, leader_jv, leader_dyngravcomp_torque,
                        human_torque, filtered_human_torque,
@@ -23,16 +22,6 @@ data_routing:
                        follower_cart_pos, follower_quat, leader_cart_pos, leader_quat,
                        gripper_pos, gripper_vel, gripper_torque,
                        time_to_chunk_end, res_time_to_chunk_end]
-  # used when policy.on_follower is true
-  policy_send_follower: [follower_jp, follower_jv, follower_dyngravcomp_torque,
-                         environment_torque, filtered_environment_torque,
-                         leader_jp, leader_jv, leader_dyngravcomp_torque,
-                         human_torque, filtered_human_torque,
-                         policyJp, policyJt, policyTorqueScale,
-                         resPolicyJp, resPolicyJt, refPolicyTorque, refTorquePolicyJt,
-                         follower_cart_pos, follower_quat, leader_cart_pos, leader_quat,
-                         gripper_pos, gripper_vel, gripper_torque,
-                         time_to_chunk_end, res_time_to_chunk_end]
 
 policy:
   type: "base" # one of base, cr or dg

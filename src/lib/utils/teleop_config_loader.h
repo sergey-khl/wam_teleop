@@ -24,8 +24,7 @@ struct NetworkConfig {
 struct DataRoutingConfig {
     std::vector<std::string> teleop_send_leader;
     std::vector<std::string> teleop_send_follower;
-    std::vector<std::string> policy_send_leader;
-    std::vector<std::string> policy_send_follower;
+    std::vector<std::string> policy_send_wam;
 };
 
 struct PolicyGains {
@@ -214,8 +213,7 @@ inline TeleopConfig load_teleop_config(const std::string& config_dir) {
         c.interp_hz = policy["interp_hz"].as<double>();
         c.slow_down_factor = policy["slow_down_factor"].as<int>();
         c.policy = policy["policy"].as<PolicyConfig>();
-        c.data_routing.policy_send_leader = require_string_list(policy["data_routing"], "policy_send_leader");
-        c.data_routing.policy_send_follower = require_string_list(policy["data_routing"], "policy_send_follower");
+        c.data_routing.policy_send_wam = require_string_list(policy["data_routing"], "policy_send_wam");
 
         return c;
     } catch (const YAML::Exception& e) {
