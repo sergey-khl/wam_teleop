@@ -37,7 +37,7 @@ catkin_package(
 
 install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/config/
   DESTINATION /etc/teleop
-  FILES_MATCHING PATTERN "teleop_config.yaml"
+  FILES_MATCHING PATTERN "*.yaml"
   PERMISSIONS
     OWNER_READ OWNER_WRITE OWNER_EXECUTE
     GROUP_READ GROUP_WRITE GROUP_EXECUTE
@@ -57,7 +57,7 @@ find_package(Boost REQUIRED COMPONENTS system thread)
 
 if (BUILD_LEADER) 
     find_package(haptic_wrist 2.0 REQUIRED)
-    add_executable(leader src/leader.cpp src/lib/udp/leader_udp_handler.cpp src/lib/udp/udp_common.cpp src/lib/utils/utils.cpp)
+    add_executable(leader src/leader.cpp src/lib/udp/leader_udp_handler.cpp src/lib/udp/udp_policy.cpp src/lib/utils/utils.cpp)
     target_link_libraries(leader ${BARRETT_LIBRARIES} ${catkin_LIBRARIES} haptic_wrist Boost::system Boost::thread yaml-cpp)
     target_compile_definitions(leader PRIVATE BUILD_LEADER)
     # target_compile_options(leader PRIVATE -fsanitize=address -g) 
@@ -65,7 +65,7 @@ if (BUILD_LEADER)
     add_dependencies(leader ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 endif()
 
-add_executable(follower src/follower.cpp src/lib/udp/follower_udp_handler.cpp src/lib/udp/udp_common.cpp src/lib/utils/utils.cpp)
+add_executable(follower src/follower.cpp src/lib/udp/follower_udp_handler.cpp src/lib/udp/udp_policy.cpp src/lib/utils/utils.cpp)
 target_link_libraries(follower ${BARRETT_LIBRARIES} ${catkin_LIBRARIES} gripper::gripper Boost::system Boost::thread yaml-cpp)
 # target_compile_options(follower PRIVATE -fsanitize=address -g) 
 # target_link_options(follower PRIVATE -fsanitize=address)

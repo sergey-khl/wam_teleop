@@ -1,0 +1,75 @@
+interp_hz: 500.0
+# 1 is real time exec. the larger the number the slower the execution
+slow_down_factor: 2
+
+network:
+  policy_host: "127.0.0.1"
+  # if policy.on_leader the ports are from perspective of leader. Similar for follower
+  policy_send: 6554
+  # CR-DAgger will assume receiving on the below ports + 1
+  policy_follower_recv: 20000
+  policy_leader_recv: 10000
+
+# Which fields of the shared TeleopData are packed into the packet sent to the
+# policy. Names must match a field in src/lib/utils/data_packets.h.
+data_routing:
+  # used when policy.on_leader is true
+  policy_send_leader: [follower_jp, follower_jv, follower_dyngravcomp_torque,
+                       environment_torque, filtered_environment_torque,
+                       leader_jp, leader_jv, leader_dyngravcomp_torque,
+                       human_torque, filtered_human_torque,
+                       policyJp, policyJt, policyTorqueScale,
+                       resPolicyJp, resPolicyJt, refPolicyTorque, refTorquePolicyJt,
+                       follower_cart_pos, follower_quat, leader_cart_pos, leader_quat,
+                       gripper_pos, gripper_vel, gripper_torque,
+                       time_to_chunk_end, res_time_to_chunk_end]
+  # used when policy.on_follower is true
+  policy_send_follower: [follower_jp, follower_jv, follower_dyngravcomp_torque,
+                         environment_torque, filtered_environment_torque,
+                         leader_jp, leader_jv, leader_dyngravcomp_torque,
+                         human_torque, filtered_human_torque,
+                         policyJp, policyJt, policyTorqueScale,
+                         resPolicyJp, resPolicyJt, refPolicyTorque, refTorquePolicyJt,
+                         follower_cart_pos, follower_quat, leader_cart_pos, leader_quat,
+                         gripper_pos, gripper_vel, gripper_torque,
+                         time_to_chunk_end, res_time_to_chunk_end]
+
+policy:
+  type: "base" # one of base, cr or dg
+  on_leader: true
+  on_follower: false
+
+  # clip the policy commands to a range around the current state
+  clip_val: [0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05]
+  clip_ref_torque: [5.5, 5.5, 5.5, 5.5, 0.0, 0.0, 0.0]
+
+  # (base -> base; cr -> base + res; dg -> dg) selected by type. Fields must match ActionData in
+  # src/lib/utils/data_packets.h.
+  action:
+    base: {fields: [jp], horizon: 8, uninterp_hz: 10.0}
+    res:  {fields: [delta_jp, ext_torque], horizon: 5, uninterp_hz: 50.0}
+    dg:   {fields: [jp, ext_torque], horizon: 8, uninterp_hz: 10.0}
+
+  # used by base, cr dagger base component and dg dagger
+  base:
+    kp: [140.0, 140.0, 120.0, 120.0, 5.0, 5.0, 5.0]
+    ki: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+    kd: [3.0, 3.0, 1.5, 0.8, 0.05, 0.05, 0.05]
+    control_signal_limit: [8, 8, 5.0, 5.0, 0.9, 0.9, 0.5]
+    integrator_limit: [0, 0, 0, 0, 0, 0, 0]
+
+  # for the delta jp part of cr dagger
+  res:
+    kp: [100.0, 30.0, 80.0, 70.0, 3.0, 3.0, 3.0]
+    ki: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+    kd: [1.5, 1.5, 1.5, 1.0, 0.05, 0.05, 0.03]
+    control_signal_limit: [5, 5, 5, 5.0, 0.5, 0.5, 0.3]
+    integrator_limit: [0, 0, 0, 0, 0, 0, 0]
+
+  # for the torque parts of cr dagger and dg dagger
+  torque:
+    kp: [1.0, 1.0, 1.0, 1.0, 0.0, 0.0, 0.0]
+    ki: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+    kd: [0.001, 0.001, 0.001, 0.001, 0.0, 0.0, 0.0]
+    control_signal_limit: [10, 10, 10.0, 10.0, 0.0, 0.0, 0.0]
+    integrator_limit: [0, 0, 0, 0, 0, 0, 0]

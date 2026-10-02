@@ -3,11 +3,20 @@
 #include <cstring>
 
 template <size_t DOF>
-LeaderUDPHandler<DOF>::LeaderUDPHandler(const std::string& follower_host, int teleop_send, int teleop_recv)
+LeaderUDPHandler<DOF>::LeaderUDPHandler(const std::string& follower_host, int teleop_send, int teleop_recv,
+                                        std::vector<std::string> send_fields, std::vector<std::string> recv_fields)
     : stop_threads(false)
     , send_socket(io_context, boost::asio::ip::udp::v4())
     , recv_socket(io_context, boost::asio::ip::udp::endpoint(boost::asio::ip::udp::v4(), teleop_recv))
-    , follower_endpoint(boost::asio::ip::make_address(follower_host), teleop_send) {
+    , follower_endpoint(boost::asio::ip::make_address(follower_host), teleop_send)
+    , send_fields(std::move(send_fields))
+    , recv_fields(std::move(recv_fields)) {
+
+    if (!validateFields(this->send_fields, TeleopData<DOF>()) ||
+        !validateFields(this->recv_fields, TeleopData<DOF>())) {
+        throw std::runtime_error("invalid data_routing for the leader teleop link");
+    }
+    recv_packet_size = encodedSize(this->recv_fields, TeleopData<DOF>());
 
     recv_thread = std::thread(&LeaderUDPHandler::receiveLoop, this);
     send_thread = std::thread(&LeaderUDPHandler::sendLoop, this);
@@ -38,69 +47,37 @@ void LeaderUDPHandler<DOF>::stop() {
 }
 
 template <size_t DOF>
-boost::optional<typename LeaderUDPHandler<DOF>::TeleopReceivedData> LeaderUDPHandler<DOF>::getLatestTeleopReceived() {
+boost::optional<TeleopData<DOF>> LeaderUDPHandler<DOF>::getLatestTeleopReceived() {
     std::lock_guard<std::mutex> lock(state_mutex);
     return latest_received;
 }
 
 template <size_t DOF>
-typename LeaderUDPHandler<DOF>::TeleopReceivedData LeaderUDPHandler<DOF>::unpackPacket(const TeleopRecvPacket& pkt) {
-    TeleopReceivedData rd;
-    std::memcpy(rd.jp.data(), pkt.jp, sizeof(double) * DOF);
-    std::memcpy(rd.jv.data(), pkt.jv, sizeof(double) * DOF);
-    std::memcpy(rd.dyngravcompTorque.data(), pkt.dyngravcompTorque, sizeof(double) * DOF);
-    std::memcpy(rd.environmentTorque.data(), pkt.environmentTorque, sizeof(double) * DOF);
-    std::memcpy(rd.filteredEnvironmentTorque.data(), pkt.filteredEnvironmentTorque, sizeof(double) * DOF);
-    std::memcpy(rd.cart_pos.data(), pkt.cart_pos, sizeof(double) * 3);
-    rd.quat = Eigen::Quaterniond(pkt.quat[0], pkt.quat[1], pkt.quat[2], pkt.quat[3]); // w, x, y, z
-    rd.gripper_torque = pkt.gripper_torque;
-    rd.gripper_pos = pkt.gripper_pos;
-    rd.gripper_vel = pkt.gripper_vel;
-    rd.timestamp = pkt.timestamp;
-    return rd;
-}
-
-template <size_t DOF>
 void LeaderUDPHandler<DOF>::receiveLoop() {
     boost::asio::ip::udp::endpoint sender_endpoint;
-    TeleopRecvPacket pkt;
+    std::vector<uint8_t> buffer(recv_packet_size);
 
     while (!stop_threads) {
         boost::system::error_code ec;
-        size_t len = recv_socket.receive_from(
-            boost::asio::buffer(&pkt, sizeof(TeleopRecvPacket)), sender_endpoint, 0, ec);
+        size_t len = recv_socket.receive_from(boost::asio::buffer(buffer), sender_endpoint, 0, ec);
 
-        if (ec == boost::asio::error::operation_aborted || len != sizeof(TeleopRecvPacket))
+        if (ec == boost::asio::error::operation_aborted || len != recv_packet_size)
             continue;
 
+        TeleopData<DOF> received;
+        if (!decode(recv_fields, buffer.data(), len, received)) continue;
+
         std::lock_guard<std::mutex> lock(state_mutex);
-        latest_received = unpackPacket(pkt);
+        latest_received = received;
     }
     recv_socket.close();
 }
 
 template <size_t DOF>
-void LeaderUDPHandler<DOF>::send(const jp_type& jp, const jv_type& jv,
-                                   const jt_type& dyngravcompTorque, const jt_type& humanTorque, const jt_type& filteredHumanTorque,
-                                   const cp_type& cart_pos, const Eigen::Quaterniond& quat,
-                                   const jt_type& policyTorqueScale,
-                                   double gripper_cmd, double cancel_policy, uint64_t timestamp) {
+void LeaderUDPHandler<DOF>::send(const TeleopData<DOF>& state) {
     {
         std::lock_guard<std::mutex> lock(send_mutex);
-        std::memcpy(pending_send_packet.jp, jp.data(), sizeof(double) * DOF);
-        std::memcpy(pending_send_packet.jv, jv.data(), sizeof(double) * DOF);
-        std::memcpy(pending_send_packet.dyngravcompTorque, dyngravcompTorque.data(), sizeof(double) * DOF);
-        std::memcpy(pending_send_packet.humanTorque, humanTorque.data(), sizeof(double) * DOF);
-        std::memcpy(pending_send_packet.filteredHumanTorque, filteredHumanTorque.data(), sizeof(double) * DOF);
-        std::memcpy(pending_send_packet.cart_pos, cart_pos.data(), sizeof(double) * 3);
-        pending_send_packet.quat[0] = quat.w();
-        pending_send_packet.quat[1] = quat.x();
-        pending_send_packet.quat[2] = quat.y();
-        pending_send_packet.quat[3] = quat.z();
-        std::memcpy(pending_send_packet.policyTorqueScale, policyTorqueScale.data(), sizeof(double) * DOF);
-        pending_send_packet.gripper_cmd = gripper_cmd;
-        pending_send_packet.cancel_policy = cancel_policy;
-        pending_send_packet.timestamp = timestamp;
+        if (!encode(send_fields, state, pending_send)) return;
         new_data_available = true;
     }
     send_condition.notify_one();
@@ -108,7 +85,7 @@ void LeaderUDPHandler<DOF>::send(const jp_type& jp, const jv_type& jv,
 
 template <size_t DOF>
 void LeaderUDPHandler<DOF>::sendLoop() {
-    TeleopPacket pkt_to_send;
+    std::vector<uint8_t> packet;
 
     while (!stop_threads) {
         {
@@ -116,12 +93,12 @@ void LeaderUDPHandler<DOF>::sendLoop() {
             send_condition.wait(lock, [this] { return new_data_available || stop_threads; });
             if (stop_threads) break;
 
-            pkt_to_send = pending_send_packet;
+            packet = pending_send;
             new_data_available = false;
         }
 
         boost::system::error_code ec;
-        send_socket.send_to(boost::asio::buffer(&pkt_to_send, sizeof(TeleopPacket)), follower_endpoint, 0, ec);
+        send_socket.send_to(boost::asio::buffer(packet), follower_endpoint, 0, ec);
     }
     send_socket.close();
 }

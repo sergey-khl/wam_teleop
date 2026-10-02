@@ -31,7 +31,7 @@
 #include "lib/dynamics/dynamic_external_torque.h"
 #include "lib/dynamics/follower_vertical_dynamics.h"
 #include "lib/policy/policy_torque.h"
-// #include "lib/trajectory_smoother.h"
+// #include "lib/utils/trajectory_smoother.h"
 
 using namespace barrett;
 using detail::waitForEnter;
