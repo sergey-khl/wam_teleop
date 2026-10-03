@@ -47,7 +47,7 @@ void LeaderUDPHandler<DOF>::stop() {
 }
 
 template <size_t DOF>
-boost::optional<TeleopData<DOF>> LeaderUDPHandler<DOF>::getLatestTeleopReceived() {
+boost::optional<std::vector<uint8_t>> LeaderUDPHandler<DOF>::getLatestTeleopReceived() {
     std::lock_guard<std::mutex> lock(state_mutex);
     return latest_received;
 }
@@ -64,11 +64,8 @@ void LeaderUDPHandler<DOF>::receiveLoop() {
         if (ec == boost::asio::error::operation_aborted || len != recv_packet_size)
             continue;
 
-        TeleopData<DOF> received;
-        if (!decode(recv_fields, buffer.data(), len, received)) continue;
-
         std::lock_guard<std::mutex> lock(state_mutex);
-        latest_received = received;
+        latest_received = buffer;
     }
     recv_socket.close();
 }

@@ -3,10 +3,10 @@
 #include <cstdlib>
 #include <iostream>
 #include <libconfig.h++>
-#include "teleop_config_loader.h"
+#include "config_loader.h"
 
-void print_leader_banner(const TeleopConfig& config);
-void print_follower_banner(const TeleopConfig& config);
+void print_leader_banner(const Config& config);
+void print_follower_banner(const Config& config);
 
 std::string get_teleop_config_directory();
 

@@ -22,11 +22,14 @@ public:
 
     void stop();
 
-    // Most recently received peer state.
-    boost::optional<TeleopData<DOF>> getLatestTeleopReceived();
+    // Most recently received packet, still encoded. Decode it with recvFields().
+    boost::optional<std::vector<uint8_t>> getLatestTeleopReceived();
 
     // Queue the shared state to be sent to the follower.
     void send(const TeleopData<DOF>& state);
+
+    // Fields this link was configured to receive (follower -> leader).
+    const std::vector<std::string>& recvFields() const { return recv_fields; }
 
 private:
     std::atomic<bool> stop_threads;
@@ -49,7 +52,7 @@ private:
     std::vector<uint8_t> pending_send;
     bool new_data_available = false;
 
-    boost::optional<TeleopData<DOF>> latest_received;
+    boost::optional<std::vector<uint8_t>> latest_received;
 
     void receiveLoop();
     void sendLoop();

@@ -50,7 +50,23 @@ Once both nodes have started:
 3) Press enter to link leader
 4) Press enter to link follower
 
-The arm is now ready for user teleoperation.
+Linking is refused if the two arms are not within `link_tolerance` rad of each
+other (see `config/teleop_config.yaml`).
+
+The arm is now ready for user teleoperation. Control is built from loadable
+modules, toggled with the hotkeys below:
+
+* `l` - link/unlink the teleop module
+* `p` - toggle the policy module
+* `d` - toggle the dynamics module
+* `g` - toggle the logging module
+* `t` - tune WAM JP control gains
+* `x` - exit
+
+Loaded modules that produce torque (policy, dynamics) are summed into the final
+control torque. The dynamics control law is shared by both sides and set with
+`dynamics.law` in `config/policy_config.yaml`; which fields the logging module
+prints is set in `config/logging_config.yaml`.
 
 To turn off, it is recommended to go through the following procedure to ensure proper thread and socket cleanup.
 1) Return both wams to home position

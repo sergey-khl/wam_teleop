@@ -38,3 +38,6 @@ handle:
   minStiffness: 0.05
   maxStiffness: 1.0
   alpha: 0.35
+
+# Max per-joint position error (rad) allowed between the two WAMs when linking.
+link_tolerance: 0.1

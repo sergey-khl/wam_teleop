@@ -3,14 +3,14 @@
 #include <cstring>
 
 template <size_t DOF>
-PolicyUDPHandler<DOF>::PolicyUDPHandler(const TeleopConfig& config, bool send_active, int policy_recv_port,
+PolicyUDPHandler<DOF>::PolicyUDPHandler(const Config& config, bool send_active, int policy_recv_port,
                                         std::vector<std::string> send_fields)
     : type(config.policy.type)
     , send_active(send_active)
     , stop_threads(false)
     , interp_hz(config.interp_hz)
     , send_socket(io_context)
-    , policy_endpoint(boost::asio::ip::make_address(config.network.policy_host), config.network.policy_send)
+    , policy_endpoint(boost::asio::ip::make_address(config.policy_network.policy_host), config.policy_network.policy_send)
     , send_fields(std::move(send_fields)) {
 
     if (!validateFields(this->send_fields, TeleopData<DOF>())) {
@@ -112,8 +112,11 @@ void PolicyUDPHandler<DOF>::send(TeleopData<DOF>& state) {
         std::chrono::steady_clock::now().time_since_epoch()).count();
     const int64_t remaining_ns = primary ? primary->chunk_end_ns.load() - now_ns : 0;
     const int64_t res_remaining_ns = res_stream ? res_stream->chunk_end_ns.load() - now_ns : 0;
-    state.time_to_chunk_end = remaining_ns > 0 ? static_cast<uint64_t>(remaining_ns) : 0;
-    state.res_time_to_chunk_end = res_remaining_ns > 0 ? static_cast<uint64_t>(res_remaining_ns) : 0;
+    const uint64_t time_to_chunk_end = remaining_ns > 0 ? static_cast<uint64_t>(remaining_ns) : 0;
+    const uint64_t res_time_to_chunk_end =
+        res_remaining_ns > 0 ? static_cast<uint64_t>(res_remaining_ns) : 0;
+    setLocalStateValue(time_to_chunk_end, state.time_to_chunk_end);
+    setLocalStateValue(res_time_to_chunk_end, state.res_time_to_chunk_end);
 
     {
         std::lock_guard<std::mutex> lock(latest_state_mutex);

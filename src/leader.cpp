@@ -42,7 +42,7 @@ bool validate_args(int argc, char** argv) {
     }
 
     try {
-        TeleopConfig config = load_teleop_config(config_dir);
+        Config config = load_config(config_dir);
         print_leader_banner(config);
     } catch (...) {
         printf("ERROR: could not print leader config... exiting\n.");
@@ -60,7 +60,7 @@ int wam_main(int argc, char **argv, ProductManager &pm, systems::Wam<DOF> &wam) 
         throw std::runtime_error("No valid configuration directory found.");
     }
 
-    const TeleopConfig config = load_teleop_config(config_dir);
+    const Config config = load_config(config_dir);
 
     jp_type SYNC_POS; // the position each WAM should move to before linking
     if (DOF == 7) {
@@ -212,12 +212,24 @@ int wam_main(int argc, char **argv, ProductManager &pm, systems::Wam<DOF> &wam) 
         case 'l':
             if (leader.isLinked()) {
                 leader.unlink();
+                printf("Unlinked.\n");
             } else {
                 // Sync both arm and wrist before link
                 wam.moveTo(SYNC_POS, true);
 
-                printf("Press [Enter] to link with the other WAM.");
+                printf("Press [Enter] to link with the other WAM.\n");
                 waitForEnter();
+
+                // Only link when both arms are (nearly) at the same position.
+                const jp_type our_jp = leader.currentPosition();
+                if (!leader.teleop().theirIsNear(our_jp, config.link_tolerance)) {
+                    std::cout << "WARNING: their WAM is not near ours; refusing to link.\n"
+                              << "         ours:      [" << our_jp.transpose() << "]\n"
+                              << "         theirs:    [" << leader.teleop().theirJP().transpose() << "]\n"
+                              << "         tolerance: " << config.link_tolerance << " rad\n";
+                    break;
+                }
+
                 leader.tryLink();
                 wam.trackReferenceSignal(leader.theirJPOutput);
                 // NOTE: avoid connecting multiple signals to wam.input because it causes free motion to be worse. even if the signal is 0
@@ -230,6 +242,21 @@ int wam_main(int argc, char **argv, ProductManager &pm, systems::Wam<DOF> &wam) 
                     printf("WARNING: Linking was unsuccessful.\n");
                 }
             }
+            break;
+
+        case 'p':
+            leader.modules().toggle('p');
+            printf("Policy module %s.\n", leader.policyLoaded() ? "loaded" : "unloaded");
+            break;
+
+        case 'd':
+            leader.modules().toggle('d');
+            printf("Dynamics module %s.\n", leader.dynamicsLoaded() ? "loaded" : "unloaded");
+            break;
+
+        case 'g':
+            leader.modules().toggle('g');
+            printf("Logging module %s.\n", leader.loggingLoaded() ? "loaded" : "unloaded");
             break;
 
         case 't': {
@@ -274,6 +301,9 @@ int wam_main(int argc, char **argv, ProductManager &pm, systems::Wam<DOF> &wam) 
         default:
             printf("\n");
             printf("    'l' to toggle linking with other WAM (and wrist)\n");
+            printf("    'p' to toggle the policy module\n");
+            printf("    'd' to toggle the dynamics module\n");
+            printf("    'g' to toggle the logging module\n");
             printf("    't' to tune WAM JP control gains\n");
             printf("    'x' to exit\n");
             break;

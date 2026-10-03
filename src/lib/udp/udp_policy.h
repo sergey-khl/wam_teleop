@@ -17,7 +17,7 @@
 #include <Eigen/Dense>
 #include <barrett/units.h>
 #include "../utils/data_packets.h"
-#include "../utils/teleop_config_loader.h"
+#include "../utils/config_loader.h"
 
 // All policies reuse this for simplicity.
 struct PolicyReceivedData {
@@ -36,7 +36,7 @@ public:
     typedef typename barrett::units::JointPositions<DOF>::type jp_type;
     typedef typename barrett::units::JointTorques<DOF>::type jt_type;
 
-    PolicyUDPHandler(const TeleopConfig& config, bool send_active, int policy_recv_port,
+    PolicyUDPHandler(const Config& config, bool send_active, int policy_recv_port,
                      std::vector<std::string> send_fields);
     ~PolicyUDPHandler();
 

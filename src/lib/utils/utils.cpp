@@ -6,7 +6,7 @@
 using namespace barrett;
 namespace fs = boost::filesystem;
 
-void print_leader_banner(const TeleopConfig& config) {
+void print_leader_banner(const Config& config) {
     const char* barrett_cfg = std::getenv("BARRETT_CONFIG_FILE");
     int barrett_port = read_can_port();
 
@@ -29,7 +29,7 @@ void print_leader_banner(const TeleopConfig& config) {
     printf("========================================\n\n");
 }
 
-void print_follower_banner(const TeleopConfig& config) {
+void print_follower_banner(const Config& config) {
     const char* barrett_cfg = std::getenv("BARRETT_CONFIG_FILE");
     int barrett_port = read_can_port();
 

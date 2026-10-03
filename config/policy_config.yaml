@@ -62,3 +62,7 @@ policy:
     kd: [0.001, 0.001, 0.001, 0.001, 0.0, 0.0, 0.0]
     control_signal_limit: [10, 10, 10.0, 10.0, 0.0, 0.0, 0.0]
     integrator_limit: [0, 0, 0, 0, 0, 0, 0]
+
+# Dynamics feed-forward control law, shared by the leader and the follower
+dynamics:
+  law: "u2"

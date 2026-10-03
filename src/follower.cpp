@@ -43,7 +43,7 @@ bool validate_args(int argc, char** argv) {
     }
 
     try {
-        TeleopConfig config = load_teleop_config(config_dir);
+        Config config = load_config(config_dir);
         print_follower_banner(config);
     } catch (...) {
         printf("ERROR: could not print follower config... exiting\n.");
@@ -60,7 +60,7 @@ template <size_t DOF> int wam_main(int argc, char **argv, ProductManager &pm, sy
         throw std::runtime_error("No valid configuration directory found.");
     }
 
-    const TeleopConfig config = load_teleop_config(config_dir);
+    const Config config = load_config(config_dir);
 
     jp_type SYNC_POS; // the position each WAM should move to before linking
     if (DOF == 7) {
@@ -221,20 +221,32 @@ template <size_t DOF> int wam_main(int argc, char **argv, ProductManager &pm, sy
     while (going) {
         printf(">>> ");
         std::getline(std::cin, line);
+        if (line.empty()) { printf("\n"); continue; }
 
         switch (line[0]) {
         case 'l':
             if (follower.isLinked()) {
                 follower.unlink();
-                printf("unlinked");
+                printf("Unlinked.\n");
             } else {
                 wam.moveTo(SYNC_POS, true);
 
-                printf("Press [Enter] to link with the other WAM.");
+                printf("Press [Enter] to link with the other WAM.\n");
                 waitForEnter();
+
+                // Only link when both arms are (nearly) at the same position.
+                const jp_type our_jp = follower.currentPosition();
+                if (!follower.teleop().theirIsNear(our_jp, config.link_tolerance)) {
+                    std::cout << "WARNING: their WAM is not near ours; refusing to link.\n"
+                              << "         ours:      [" << our_jp.transpose() << "]\n"
+                              << "         theirs:    [" << follower.teleop().theirJP().transpose() << "]\n"
+                              << "         tolerance: " << config.link_tolerance << " rad\n";
+                    break;
+                }
+
                 follower.tryLink();
                 wam.trackReferenceSignal(follower.theirJPOutput);
-                systems::connect(follower.wamJTOutput, wam.input); // CAREFUL WITH THIS. CAN BE IN BOTH LINK AND IN INFERENCE
+                systems::connect(follower.wamJTOutput, wam.input); // careful with this. can be in both link and in inference
 
                 btsleep(0.1); // wait an execution cycle or two
                 if (follower.isLinked()) {
@@ -246,18 +258,30 @@ template <size_t DOF> int wam_main(int argc, char **argv, ProductManager &pm, sy
 
             break;
 
-        case 't':
-            size_t jointIndex;
-            {
-                size_t jointNumber;
-                std::cout << "\tJoint: ";
-                std::cin >> jointNumber;
-                jointIndex = jointNumber - 1;
+        case 'p':
+            follower.modules().toggle('p');
+            printf("Policy module %s.\n", follower.policyLoaded() ? "loaded" : "unloaded");
+            break;
 
-                if (jointIndex >= DOF) {
-                    std::cout << "\tBad joint number: " << jointNumber;
-                    break;
-                }
+        case 'd':
+            follower.modules().toggle('d');
+            printf("Dynamics module %s.\n", follower.dynamicsLoaded() ? "loaded" : "unloaded");
+            break;
+
+        case 'g':
+            follower.modules().toggle('g');
+            printf("Logging module %s.\n", follower.loggingLoaded() ? "loaded" : "unloaded");
+            break;
+
+        case 't': {
+            size_t jointNumber;
+            std::cout << "\tJoint: ";
+            std::cin >> jointNumber;
+            size_t jointIndex = jointNumber - 1;
+
+            if (jointIndex >= DOF) {
+                std::cout << "\tBad joint number: " << jointNumber;
+                break;
             }
 
             char gainId;
@@ -267,39 +291,23 @@ template <size_t DOF> int wam_main(int argc, char **argv, ProductManager &pm, sy
 
             std::cout << "\tCurrent value: ";
             switch (gainId) {
-            case 'p':
-                gainTmp = wam.jpController.getKp();
-                break;
-            case 'i':
-                gainTmp = wam.jpController.getKi();
-                break;
-            case 'd':
-                gainTmp = wam.jpController.getKd();
-                break;
-
-            default:
-                std::cout << "\tBad gain identifier.";
+            case 'p': gainTmp = wam.jpController.getKp(); break;
+            case 'i': gainTmp = wam.jpController.getKi(); break;
+            case 'd': gainTmp = wam.jpController.getKd(); break;
+            default:  std::cout << "\tBad gain identifier.";
             }
             std::cout << gainTmp[jointIndex] << std::endl;
 
             std::cout << "\tNew value: ";
             std::cin >> gainTmp[jointIndex];
             switch (gainId) {
-            case 'p':
-                wam.jpController.setKp(gainTmp);
-                break;
-            case 'i':
-                wam.jpController.setKi(gainTmp);
-                break;
-            case 'd':
-                wam.jpController.setKd(gainTmp);
-                break;
-
-            default:
-                std::cout << "\tBad gain identifier.";
+            case 'p': wam.jpController.setKp(gainTmp); break;
+            case 'i': wam.jpController.setKi(gainTmp); break;
+            case 'd': wam.jpController.setKd(gainTmp); break;
+            default:  std::cout << "\tBad gain identifier.";
             }
+            } break;
 
-            break;
         case 'x':
             going = false;
             break;
@@ -307,7 +315,9 @@ template <size_t DOF> int wam_main(int argc, char **argv, ProductManager &pm, sy
         default:
             printf("\n");
             printf("    'l'  start/stop teleop linking. press enter for both robots after they are in linking position\n");
-            printf("    'p'  start/stop policy on follower\n");
+            printf("    'p'  toggle the policy module\n");
+            printf("    'd'  toggle the dynamics module\n");
+            printf("    'g'  toggle the logging module\n");
             printf("    't'  tune control gains\n");
             printf("    'x'  exit\n");
             printf("\n");
