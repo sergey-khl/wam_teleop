@@ -17,11 +17,6 @@ PolicyUDPHandler<DOF>::PolicyUDPHandler(const Config& config, bool send_active, 
         throw std::runtime_error("invalid policy data_routing");
     }
 
-    for (size_t i = 0; i < DOF; ++i) {
-        clip_val[i] = i < config.policy.clip_val.size() ? config.policy.clip_val[i] : 0.0;
-        clip_ref_torque[i] = i < config.policy.clip_ref_torque.size() ? config.policy.clip_ref_torque[i] : 0.0;
-    }
-
     const ActionConfig& action = config.policy.action;
     const auto make_stream = [&](const ActionStreamConfig& cfg, int port) {
         if (!validateFields(cfg.fields, ActionData())) {
@@ -290,63 +285,21 @@ boost::optional<PolicyReceivedData> PolicyUDPHandler<DOF>::getLatestPolicyReceiv
 
     if (!primary) return boost::none;
 
-    ActionData base_sample;
+    PolicyReceivedData out;
     {
         std::lock_guard<std::mutex> lock(primary->mutex);
         if (primary->action_queue.empty()) return boost::none;
-        base_sample = primary->action_queue.front();
+        out.base = primary->action_queue.front();
         if (primary->action_queue.size() > 1) primary->action_queue.pop_front();
     }
-
-    PolicyReceivedData out;
-
-    jp_type base_jp;
-    for (size_t i = 0; i < DOF; ++i) base_jp[i] = base_sample.jp[i];
-
-    jp_type base_center;
-    {
-        std::lock_guard<std::mutex> lock(latest_state_mutex);
-        base_center = latest_state.leader_jp;
-    }
-    out.base_policy_jp = clipToRange(base_jp, base_center, clip_val, out.clipped_base_jp_joints_str);
-    out.gripper_cmd = base_sample.gripper_cmd;
 
     if (type == "cr") {
         if (!res_stream) return boost::none;
 
-        ActionData res_sample;
-        {
-            std::lock_guard<std::mutex> lock(res_stream->mutex);
-            if (res_stream->action_queue.empty()) return boost::none;
-            res_sample = res_stream->action_queue.front();
-            if (res_stream->action_queue.size() > 1) res_stream->action_queue.pop_front();
-        }
-
-        jp_type res_jp;
-        for (size_t i = 0; i < DOF; ++i) res_jp[i] = res_sample.delta_jp[i];
-        const jp_type zero_jp = jp_type::Zero();
-        out.res_policy_jp = clipToRange(res_jp, zero_jp, clip_val, out.clipped_res_jp_joints_str);
-
-        jt_type ref_torque;
-        for (size_t i = 0; i < DOF; ++i) ref_torque[i] = res_sample.ext_torque[i];
-        jt_type ref_center;
-        {
-            std::lock_guard<std::mutex> lock(latest_state_mutex);
-            ref_center = latest_state.filtered_environment_torque;
-        }
-        out.ref_torque = clipToRange(ref_torque, ref_center, clip_ref_torque, out.clipped_ref_torques_str);
-        return out;
-    }
-
-    if (type == "dg") {
-        jt_type ref_torque;
-        for (size_t i = 0; i < DOF; ++i) ref_torque[i] = base_sample.ext_torque[i];
-        jt_type ref_center;
-        {
-            std::lock_guard<std::mutex> lock(latest_state_mutex);
-            ref_center = latest_state.filtered_human_torque;
-        }
-        out.ref_torque = clipToRange(ref_torque, ref_center, clip_ref_torque, out.clipped_ref_torques_str);
+        std::lock_guard<std::mutex> lock(res_stream->mutex);
+        if (res_stream->action_queue.empty()) return boost::none;
+        out.res = res_stream->action_queue.front();
+        if (res_stream->action_queue.size() > 1) res_stream->action_queue.pop_front();
     }
 
     return out;
@@ -383,8 +336,10 @@ template <size_t DOF>
 void PolicyUDPHandler<DOF>::seedAction(ActionData& a, const TeleopData<DOF>& leader_state,
                                        const std::vector<std::string>& fields) {
     for (const std::string& name : fields) {
-        if (name == "jp" || name == "delta_jp") {
+        if (name == "jp") {
             for (size_t i = 0; i < DOF && i < 7; ++i) a.jp[i] = leader_state.leader_jp[i];
+        } else if (name == "delta_jp") {
+            for (size_t i = 0; i < DOF && i < 7; ++i) a.jp[i] = 0;
         } else if (name == "ext_torque") {
             for (size_t i = 0; i < DOF && i < 7; ++i) a.ext_torque[i] = leader_state.filtered_human_torque[i];
         } else if (name == "gripper_cmd") {
@@ -427,30 +382,6 @@ std::deque<ActionData> PolicyUDPHandler<DOF>::interpolateSegment(const ActionDat
         queue.push_back(sample);
     }
     return queue;
-}
-
-template <size_t DOF>
-template <typename Vec>
-Vec PolicyUDPHandler<DOF>::clipToRange(const Vec& value, const Vec& center, const Vec& clip_val,
-                                       std::string& joints_str_out) {
-    Vec clipped = value;
-    joints_str_out.clear();
-    for (size_t i = 0; i < DOF; ++i) {
-        const double delta = value[i] - center[i];
-        bool joint_clipped = false;
-        if (delta > clip_val[i]) {
-            clipped[i] = center[i] + clip_val[i];
-            joint_clipped = true;
-        } else if (delta < -clip_val[i]) {
-            clipped[i] = center[i] - clip_val[i];
-            joint_clipped = true;
-        }
-        if (joint_clipped) {
-            if (!joints_str_out.empty()) joints_str_out += ", ";
-            joints_str_out += std::to_string(i);
-        }
-    }
-    return clipped;
 }
 
 template class PolicyUDPHandler<7>; // For DOF=7

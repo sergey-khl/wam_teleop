@@ -30,8 +30,6 @@ class Leader : public barrett::systems::System {
     BARRETT_UNITS_TEMPLATE_TYPEDEFS(DOF);
 
   public:
-    using TeleopModuleType = TeleopModule<DOF, LeaderUDPHandler<DOF>>;
-
     Input<jp_type> wamJPIn;
     Input<jv_type> wamJVIn;
     Input<boost::tuple<cp_type, Eigen::Quaterniond>> wamTPIn;
@@ -110,14 +108,10 @@ class Leader : public barrett::systems::System {
 
     // Module access (determined by the hotkey loop in leader.cpp).
     ModuleManager<DOF>& modules() { return modules_; }
-    TeleopModuleType& teleop() { return *teleop_module_; }
+    TeleopModule<DOF, LeaderUDPHandler<DOF>>& teleop() { return *teleop_module_; }
     bool policyLoaded() const { return policy_module_ && policy_module_->isLoaded(); }
     bool dynamicsLoaded() const { return dynamics_module_ && dynamics_module_->isLoaded(); }
     bool loggingLoaded() const { return logging_module_ && logging_module_->isLoaded(); }
-
-    jp_type currentPosition() {
-        return state.with_lock([](TeleopData<DOF>& st) { return st.leader_jp; });
-    }
 
   protected:
     typename Output<jt_type>::Value* jtOutputValue;
@@ -152,11 +146,6 @@ class Leader : public barrett::systems::System {
         auto state_lock = state.lock();
         TeleopData<DOF>& st = *state_lock;
 
-        // policy defaults
-        setLocalStateValue(wamJPIn, st.policyJp);
-        setLocalStateValue(jp_type::Zero(), st.resPolicyJp);
-        setLocalStateValue(jt_type::Zero(), st.refPolicyTorque);
-
         // always known vals
         setLocalStateValue(wamJPIn, st.leader_jp);
         setLocalStateValue(wamJVIn, st.leader_jv);
@@ -173,14 +162,13 @@ class Leader : public barrett::systems::System {
         ctx.cur_ext_torque = &humanTorque;
         ctx.cur_dyn = &st.wam_dyn;
         ctx.cur_grav = &st.wam_grav;
+        ctx.cur_pos = &st.leader_jp;
         ctx.cancel_policy = (st.cancel_policy == 1.0);
 
         teleop_module_->receive(ctx, st);
         theirJPOutputValue->setData(&st.follower_jp);
 
-        if (policy_module_->isLoaded()) {
-            policy_module_->receive(ctx, st);
-        }
+        policy_module_->receive(ctx, st);
 
         basePolicyJpOutputValue->setData(&st.policyJp);
         resPolicyJpOutputValue->setData(&st.resPolicyJp);
@@ -262,14 +250,14 @@ class Leader : public barrett::systems::System {
 
     haptic_wrist::Handle* handle;
 
-    std::unique_ptr<TeleopModuleType> teleop_module_;
+    std::unique_ptr<TeleopModule<DOF, LeaderUDPHandler<DOF>>> teleop_module_;
     std::unique_ptr<PolicyModule<DOF>> policy_module_;
     std::unique_ptr<DynamicsModule<DOF>> dynamics_module_;
     std::unique_ptr<LoggingModule<DOF>> logging_module_;
     ModuleManager<DOF> modules_;
 
     void makeModules() {
-        teleop_module_.reset(new TeleopModuleType(
+        teleop_module_.reset(new TeleopModule<DOF, LeaderUDPHandler<DOF>>(
             ModuleRole::Leader, config, &state,
             std::unique_ptr<LeaderUDPHandler<DOF>>(new LeaderUDPHandler<DOF>(
                 config.network.follower_host, config.network.teleop_send, config.network.teleop_recv,

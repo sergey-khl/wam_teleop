@@ -32,8 +32,6 @@ policy:
   clip_val: [0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05]
   clip_ref_torque: [5.5, 5.5, 5.5, 5.5, 0.0, 0.0, 0.0]
 
-  # (base -> base; cr -> base + res; dg -> dg) selected by type. Fields must match ActionData in
-  # src/lib/utils/data_packets.h.
   action:
     base: {fields: [jp], horizon: 8, uninterp_hz: 10.0}
     res:  {fields: [delta_jp, ext_torque], horizon: 5, uninterp_hz: 50.0}

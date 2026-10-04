@@ -21,6 +21,7 @@ struct ControlContext {
     const jt_type* cur_ext_torque = nullptr; // our external torque
     const jt_type* cur_dyn = nullptr;        // estimated dynamics feed-forward
     const jt_type* cur_grav = nullptr;       // gravity feed-forward
+    const jp_type* cur_pos = nullptr;        // our joint positions
 
     bool cancel_policy = false;
 };

@@ -221,11 +221,10 @@ int wam_main(int argc, char **argv, ProductManager &pm, systems::Wam<DOF> &wam) 
                 waitForEnter();
 
                 // Only link when both arms are (nearly) at the same position.
-                const jp_type our_jp = leader.currentPosition();
+                const jp_type our_jp = wam.getJointPositions();
                 if (!leader.teleop().theirIsNear(our_jp, config.link_tolerance)) {
                     std::cout << "WARNING: their WAM is not near ours; refusing to link.\n"
                               << "         ours:      [" << our_jp.transpose() << "]\n"
-                              << "         theirs:    [" << leader.teleop().theirJP().transpose() << "]\n"
                               << "         tolerance: " << config.link_tolerance << " rad\n";
                     break;
                 }

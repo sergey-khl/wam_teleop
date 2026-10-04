@@ -19,15 +19,10 @@
 #include "../utils/data_packets.h"
 #include "../utils/config_loader.h"
 
-// All policies reuse this for simplicity.
+// Interpolated action samples handed to PolicyModule, which interprets them.
 struct PolicyReceivedData {
-    double gripper_cmd = 0.0;
-    Eigen::Matrix<double, 7, 1> base_policy_jp = Eigen::Matrix<double, 7, 1>::Zero();
-    Eigen::Matrix<double, 7, 1> res_policy_jp = Eigen::Matrix<double, 7, 1>::Zero();
-    Eigen::Matrix<double, 7, 1> ref_torque = Eigen::Matrix<double, 7, 1>::Zero();
-    std::string clipped_base_jp_joints_str;
-    std::string clipped_res_jp_joints_str;
-    std::string clipped_ref_torques_str;
+    ActionData base;
+    ActionData res;
 };
 
 template <size_t DOF>
@@ -108,9 +103,6 @@ private:
 
     std::vector<std::string> send_fields;
 
-    jp_type clip_val;
-    jt_type clip_ref_torque;
-
     std::mutex state_mutex;
     std::chrono::steady_clock::time_point pause_until{};
     std::chrono::milliseconds default_pause{0};
@@ -130,8 +122,4 @@ private:
                                                      const ActionData& a2, const ActionData& a3,
                                                      const std::vector<std::string>& fields,
                                                      size_t samples_per_segment);
-
-    template <typename Vec>
-    static Vec clipToRange(const Vec& value, const Vec& center, const Vec& clip_val,
-                           std::string& joints_str_out);
 };

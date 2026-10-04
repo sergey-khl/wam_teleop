@@ -32,8 +32,6 @@ class Follower : public barrett::systems::System {
     BARRETT_UNITS_TEMPLATE_TYPEDEFS(DOF);
 
   public:
-    using TeleopModuleType = TeleopModule<DOF, FollowerUDPHandler<DOF>>;
-
     Input<jp_type> wamJPIn;
     Input<jv_type> wamJVIn;
     Input<boost::tuple<cp_type, Eigen::Quaterniond>> wamTPIn;
@@ -106,14 +104,10 @@ class Follower : public barrett::systems::System {
 
     // Module access (determined by the hotkey loop in follower.cpp).
     ModuleManager<DOF>& modules() { return modules_; }
-    TeleopModuleType& teleop() { return *teleop_module_; }
+    TeleopModule<DOF, FollowerUDPHandler<DOF>>& teleop() { return *teleop_module_; }
     bool policyLoaded() const { return policy_module_ && policy_module_->isLoaded(); }
     bool dynamicsLoaded() const { return dynamics_module_ && dynamics_module_->isLoaded(); }
     bool loggingLoaded() const { return logging_module_ && logging_module_->isLoaded(); }
-
-    jp_type currentPosition() {
-        return state.with_lock([](TeleopData<DOF>& st) { return st.follower_jp; });
-    }
 
   protected:
     typename Output<jt_type>::Value* jtOutputValue;
@@ -140,12 +134,6 @@ class Follower : public barrett::systems::System {
         auto state_lock = state.lock();
         TeleopData<DOF>& st = *state_lock;
 
-        // policy defaults
-        setLocalStateValue(wamJPIn, st.policyJp);
-        setLocalStateValue(jp_type::Zero(), st.resPolicyJp);
-        setLocalStateValue(jt_type::Zero(), st.refPolicyTorque);
-        setLocalStateValue(jt_type::Zero(), st.policyTorqueScale);
-
         // always known vals
         setLocalStateValue(wamJPIn, st.follower_jp);
         setLocalStateValue(wamJVIn, st.follower_jv);
@@ -162,6 +150,7 @@ class Follower : public barrett::systems::System {
         ctx.cur_ext_torque = &st.environment_torque;
         ctx.cur_dyn = &st.wam_dyn;
         ctx.cur_grav = &st.wam_grav;
+        ctx.cur_pos = &st.follower_jp;
 
         teleop_module_->receive(ctx, st);
         theirJPOutputValue->setData(&st.leader_jp);
@@ -169,9 +158,6 @@ class Follower : public barrett::systems::System {
 
         // set policy if p
         policy_module_->receive(ctx, st);
-        if (policy_module_->hasGripperCmd() && policy_module_->lastGripperCmd() != 0) {
-            setLocalStateValue(policy_module_->lastGripperCmd(), st.gripper_cmd);
-        }
 
         basePolicyJpOutputValue->setData(&st.policyJp);
         resPolicyJpOutputValue->setData(&st.resPolicyJp);
@@ -236,14 +222,14 @@ class Follower : public barrett::systems::System {
     std::thread io_thread;
     std::atomic<bool> io_running;
 
-    std::unique_ptr<TeleopModuleType> teleop_module_;
+    std::unique_ptr<TeleopModule<DOF, FollowerUDPHandler<DOF>>> teleop_module_;
     std::unique_ptr<PolicyModule<DOF>> policy_module_;
     std::unique_ptr<DynamicsModule<DOF>> dynamics_module_;
     std::unique_ptr<LoggingModule<DOF>> logging_module_;
     ModuleManager<DOF> modules_;
 
     void makeModules() {
-        teleop_module_.reset(new TeleopModuleType(
+        teleop_module_.reset(new TeleopModule<DOF, FollowerUDPHandler<DOF>>(
             ModuleRole::Follower, config, &state,
             std::unique_ptr<FollowerUDPHandler<DOF>>(new FollowerUDPHandler<DOF>(
                 config.network.leader_host, config.network.teleop_recv, config.network.teleop_send,

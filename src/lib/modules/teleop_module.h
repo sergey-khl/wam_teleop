@@ -32,19 +32,14 @@ class TeleopModule : public Module<DOF> {
     void tryLink() { this->load(); }
     void unlink() { this->unload(); }
 
-    // Latest JP from their side, expressed in our joint frame.
-    jp_type theirJP() {
-        if (state_ == nullptr) return jp_type::Zero();
-        return state_->with_lock([this](TeleopData<DOF>& st) {
-            return (role_ == ModuleRole::Leader) ? st.follower_jp : st.leader_jp;
-        });
-    }
-
     // True once a packet from their side has been seen and every joint differs
     // by no more than `tolerance` rad. Used to refuse linking when arms are apart.
     bool theirIsNear(const jp_type& our_jp, double tolerance) {
-        if (!have_their_) return false;
-        return (our_jp - theirJP()).cwiseAbs().maxCoeff() <= tolerance;
+        if (!have_their_ || state_ == nullptr) return false;
+        const jp_type their_jp = state_->with_lock([this](TeleopData<DOF>& st) {
+            return (role_ == ModuleRole::Leader) ? st.follower_jp : st.leader_jp;
+        });
+        return (our_jp - their_jp).cwiseAbs().maxCoeff() <= tolerance;
     }
 
     void receive(ControlContext<DOF>& ctx, TeleopData<DOF>& st) override {
