@@ -10,7 +10,9 @@ Useful features for the WAM robots.
 - Dynamic compensation
 - Logging
 
-Communication is done through udp. See `src/lib/udp/`.
+Communication is done through udp. See `src/lib/udp/`. While this is a ros package, communication between WAMs does not use ros.
+
+
 
 
 ## Run Instructions
