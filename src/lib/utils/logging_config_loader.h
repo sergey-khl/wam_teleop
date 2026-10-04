@@ -13,10 +13,6 @@ struct LoggingConfig {
 
 inline LoggingConfig load_logging_file_config(const std::string& file) {
     LoggingConfig c;
-    if (!boost::filesystem::exists(file)) {
-        std::cerr << "WARNING: logging config not found (" << file << "); logging disabled fields" << std::endl;
-        return c;
-    }
 
     try {
         YAML::Node root = YAML::LoadFile(file);

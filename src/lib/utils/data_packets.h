@@ -183,9 +183,7 @@ bool formatField(std::ostream& os, const TeleopData<DOF>& d, const std::string& 
     }
 }
 
-// The single entry point for writing into the shared TeleopData. A plain
-// value/vector is copied straight in; a barrett Input copies its value once it
-// is defined, and zeroes the field until then.
+// templated setters for the state
 template <typename Source, typename Field>
 inline void setLocalStateValue(const Source& source, Field& field) {
     field = source;
@@ -214,6 +212,7 @@ bool encode(const std::vector<std::string>& names, const Data& data, std::vector
     }
     return true;
 }
+
 // process receive
 template <typename Data>
 bool decode(const std::vector<std::string>& names, const uint8_t* bytes, size_t length, Data& data) {
@@ -222,7 +221,7 @@ bool decode(const std::vector<std::string>& names, const uint8_t* bytes, size_t 
         const FieldRef ref = field(data, name);
         if (ref.ptr == nullptr) return false;
         if (offset + ref.bytes > length) return false;
-        // set the field to the correct bytes
+        // copy a local state field into data as output
         std::memcpy(ref.ptr, bytes + offset, ref.bytes);
         offset += ref.bytes;
     }

@@ -19,7 +19,7 @@
 #include "../utils/data_packets.h"
 #include "../utils/config_loader.h"
 
-// Interpolated action samples handed to PolicyModule, which interprets them.
+// Interpolated action samples handed to PolicyModule
 struct PolicyReceivedData {
     ActionData base;
     ActionData res;

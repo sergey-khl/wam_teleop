@@ -11,8 +11,6 @@
 #include <boost/optional.hpp>
 #include "../utils/data_packets.h"
 
-// Leader side of the teleop link. Sends the configured subset of the shared
-// state to the follower and decodes the follower's packet back into TeleopData.
 template <size_t DOF>
 class LeaderUDPHandler {
 public:

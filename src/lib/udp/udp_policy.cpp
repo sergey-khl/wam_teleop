@@ -348,6 +348,7 @@ void PolicyUDPHandler<DOF>::seedAction(ActionData& a, const TeleopData<DOF>& lea
     }
 }
 
+// interpolate with 2 supporting points
 template <size_t DOF>
 std::deque<ActionData> PolicyUDPHandler<DOF>::interpolateSegment(const ActionData& a0, const ActionData& a1,
                                                                  const ActionData& a2, const ActionData& a3,

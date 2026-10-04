@@ -51,8 +51,7 @@ class PolicyModule : public Module<DOF> {
         for (size_t i = 0; i < DOF; ++i) base_jp[i] = data->base.jp[i];
         setLocalStateValue(clipToRange(base_jp, st.leader_jp, clip_val_), st.policyJp);
 
-        // The operator keeps priority: the policy only drives the gripper when
-        // the operator is not commanding it.
+        // The operator keeps priority
         if (st.gripper_cmd == 0.0) {
             setLocalStateValue(data->base.gripper_cmd, st.gripper_cmd);
         }

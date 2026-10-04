@@ -5,13 +5,6 @@
 #include <yaml-cpp/yaml.h>
 #include <iostream>
 
-// Teleop-domain configuration (teleop_config.yaml): the UDP teleop link between
-// the leader and follower, the joint sync mapping, per-robot sync poses and the
-// haptic handle / gripper options.
-//
-// This file intentionally only knows about teleop_config.yaml. Policy and
-// logging live in their own loaders and are combined by config_loader.h.
-
 struct TeleopNetworkConfig {
     std::string leader_host;
     std::string follower_host;
@@ -52,8 +45,6 @@ struct TeleopFileConfig {
     RobotTeleopConfig leader, follower;
     HandleConfig handle;
     GripperConfig gripper;
-    // Max per-joint position error (rad) allowed between the two WAMs when
-    // linking the teleop module.
     double link_tolerance = 0.1;
 };
 

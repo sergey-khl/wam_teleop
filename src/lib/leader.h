@@ -168,6 +168,7 @@ class Leader : public barrett::systems::System {
         teleop_module_->receive(ctx, st);
         theirJPOutputValue->setData(&st.follower_jp);
 
+        // set policy if p toggled
         policy_module_->receive(ctx, st);
 
         basePolicyJpOutputValue->setData(&st.policyJp);
@@ -176,7 +177,7 @@ class Leader : public barrett::systems::System {
         refPolicyJtOutputValue->setData(&st.refPolicyTorque);
 
         // extTorqueIn.valueDefined() before setting a reference signal can cause bad feeling teleop
-        // also cant put this before the policy read. i have no idea why
+        // also cant put this before the policy read. TODO: see why
         setLocalStateValue(dyngravcompTorqueIn, st.leader_dyngravcomp_torque);
         setLocalStateValue(filteredHumanTorqueIn, st.filtered_human_torque);
         setLocalStateValue(humanTorqueIn, humanTorque);
@@ -190,8 +191,7 @@ class Leader : public barrett::systems::System {
         // scale only applied to base policy
         setLocalStateValue(policyTorqueScaleIn, st.policyTorqueScale);
 
-        // Always compute the control torque and log it, so the logging module
-        // shows what would be applied.
+        // this control will only be applied if the necessary module is loaded
         control = compute_control(ctx);
         setLocalStateValue(control, st.control_torque);
 
@@ -204,7 +204,6 @@ class Leader : public barrett::systems::System {
         // see how on_leader is used for the magic
         policy_module_->send(st);
 
-        // Config-driven logging (no-op unless the logging module is loaded).
         logging_module_->update(ctx);
     }
 

@@ -156,7 +156,7 @@ class Follower : public barrett::systems::System {
         theirJPOutputValue->setData(&st.leader_jp);
         ctx.cancel_policy = (st.cancel_policy == 1.0);
 
-        // set policy if p
+        // set policy if p toggled
         policy_module_->receive(ctx, st);
 
         basePolicyJpOutputValue->setData(&st.policyJp);
@@ -164,7 +164,7 @@ class Follower : public barrett::systems::System {
         refPolicyJtOutputValue->setData(&st.refPolicyTorque);
 
         // extTorqueIn.valueDefined() before setting a reference signal can cause bad feeling teleop
-        // also cant put this before the policy read. i have no idea why
+        // also cant put this before the policy read. TODO: see why
         setLocalStateValue(dyngravcompTorqueIn, st.follower_dyngravcomp_torque);
         setLocalStateValue(filteredEnvironmentTorqueIn, st.filtered_environment_torque);
         setLocalStateValue(environmentTorqueIn, st.environment_torque);
@@ -174,8 +174,7 @@ class Follower : public barrett::systems::System {
         setLocalStateValue(resPolicyJtIn, st.resPolicyJt);
         setLocalStateValue(refTorquePolicyJtIn, st.refTorquePolicyJt);
 
-        // Always compute the control torque and log it, so the logging module
-        // shows what would be applied.
+        // this control will only be applied if the necessary module is loaded
         control = compute_control(ctx);
         setLocalStateValue(control, st.control_torque);
 

@@ -1,8 +1,16 @@
 # Note
 This version of code is for the end effector wrist ![EE wrist](https://github.com/ualberta-robotics/wam-ros-docker/blob/main/media/ee_wrist.jpg).
 
-# Wam Teleop
-This package enables teleoperation between the 4DOF leader with the ee wrist and the 7DOF follower. While this is a ros package, communication between WAMs does not use ros, and instead uses UDP. Ros is only used to publish the state of arm for easier data collection, and is not intended to receive any incoming messages or services to control the arm. 
+
+# Description
+Useful features for the WAM robots.
+
+- Teleoperation supporting different wrists and grippers.
+- Run with policy (separate repos). Interpolate received action chunks to 500hz and execute with variable gain shared control.
+- Dynamic compensation
+- Logging
+
+Communication is done through udp. See `src/lib/udp/`.
 
 
 ## Run Instructions
@@ -16,7 +24,11 @@ to run each node:
 rosrun wam_teleop leader
 rosrun wam_teleop follower
 ```
-see teleop_config.yaml to change ports, hosts and more!
+to change what is sent between robots, and more see:
+    teleop_config.yaml
+    policy_config.yaml
+    logging_config.yaml
+   
 
 In your host computer, run 
 ```bash
@@ -43,6 +55,8 @@ source scripts/setup_follower.sh
 rosrun wam_teleop follower
 ```
 
+## Starting teleoperation
+
 Once both nodes have started:
 
 1) On the leader use `l` to go to the sync position.
@@ -53,9 +67,22 @@ Once both nodes have started:
 Linking is refused if the two arms are not within `link_tolerance` rad of each
 other (see `config/teleop_config.yaml`).
 
-The arm is now ready for user teleoperation. Control is built from loadable
-modules, toggled with the hotkeys below:
+## Starting Policy
+1) On either leader or follower press `p` and enter.
+2) TODO: To load the policy automatically  without cli confirmation
+3) TODO: Provide python udp template for easy setup
 
+## Starting Dynamics
+1) On either leader or follower press `d` and enter.
+2) TODO: To load the dynamics automatically  without cli confirmation
+
+## Starting Logging
+1) On either leader or follower press `g` and enter.
+2) TODO: To load the logging automatically  without cli confirmation
+3) See `config/logging_config` for what gets printed
+
+
+## Full Command List
 * `l` - link/unlink the teleop module
 * `p` - toggle the policy module
 * `d` - toggle the dynamics module

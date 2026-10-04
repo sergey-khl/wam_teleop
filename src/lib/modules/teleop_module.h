@@ -12,6 +12,7 @@
 #include "../utils/config_loader.h"
 
 // pass on other robot information and sync with jp
+// The link itself is always running so both sides can compare positions before linking
 template <size_t DOF, typename Link>
 class TeleopModule : public Module<DOF> {
     BARRETT_UNITS_TEMPLATE_TYPEDEFS(DOF);
@@ -20,9 +21,6 @@ class TeleopModule : public Module<DOF> {
     TeleopModule(ModuleRole role, const Config& config, TeleopState<DOF>* state,
                  std::unique_ptr<Link> link)
         : role_(role), config_(config), state_(state), link_(std::move(link)) {
-        // The link itself is always running so both sides can compare positions
-        // before linking. Being linked is exactly what loading this module
-        // means, so it starts unloaded just like every other module.
     }
 
     char key() const override { return 'l'; }
@@ -32,8 +30,7 @@ class TeleopModule : public Module<DOF> {
     void tryLink() { this->load(); }
     void unlink() { this->unload(); }
 
-    // True once a packet from their side has been seen and every joint differs
-    // by no more than `tolerance` rad. Used to refuse linking when arms are apart.
+    // both robots must be within radian tolerance when linking
     bool theirIsNear(const jp_type& our_jp, double tolerance) {
         if (!have_their_ || state_ == nullptr) return false;
         const jp_type their_jp = state_->with_lock([this](TeleopData<DOF>& st) {
