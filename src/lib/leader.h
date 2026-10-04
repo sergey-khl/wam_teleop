@@ -4,9 +4,7 @@
 #include <iostream>
 #include <cmath>
 #include <cstdint>
-#include <atomic>
 #include <memory>
-#include <thread>
 #include <chrono>
 #include <iomanip>
 
@@ -24,6 +22,7 @@
 #include "modules/policy_module.h"
 #include "modules/dynamics_module.h"
 #include "modules/logging_module.h"
+#include "modules/handle_module.h"
 
 template <size_t DOF>
 class Leader : public barrett::systems::System {
@@ -74,29 +73,17 @@ class Leader : public barrett::systems::System {
         , basePolicyJpOutput(this, &basePolicyJpOutputValue)
         , resPolicyJpOutput(this, &resPolicyJpOutputValue)
         , refPolicyJtOutput(this, &refPolicyJtOutputValue)
-        , filteredEnvironmentTorqueOutput(this, &filteredEnvironmentTorqueOutputValue)
-        , handle(handle)
-        , io_running(false) {
-
-        torque_scaling   = config.handle.torque_scaling;
-        minStiffness     = config.handle.minStiffness;
-        maxStiffness     = config.handle.maxStiffness;
-        alpha            = config.handle.alpha;
+        , filteredEnvironmentTorqueOutput(this, &filteredEnvironmentTorqueOutputValue) {
 
         makeModules();
 
         if (em != NULL) {
             em->startManaging(*this);
         }
-        io_running.store(true);
-        io_thread = std::thread(&Leader::pollHandle, this);
     }
 
     virtual ~Leader() {
-        io_running.store(false);
-        if (io_thread.joinable()) {
-            io_thread.join();
-        }
+        handle_module_->stop();
         this->mandatoryCleanUp();
     }
 
@@ -128,13 +115,6 @@ class Leader : public barrett::systems::System {
     TeleopState<DOF> state;
 
     jt_type humanTorque;
-
-    const float gripper_speed = 0.1f;
-
-    float torque_scaling;
-    float minStiffness;
-    float maxStiffness;
-    float alpha;
 
     virtual void operate() {
         const uint64_t now_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(
@@ -210,44 +190,11 @@ class Leader : public barrett::systems::System {
     // Internal
     jt_type control;
     jt_type applied_control;
-    std::thread io_thread;
-    std::atomic<bool> io_running;
-
-    void pollHandle() {
-        bool bumper = false;
-        bool trigger = false;
-        double cancel_policy = 0.0;
-        float target_position = 0.0f;
-
-        while (io_running.load()) {
-            handle->poll(); // need to poll sony controller
-            if (boost::optional<haptic_wrist::handle_type> opt_handle = handle->getHandle()) {
-                haptic_wrist::handle_type handle = *opt_handle;
-                bumper = handle[0];
-                trigger = handle[1];
-                cancel_policy = handle[2]; // up button on controller
-            }
-
-            // still position controlled. just send to max and min gripper pos
-            if (bumper && !trigger) {
-                target_position = -1;
-            } else if (trigger && !bumper) {
-                target_position = 1;
-            }
-
-            state.with_lock([&](TeleopData<DOF>& st) {
-                setLocalStateValue(target_position, st.gripper_cmd);
-                setLocalStateValue(cancel_policy, st.cancel_policy);
-            });
-
-            std::this_thread::sleep_for(std::chrono::milliseconds(2));
-        }
-    }
 
   private:
     DISALLOW_COPY_AND_ASSIGN(Leader);
 
-    haptic_wrist::Handle* handle;
+    std::unique_ptr<HandleModule<DOF>> handle_module_;
 
     std::unique_ptr<TeleopModule<DOF, LeaderUDPHandler<DOF>>> teleop_module_;
     std::unique_ptr<PolicyModule<DOF>> policy_module_;
@@ -270,11 +217,20 @@ class Leader : public barrett::systems::System {
 
         dynamics_module_.reset(new DynamicsModule<DOF>(config));
         logging_module_.reset(new LoggingModule<DOF>(ModuleRole::Leader, config));
+        handle_module_.reset(new HandleModule<DOF>(handle, &state));
 
         modules_.add(teleop_module_.get());
         modules_.add(policy_module_.get());
         modules_.add(dynamics_module_.get());
         modules_.add(logging_module_.get());
+
+        // Modules flagged in their config are already on when the node starts.
+        if (config.policy.auto_load) policy_module_->load();
+        if (config.dynamics.auto_load) dynamics_module_->load();
+        if (config.logging.auto_load) logging_module_->load();
+
+        // always start
+        handle_module_->start();
     }
 
     // only loaded modules will add to the torque (policy, dynamics)

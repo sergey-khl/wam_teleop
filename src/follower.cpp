@@ -34,6 +34,7 @@
 // #include "lib/utils/trajectory_smoother.h"
 
 using namespace barrett;
+using namespace gripper::gecko;
 using detail::waitForEnter;
 
 bool validate_args(int argc, char** argv) {

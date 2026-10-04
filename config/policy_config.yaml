@@ -27,6 +27,8 @@ policy:
   type: "base" # one of base, cr or dg
   on_leader: true
   on_follower: false
+  # load the module on startup instead of waiting for the 'p' toggle
+  auto_load: false
 
   # clip the policy commands to a range around the current state
   clip_val: [0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05]
@@ -64,3 +66,5 @@ policy:
 # Dynamics feed-forward control law, shared by the leader and the follower
 dynamics:
   law: "u2"
+  # load the module on startup instead of waiting for the 'd' toggle
+  auto_load: false

@@ -1,5 +1,7 @@
 # print these state variables
 every_n_loops: 250
+# load the module on startup instead of waiting for the 'g' toggle
+auto_load: false
 
 # Printed on the leader node.
 leader: [leader_jp, leader_jv, human_torque, filtered_human_torque,

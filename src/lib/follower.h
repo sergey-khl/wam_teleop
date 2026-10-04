@@ -2,11 +2,8 @@
 
 #include <iostream>
 #include <cmath>
-#include <atomic>
 #include <memory>
-#include <thread>
 #include <chrono>
-#include "gripper/gecko/gecko_gripper.h"
 #include <iomanip>
 
 
@@ -24,8 +21,7 @@
 #include "modules/policy_module.h"
 #include "modules/dynamics_module.h"
 #include "modules/logging_module.h"
-
-using namespace gripper::gecko;
+#include "modules/gripper_module.h"
 
 template <size_t DOF>
 class Follower : public barrett::systems::System {
@@ -50,7 +46,7 @@ class Follower : public barrett::systems::System {
     Output<jp_type> resPolicyJpOutput;
     Output<jt_type> refPolicyJtOutput;
 
-    explicit Follower(barrett::systems::ExecutionManager* em, GeckoGripper* gripper,
+    explicit Follower(barrett::systems::ExecutionManager* em, gripper::gecko::GeckoGripper* gripper,
                   const Config& config,
                   const std::string& sysName = "Follower")
         : System(sysName)
@@ -72,27 +68,17 @@ class Follower : public barrett::systems::System {
         , theirJPOutput(this, &theirJPOutputValue)
         , basePolicyJpOutput(this, &basePolicyJpOutputValue)
         , resPolicyJpOutput(this, &resPolicyJpOutputValue)
-        , refPolicyJtOutput(this, &refPolicyJtOutputValue)
-        , gripper(gripper)
-        , io_running(false) {
+        , refPolicyJtOutput(this, &refPolicyJtOutputValue) {
 
         makeModules();
-
-        gripper_max_pos = gripper->getGripperClosePos();
-        gripper_min_pos = gripper->getGripperOpenPos();
 
         if (em != NULL) {
             em->startManaging(*this);
         }
-        io_running.store(true);
-        io_thread = std::thread(&Follower::pollGripper, this);
     }
 
     virtual ~Follower() {
-        io_running.store(false);
-        if (io_thread.joinable()) {
-            io_thread.join();
-        }
+        gripper_module_->stop();
         this->mandatoryCleanUp();
     }
 
@@ -121,9 +107,6 @@ class Follower : public barrett::systems::System {
     TeleopState<DOF> state;
 
     Config config;
-
-    float gripper_max_pos; // assumes 0 is the close pos of the gripper
-    float gripper_min_pos;
 
     virtual void operate() {
         const uint64_t now_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(
@@ -193,33 +176,10 @@ class Follower : public barrett::systems::System {
     jt_type control;
     jt_type applied_control;
 
-    void pollGripper() {
-        while (io_running.load()) {
-            float gripper_cmd = 0.0f;
-            state.with_lock([&](TeleopData<DOF>& st) {
-                gripper_cmd = static_cast<float>(st.gripper_cmd);
-            });
-            gripper->setPosition(gripper_cmd);
-            gripper->controlLoopCallback();
-
-            GripperState gripper_state = gripper->getLatestState();
-            state.with_lock([&](TeleopData<DOF>& st) {
-                setLocalStateValue(gripper_state.position, st.gripper_pos);
-                setLocalStateValue(gripper_state.velocity, st.gripper_vel);
-                setLocalStateValue(gripper_state.torque, st.gripper_torque);
-            });
-
-            std::this_thread::sleep_for(std::chrono::milliseconds(2));
-        }
-        gripper->setVelocity(0.0f);
-    }
-
   private:
     DISALLOW_COPY_AND_ASSIGN(Follower);
 
-    GeckoGripper* gripper;
-    std::thread io_thread;
-    std::atomic<bool> io_running;
+    std::unique_ptr<GripperModule<DOF>> gripper_module_;
 
     std::unique_ptr<TeleopModule<DOF, FollowerUDPHandler<DOF>>> teleop_module_;
     std::unique_ptr<PolicyModule<DOF>> policy_module_;
@@ -242,11 +202,20 @@ class Follower : public barrett::systems::System {
 
         dynamics_module_.reset(new DynamicsModule<DOF>(config));
         logging_module_.reset(new LoggingModule<DOF>(ModuleRole::Follower, config));
+        gripper_module_.reset(new GripperModule<DOF>(gripper, &state));
 
         modules_.add(teleop_module_.get());
         modules_.add(policy_module_.get());
         modules_.add(dynamics_module_.get());
         modules_.add(logging_module_.get());
+
+        // Modules flagged in their config are already on when the node starts.
+        if (config.policy.auto_load) policy_module_->load();
+        if (config.dynamics.auto_load) dynamics_module_->load();
+        if (config.logging.auto_load) logging_module_->load();
+
+        // always start
+        gripper_module_->start();
     }
 
     // A module produces the control torque it wants; here we simply sum the

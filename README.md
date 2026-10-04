@@ -71,16 +71,16 @@ other (see `config/teleop_config.yaml`).
 
 ## Starting Policy
 1) On either leader or follower press `p` and enter.
-2) TODO: To load the policy automatically  without cli confirmation
+2) Set `policy.auto_load: true` in `config/policy_config.yaml` to load it on startup instead.
 3) TODO: Provide python udp template for easy setup
 
 ## Starting Dynamics
 1) On either leader or follower press `d` and enter.
-2) TODO: To load the dynamics automatically  without cli confirmation
+2) Set `dynamics.auto_load: true` in `config/policy_config.yaml` to load it on startup instead.
 
 ## Starting Logging
 1) On either leader or follower press `g` and enter.
-2) TODO: To load the logging automatically  without cli confirmation
+2) Set `auto_load: true` in `config/logging_config.yaml` to load it on startup instead.
 3) See `config/logging_config` for what gets printed
 
 

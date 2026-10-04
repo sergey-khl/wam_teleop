@@ -45,6 +45,7 @@ struct PolicyConfig {
     PolicyGains torque;
     bool on_leader;
     bool on_follower;
+    bool auto_load = false;
     std::string type;
     std::vector<double> clip_val;
     std::vector<double> clip_ref_torque;
@@ -54,6 +55,7 @@ struct PolicyConfig {
 // both leader and follower use same control law
 struct DynamicsConfig {
     std::string law = "u2";
+    bool auto_load = false;
 };
 
 struct PolicyFileConfig {
@@ -103,6 +105,9 @@ template<> struct convert<PolicyConfig> {
         c.torque = node["torque"].as<PolicyGains>();
         c.on_leader = node["on_leader"].as<bool>();
         c.on_follower = node["on_follower"].as<bool>();
+        if (node["auto_load"]) {
+            c.auto_load = node["auto_load"].as<bool>();
+        }
         c.type = node["type"].as<std::string>();
         c.clip_val = node["clip_val"].as<std::vector<double>>();
         c.clip_ref_torque = node["clip_ref_torque"].as<std::vector<double>>();
@@ -119,6 +124,9 @@ template<> struct convert<DynamicsConfig> {
     static bool decode(const Node& node, DynamicsConfig& c) {
         if (node["law"]) {
             c.law = node["law"].as<std::string>();
+        }
+        if (node["auto_load"]) {
+            c.auto_load = node["auto_load"].as<bool>();
         }
         return true;
     }
