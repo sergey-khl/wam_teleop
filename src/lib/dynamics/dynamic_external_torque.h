@@ -6,6 +6,8 @@
 #include <barrett/systems.h>
 #include <barrett/units.h>
 
+#include "../utils/data_packets.h"
+
 template <size_t DOF>
 class DynamicExternalTorque : public barrett::systems::System {
     BARRETT_UNITS_TEMPLATE_TYPEDEFS(DOF);
@@ -13,7 +15,7 @@ class DynamicExternalTorque : public barrett::systems::System {
   public:
     Input<jt_type> wamTorqueSumIn;
     Input<jt_type> wamDynamicsIn;
-    Output<jt_type> wamExternalTorqueOut;
+    Output<jt_teleop_type> wamExternalTorqueOut;
 
     explicit DynamicExternalTorque(barrett::systems::ExecutionManager* em, const std::string& sysName = "DynamicExternalTorque")
         : System(sysName)
@@ -31,15 +33,18 @@ class DynamicExternalTorque : public barrett::systems::System {
     }
 
   protected:
-    typename Output<jt_type>::Value* jtOutputValue;
+    typename Output<jt_teleop_type>::Value* jtOutputValue;
     jt_type jtSum;
     jt_type dynamics;
-    jt_type externalTorque;
+    jt_teleop_type externalTorque;
 
     virtual void operate() {
         jtSum = wamTorqueSumIn.getValue();
         dynamics = wamDynamicsIn.getValue();
-        externalTorque = jtSum - dynamics;
+
+        // only the arm has a measured torque; the wrist stays zero for now
+        externalTorque.setZero();
+        externalTorque.head(DOF) = jtSum - dynamics;
         jtOutputValue->setData(&externalTorque);
     }
 

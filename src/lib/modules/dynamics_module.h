@@ -25,11 +25,11 @@ class DynamicsModule : public Module<DOF> {
     void onLoad() override { std::cout << "dynamics module loaded (" << law_ << ")" << std::endl; }
     void onUnload() override { std::cout << "dynamics module unloaded" << std::endl; }
 
-    jt_type torque(const ControlContext<DOF>& ctx) override {
-        const jt_type& ref = *ctx.ref_ext_torque;
-        const jt_type& cur = *ctx.cur_ext_torque;
-        const jt_type& dyn = *ctx.cur_dyn;
-        const jt_type& grav = *ctx.cur_grav;
+    jt_teleop_type torque(const ControlContext<DOF>& ctx) override {
+        const jt_type ref = ctx.ref_ext_torque->head(DOF);
+        const jt_type cur = ctx.cur_ext_torque->head(DOF);
+        const jt_type dyn = ctx.cur_dyn->head(DOF);
+        const jt_type grav = ctx.cur_grav->head(DOF);
 
         jt_type u = jt_type::Zero();
 
@@ -63,7 +63,11 @@ class DynamicsModule : public Module<DOF> {
         for (size_t i = 4; i < DOF && i < 7; ++i) {
             u[i] = 0.0;
         }
-        return u;
+
+        // arm torque in the head; wrist torque will fill the tail later
+        jt_teleop_type full = jt_teleop_type::Zero();
+        full.head(DOF) = u;
+        return full;
     }
 
   private:
@@ -76,10 +80,10 @@ class DynamicsModule : public Module<DOF> {
         for (int i = 1; i <= 10; ++i) {
             if (law == std::to_string(i)) return kLaws[i - 1];
         }
-        std::cerr << "WARNING: unknown dynamics.law '" << law << "'; defaulting to u2" << std::endl;
-        return kLaws[1];
+        std::cerr << "WARNING: unknown dynamics.law '" << law << "'; defaulting to 0 output" << std::endl;
+        return kLaws[0];
     }
 
     Config config_;
-    const char* law_ = "u2";
+    const char* law_ = "u1";
 };

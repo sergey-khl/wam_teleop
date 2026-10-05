@@ -15,35 +15,41 @@
 #include <barrett/systems/abstract/system.h>
 #include <barrett/units.h>
 
+// The shared state always carries all 7 joints. The arm occupies the first DOF
+// entries; whatever is left (TELEOP_DOF - DOF) belongs to the wrist.
+constexpr size_t TELEOP_DOF = 7;
+
+using jp_teleop_type = barrett::units::JointPositions<TELEOP_DOF>::type;
+using jv_teleop_type = barrett::units::JointVelocities<TELEOP_DOF>::type;
+using jt_teleop_type = barrett::units::JointTorques<TELEOP_DOF>::type;
+
 template <size_t DOF>
 struct TeleopData {
-    typedef typename barrett::units::JointPositions<DOF>::type jp_type;
-    typedef typename barrett::units::JointVelocities<DOF>::type jv_type;
-    typedef typename barrett::units::JointTorques<DOF>::type jt_type;
+    static constexpr size_t WRIST_DOF = TELEOP_DOF - DOF;
 
-    jp_type leader_jp = jp_type::Zero();
-    jv_type leader_jv = jv_type::Zero();
-    jt_type leader_dyngravcomp_torque = jt_type::Zero();
-    jp_type follower_jp = jp_type::Zero();
-    jv_type follower_jv = jv_type::Zero();
-    jt_type follower_dyngravcomp_torque = jt_type::Zero();
+    jp_teleop_type leader_jp = jp_teleop_type::Zero();
+    jv_teleop_type leader_jv = jv_teleop_type::Zero();
+    jt_teleop_type leader_dyngravcomp_torque = jt_teleop_type::Zero();
+    jp_teleop_type follower_jp = jp_teleop_type::Zero();
+    jv_teleop_type follower_jv = jv_teleop_type::Zero();
+    jt_teleop_type follower_dyngravcomp_torque = jt_teleop_type::Zero();
 
-    jt_type human_torque = jt_type::Zero();
-    jt_type filtered_human_torque = jt_type::Zero();
-    jt_type environment_torque = jt_type::Zero();
-    jt_type filtered_environment_torque = jt_type::Zero();
+    jt_teleop_type human_torque = jt_teleop_type::Zero();
+    jt_teleop_type filtered_human_torque = jt_teleop_type::Zero();
+    jt_teleop_type environment_torque = jt_teleop_type::Zero();
+    jt_teleop_type filtered_environment_torque = jt_teleop_type::Zero();
 
-    jp_type policyJp = jp_type::Zero();
-    jt_type policyJt = jt_type::Zero();
-    jt_type policyTorqueScale = jt_type::Zero();
-    jp_type resPolicyJp = jp_type::Zero();
-    jt_type resPolicyJt = jt_type::Zero();
-    jt_type refPolicyTorque = jt_type::Zero();
-    jt_type refTorquePolicyJt = jt_type::Zero();
+    jp_teleop_type policyJp = jp_teleop_type::Zero();
+    jt_teleop_type policyJt = jt_teleop_type::Zero();
+    jt_teleop_type policyTorqueScale = jt_teleop_type::Zero();
+    jp_teleop_type resPolicyJp = jp_teleop_type::Zero();
+    jt_teleop_type resPolicyJt = jt_teleop_type::Zero();
+    jt_teleop_type refPolicyTorque = jt_teleop_type::Zero();
+    jt_teleop_type refTorquePolicyJt = jt_teleop_type::Zero();
 
-    jt_type control_torque = jt_type::Zero();
-    jt_type wam_dyn = jt_type::Zero();
-    jt_type wam_grav = jt_type::Zero();
+    jt_teleop_type control_torque = jt_teleop_type::Zero();
+    jt_teleop_type wam_dyn = jt_teleop_type::Zero();
+    jt_teleop_type wam_grav = jt_teleop_type::Zero();
 
     Eigen::Vector3d leader_cart_pos = Eigen::Vector3d::Zero();
     Eigen::Quaterniond leader_quat = Eigen::Quaterniond::Identity();
@@ -147,10 +153,10 @@ bool formatField(std::ostream& os, const TeleopData<DOF>& d, const std::string& 
     switch (ref.type) {
     case FieldType::Vector7: {
         const double* v = static_cast<const double*>(ref.ptr);
-        // barrett unit types carry extra storage, so the joint count is DOF,
-        // not ref.bytes / sizeof(double).
+        // barrett unit types carry a gsl struct after the coefficients, so the
+        // joint count is TELEOP_DOF, not ref.bytes / sizeof(double).
         size_t n = ref.bytes / sizeof(double);
-        if (n > DOF) n = DOF;
+        if (n > TELEOP_DOF) n = TELEOP_DOF;
         os << "[";
         for (size_t i = 0; i < n; ++i) os << (i ? ", " : "") << v[i];
         os << "]";
@@ -191,10 +197,12 @@ inline void setLocalStateValue(const Source& source, Field& field) {
 
 template <typename T, typename Field>
 inline void setLocalStateValue(const barrett::systems::System::Input<T>& input, Field& field) {
+    // The input is arm-wide (DOF); write it into the arm part of the field.
+    constexpr int N = T::RowsAtCompileTime;
     if (input.valueDefined()) {
-        field = input.getValue();
+        field.head(N) = input.getValue();
     } else {
-        field.setZero();
+        field.head(N).setZero();
     }
 }
 

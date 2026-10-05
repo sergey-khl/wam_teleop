@@ -1,7 +1,3 @@
-# Note
-This version of code is for the end effector wrist ![EE wrist](https://github.com/ualberta-robotics/wam-ros-docker/blob/main/media/ee_wrist.jpg).
-
-
 # Description
 Useful features for the WAM robots.
 
@@ -11,7 +7,6 @@ Useful features for the WAM robots.
 - Logging
 
 Communication is done through udp. See `src/lib/udp/`. While this is a ros package, communication between WAMs does not use ros.
-
 
 
 
@@ -30,6 +25,9 @@ to change what is sent between robots, and more see:
     teleop_config.yaml
     policy_config.yaml
     logging_config.yaml
+    dynamics_config.yaml
+    handle_config.yaml
+    gripper_config.yaml
    
 
 In your host computer, run 
@@ -76,7 +74,9 @@ other (see `config/teleop_config.yaml`).
 
 ## Starting Dynamics
 1) On either leader or follower press `d` and enter.
-2) Set `dynamics.auto_load: true` in `config/policy_config.yaml` to load it on startup instead.
+2) Set `dynamics.auto_load: true` in `config/dynamics_config.yaml` to load it on startup instead.
+3) `dynamics.dof` (4 or 7) chooses the regressor/beta size, independent of the arm
+   DOF, and `dynamics.leader_beta` / `dynamics.follower_beta` pick the beta vector.
 
 ## Starting Logging
 1) On either leader or follower press `g` and enter.
@@ -94,7 +94,7 @@ other (see `config/teleop_config.yaml`).
 
 Loaded modules that produce torque (policy, dynamics) are summed into the final
 control torque. The dynamics control law is shared by both sides and set with
-`dynamics.law` in `config/policy_config.yaml`; which fields the logging module
+`dynamics.law` in `config/dynamics_config.yaml`; which fields the logging module
 prints is set in `config/logging_config.yaml`.
 
 To turn off, it is recommended to go through the following procedure to ensure proper thread and socket cleanup.

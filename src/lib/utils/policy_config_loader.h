@@ -52,17 +52,10 @@ struct PolicyConfig {
     ActionConfig action;
 };
 
-// both leader and follower use same control law
-struct DynamicsConfig {
-    std::string law = "u2";
-    bool auto_load = false;
-};
-
 struct PolicyFileConfig {
     PolicyNetworkConfig network;
     PolicyDataRoutingConfig data_routing;
     PolicyConfig policy;
-    DynamicsConfig dynamics;
     double interp_hz;
     int slow_down_factor;
 };
@@ -120,18 +113,6 @@ template<> struct convert<PolicyConfig> {
     }
 };
 
-template<> struct convert<DynamicsConfig> {
-    static bool decode(const Node& node, DynamicsConfig& c) {
-        if (node["law"]) {
-            c.law = node["law"].as<std::string>();
-        }
-        if (node["auto_load"]) {
-            c.auto_load = node["auto_load"].as<bool>();
-        }
-        return true;
-    }
-};
-
 } // namespace YAML
 
 inline PolicyFileConfig load_policy_file_config(const std::string& file) {
@@ -156,10 +137,6 @@ inline PolicyFileConfig load_policy_file_config(const std::string& file) {
         c.slow_down_factor = policy["slow_down_factor"].as<int>();
         c.policy = policy["policy"].as<PolicyConfig>();
         c.data_routing.policy_send_wam = require_list(policy["data_routing"], "policy_send_wam");
-
-        if (policy["dynamics"]) {
-            c.dynamics = policy["dynamics"].as<DynamicsConfig>();
-        }
 
         return c;
     } catch (const YAML::Exception& e) {

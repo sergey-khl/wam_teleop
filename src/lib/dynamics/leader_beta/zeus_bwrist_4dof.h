@@ -1,11 +1,14 @@
 //Estimated Pvector, gravity included.
-#ifndef LEADER_BETA_VECTOR_H_
-#define LEADER_BETA_VECTOR_H_
+#ifndef ZEUS_BWRIST_4DOF_H_
+#define ZEUS_BWRIST_4DOF_H_
 
 // if leader_beta on line 11, then 0 out: 14, 23, 32, 41, 50, 59, 68
 //
 //
 #include <eigen3/Eigen/Dense>
+
+namespace dynamics4 {
+
 Eigen::Matrix<double, 30, 1> initialize_leader_beta() {
     Eigen::Matrix<double, 30, 1> leader_beta;
     leader_beta << 
@@ -42,5 +45,7 @@ Eigen::Matrix<double, 30, 1> initialize_leader_beta() {
 
     return leader_beta;
 }
+
+}  // namespace dynamics4
 
 #endif

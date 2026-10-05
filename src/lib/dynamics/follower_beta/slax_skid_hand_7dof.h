@@ -1,8 +1,10 @@
 // Estimated Pvector, gravity included.
-#ifndef FOLLOWER_BETA_VECTOR_H_
-#define FOLLOWER_BETA_VECTOR_H_
+#ifndef SLAX_SKID_HAND_7DOF_H_
+#define SLAX_SKID_HAND_7DOF_H_
 
 #include <eigen3/Eigen/Dense>
+
+namespace dynamics7 {
 
 // coulomb: 3, 12. 21. 30. 39, 48, 57
 // if follower_beta on line 11, then 0 out: 14, 23, 32, 41, 50, 59, 68
@@ -71,5 +73,7 @@ Eigen::Matrix<double, 57, 1> initialize_follower_beta() {
 
     return follower_beta;
 }
+
+}  // namespace dynamics7
 
 #endif

@@ -194,7 +194,7 @@ void PolicyUDPHandler<DOF>::interpLoop(Stream& s) {
                     std::lock_guard<std::mutex> ls_lock(latest_state_mutex);
                     leader_state = latest_state;
                 }
-                if (leader_state.leader_jp == jp_type::Zero()) {
+                if (leader_state.leader_jp == jp_teleop_type::Zero()) {
                     leader_uninitialized = true;
                 } else {
                     seedAction(a0, leader_state, s.config.fields);
@@ -337,11 +337,11 @@ void PolicyUDPHandler<DOF>::seedAction(ActionData& a, const TeleopData<DOF>& lea
                                        const std::vector<std::string>& fields) {
     for (const std::string& name : fields) {
         if (name == "jp") {
-            for (size_t i = 0; i < DOF && i < 7; ++i) a.jp[i] = leader_state.leader_jp[i];
+            for (size_t i = 0; i < TELEOP_DOF; ++i) a.jp[i] = leader_state.leader_jp[i];
         } else if (name == "delta_jp") {
-            for (size_t i = 0; i < DOF && i < 7; ++i) a.jp[i] = 0;
+            for (size_t i = 0; i < TELEOP_DOF; ++i) a.jp[i] = 0;
         } else if (name == "ext_torque") {
-            for (size_t i = 0; i < DOF && i < 7; ++i) a.ext_torque[i] = leader_state.filtered_human_torque[i];
+            for (size_t i = 0; i < TELEOP_DOF; ++i) a.ext_torque[i] = leader_state.filtered_human_torque[i];
         } else if (name == "gripper_cmd") {
             a.gripper_cmd = leader_state.gripper_pos;
         }
@@ -385,4 +385,5 @@ std::deque<ActionData> PolicyUDPHandler<DOF>::interpolateSegment(const ActionDat
     return queue;
 }
 
-template class PolicyUDPHandler<7>; // For DOF=7
+template class PolicyUDPHandler<4>;
+template class PolicyUDPHandler<7>;

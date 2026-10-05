@@ -9,13 +9,15 @@
 //
 
 // Include files
-#ifndef CALCULATE_W_H_
-#define CALCULATE_W_H_
+#ifndef REGRESSOR_W_4DOF_H_
+#define REGRESSOR_W_4DOF_H_
 
 #pragma once
 #include <eigen3/Eigen/Dense>
 #include <array>
 #include <cmath>
+
+namespace dynamics4 {
 
 // Function Definitions
 void calculate_W(const double q[4], const double dq[4],
@@ -590,5 +592,7 @@ Eigen::MatrixXd calculate_W_eigen(const Eigen::VectorXd& q,
     return W;
 }
 
+}  // namespace dynamics4
+
 // End of code generation (regressor_W.h)
-#endif /* CALCULATE_W_H_ */
+#endif /* REGRESSOR_W_4DOF_H_ */

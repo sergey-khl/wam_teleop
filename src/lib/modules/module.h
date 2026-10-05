@@ -17,11 +17,11 @@ struct ControlContext {
 
     TeleopData<DOF>* st = nullptr;
 
-    const jt_type* ref_ext_torque = nullptr; // their external torque (mapped into our frame)
-    const jt_type* cur_ext_torque = nullptr; // our external torque
-    const jt_type* cur_dyn = nullptr;        // estimated dynamics feed-forward
-    const jt_type* cur_grav = nullptr;       // gravity feed-forward
-    const jp_type* cur_pos = nullptr;        // our joint positions
+    const jt_teleop_type* ref_ext_torque = nullptr; // their external torque (mapped into our frame)
+    const jt_teleop_type* cur_ext_torque = nullptr; // our external torque
+    const jt_teleop_type* cur_dyn = nullptr;        // estimated dynamics feed-forward
+    const jt_teleop_type* cur_grav = nullptr;       // gravity feed-forward
+    const jp_teleop_type* cur_pos = nullptr;        // our joint positions
 
     bool cancel_policy = false;
 };
@@ -59,7 +59,7 @@ class Module {
 
     // Torque-producing modules override these.
     virtual bool producesTorque() const { return false; }
-    virtual jt_type torque(const ControlContext<DOF>&) { return jt_type::Zero(); }
+    virtual jt_teleop_type torque(const ControlContext<DOF>&) { return jt_teleop_type::Zero(); }
 
     // Control-loop hooks, only called while the module is loaded.
     virtual void receive(ControlContext<DOF>&, TeleopData<DOF>&) {}
@@ -95,8 +95,8 @@ class ModuleManager {
     }
 
     // The whole of the control law: sum the torques of every loaded module.
-    jt_type sumTorque(const ControlContext<DOF>& ctx) const {
-        jt_type u = jt_type::Zero();
+    jt_teleop_type sumTorque(const ControlContext<DOF>& ctx) const {
+        jt_teleop_type u = jt_teleop_type::Zero();
         for (Module<DOF>* m : modules_) {
             if (m->isLoaded() && m->producesTorque()) {
                 u += m->torque(ctx);

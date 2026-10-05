@@ -1,0 +1,6 @@
+law: "u2"
+# load the module on startup instead of waiting for the 'd' toggle
+auto_load: false
+dof: 4
+leader_beta: "zeus_bwrist"
+follower_beta: "slax_skid_hand"

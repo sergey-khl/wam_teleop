@@ -100,4 +100,5 @@ void FollowerUDPHandler<DOF>::teleopSendLoop() {
     teleop_send_socket.close();
 }
 
-template class FollowerUDPHandler<7>; // For DOF=7
+template class FollowerUDPHandler<4>;
+template class FollowerUDPHandler<7>;

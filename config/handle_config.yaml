@@ -1,0 +1,4 @@
+torque_scaling: 1.5
+minStiffness: 0.05
+maxStiffness: 1.0
+alpha: 0.35

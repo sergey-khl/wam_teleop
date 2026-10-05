@@ -28,44 +28,16 @@ struct RobotTeleopConfig {
     bool vertical;
 };
 
-struct GripperConfig {
-    bool usable;
-};
-
-struct HandleConfig {
-    double torque_scaling;
-    double minStiffness, maxStiffness, alpha;
-};
-
 // Everything decoded from teleop_config.yaml.
 struct TeleopFileConfig {
     TeleopNetworkConfig network;
     TeleopDataRoutingConfig data_routing;
     SyncMapping sync_mapping;
     RobotTeleopConfig leader, follower;
-    HandleConfig handle;
-    GripperConfig gripper;
     double link_tolerance = 0.1;
 };
 
 namespace YAML {
-
-template<> struct convert<HandleConfig> {
-    static bool decode(const Node& node, HandleConfig& c) {
-        c.torque_scaling = node["torque_scaling"].as<double>();
-        c.minStiffness = node["minStiffness"].as<double>();
-        c.maxStiffness = node["maxStiffness"].as<double>();
-        c.alpha = node["alpha"].as<double>();
-        return true;
-    }
-};
-
-template<> struct convert<GripperConfig> {
-    static bool decode(const Node& node, GripperConfig& c) {
-        c.usable = node["usable"].as<bool>();
-        return true;
-    }
-};
 
 template<> struct convert<SyncMapping> {
     static bool decode(const Node& node, SyncMapping& c) {
@@ -106,8 +78,6 @@ inline TeleopFileConfig load_teleop_file_config(const std::string& file) {
         c.sync_mapping = teleop["sync_mapping"].as<SyncMapping>();
         c.leader = teleop["leader"].as<RobotTeleopConfig>();
         c.follower = teleop["follower"].as<RobotTeleopConfig>();
-        c.gripper = teleop["gripper"].as<GripperConfig>();
-        c.handle = teleop["handle"].as<HandleConfig>();
         c.data_routing.teleop_send_leader = require_list(teleop["data_routing"], "teleop_send_leader");
         c.data_routing.teleop_send_follower = require_list(teleop["data_routing"], "teleop_send_follower");
 

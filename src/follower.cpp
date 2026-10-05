@@ -27,7 +27,7 @@
 #include <barrett/standard_main_function.h>
 
 #include "lib/follower.h"
-#include "lib/dynamics/follower_dynamics_4dof.h"
+#include "lib/dynamics/follower_dynamics.h"
 #include "lib/dynamics/dynamic_external_torque.h"
 #include "lib/dynamics/follower_vertical_dynamics.h"
 #include "lib/policy/policy_torque.h"
@@ -64,14 +64,12 @@ template <size_t DOF> int wam_main(int argc, char **argv, ProductManager &pm, sy
     const Config config = load_config(config_dir);
 
     jp_type SYNC_POS; // the position each WAM should move to before linking
-    if (DOF == 7) {
-        for (int i = 0; i < 7; ++i) {
-            SYNC_POS[i] = config.follower.sync_pos[i];
-        }
-
-    } else {
-        printf("Error: 7 DOF supported\n");
+    if (DOF != 4 && DOF != 7) {
+        printf("Error: only 4 or 7 DOF supported\n");
         return false;
+    }
+    for (size_t i = 0; i < DOF; ++i) {
+        SYNC_POS[i] = config.follower.sync_pos[i];
     }
 
     GeckoGripper gripper;
@@ -91,32 +89,32 @@ template <size_t DOF> int wam_main(int argc, char **argv, ProductManager &pm, sy
     barrett::systems::Summer<jt_type, 3> customjtSum;
     pm.getExecutionManager()->startManaging(customjtSum);
 
-    barrett::systems::PIDController<jp_type, jt_type> base_policy_controller;
-    apply_gains<DOF>(base_policy_controller, config.policy.base);
-    barrett::systems::PIDController<jp_type, jt_type> res_policy_controller;
-    apply_gains<DOF>(res_policy_controller, config.policy.res);
-    barrett::systems::PIDController<jt_type, jt_type> torque_policy_controller;
-    apply_gains<DOF>(torque_policy_controller, config.policy.torque);
+    barrett::systems::PIDController<jp_teleop_type, jt_teleop_type> base_policy_controller;
+    apply_gains<TELEOP_DOF>(base_policy_controller, config.policy.base);
+    barrett::systems::PIDController<jp_teleop_type, jt_teleop_type> res_policy_controller;
+    apply_gains<TELEOP_DOF>(res_policy_controller, config.policy.res);
+    barrett::systems::PIDController<jt_teleop_type, jt_teleop_type> torque_policy_controller;
+    apply_gains<TELEOP_DOF>(torque_policy_controller, config.policy.torque);
 
-    FollowerDynamics<DOF> followerDynamics(pm.getExecutionManager());
+    FollowerDynamics<DOF> followerDynamics(pm.getExecutionManager(), config.dynamics);
     DynamicExternalTorque<DOF> dynamicExternalTorque(pm.getExecutionManager());
     PolicyTorque<DOF> policyTorque(pm.getExecutionManager());
 
     FollowerDynamics<DOF>* horizontalGravity = nullptr;
     FollowerVerticalDynamics<DOF>* followerVerticalDynamics = nullptr;
     if (config.leader.vertical) {
-        horizontalGravity = new FollowerDynamics<DOF>(pm.getExecutionManager());
+        horizontalGravity = new FollowerDynamics<DOF>(pm.getExecutionManager(), config.dynamics);
         followerVerticalDynamics = new FollowerVerticalDynamics<DOF>(pm.getExecutionManager());
     }
     
-    barrett::systems::FirstOrderFilter<jt_type> extFilter;
-    jt_type omega_p(80.0);
+    barrett::systems::FirstOrderFilter<jt_teleop_type> extFilter;
+    jt_teleop_type omega_p(80.0);
     extFilter.setLowPass(omega_p);
     pm.getExecutionManager()->startManaging(extFilter);
 
-    jp_type jp;
+    jp_teleop_type jp;
     jp.setConstant(0.0);
-    systems::Constant<jp_type> zeroPosition(jp);
+    systems::Constant<jp_teleop_type> zeroPosition(jp);
     pm.getExecutionManager()->startManaging(zeroPosition);
 
     jv_type jv;
@@ -204,7 +202,7 @@ template <size_t DOF> int wam_main(int argc, char **argv, ProductManager &pm, sy
 
     // policy impedance control
     systems::connect(follower.basePolicyJpOutput, base_policy_controller.referenceInput);
-    systems::connect(wam.jpOutput, base_policy_controller.feedbackInput);
+    systems::connect(follower.currentJpOutput, base_policy_controller.feedbackInput);
     systems::connect(follower.resPolicyJpOutput, res_policy_controller.referenceInput);
     systems::connect(zeroPosition.output, res_policy_controller.feedbackInput);
     systems::connect(follower.refPolicyJtOutput, torque_policy_controller.referenceInput);
@@ -237,7 +235,7 @@ template <size_t DOF> int wam_main(int argc, char **argv, ProductManager &pm, sy
 
                 // Only link when both arms are (nearly) at the same position.
                 const jp_type our_jp = wam.getJointPositions();
-                if (!follower.teleop().theirIsNear(our_jp, config.link_tolerance)) {
+                if (!follower.teleop().theirIsNear(config.link_tolerance)) {
                     std::cout << "WARNING: their WAM is not near ours; refusing to link.\n"
                               << "         ours:      [" << our_jp.transpose() << "]\n"
                               << "         tolerance: " << config.link_tolerance << " rad\n";

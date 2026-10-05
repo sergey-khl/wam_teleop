@@ -100,4 +100,5 @@ void LeaderUDPHandler<DOF>::sendLoop() {
     send_socket.close();
 }
 
-template class LeaderUDPHandler<7>; // For DOF=7
+template class LeaderUDPHandler<4>;
+template class LeaderUDPHandler<7>;

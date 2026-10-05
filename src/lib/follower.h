@@ -31,44 +31,47 @@ class Follower : public barrett::systems::System {
     Input<jp_type> wamJPIn;
     Input<jv_type> wamJVIn;
     Input<boost::tuple<cp_type, Eigen::Quaterniond>> wamTPIn;
-    Input<jt_type> dyngravcompTorqueIn;   // may be undefined
+    Input<jt_teleop_type> dyngravcompTorqueIn; // may be undefined
     Input<jt_type> wamGravIn;
     Input<jt_type> wamDynIn;
-    Input<jt_type> basePolicyJtIn;
-    Input<jt_type> resPolicyJtIn;
-    Input<jt_type> refTorquePolicyJtIn;
-    Input<jt_type> environmentTorqueIn;
-    Input<jt_type> filteredEnvironmentTorqueIn;
+    Input<jt_teleop_type> basePolicyJtIn;
+    Input<jt_teleop_type> resPolicyJtIn;
+    Input<jt_teleop_type> refTorquePolicyJtIn;
+    Input<jt_teleop_type> environmentTorqueIn;
+    Input<jt_teleop_type> filteredEnvironmentTorqueIn;
 
     Output<jt_type> wamJTOutput;
     Output<jp_type> theirJPOutput;
-    Output<jp_type> basePolicyJpOutput;
-    Output<jp_type> resPolicyJpOutput;
-    Output<jt_type> refPolicyJtOutput;
+    Output<jp_teleop_type> currentJpOutput;
+    Output<jp_teleop_type> basePolicyJpOutput;
+    Output<jp_teleop_type> resPolicyJpOutput;
+    Output<jt_teleop_type> refPolicyJtOutput;
 
     explicit Follower(barrett::systems::ExecutionManager* em, gripper::gecko::GeckoGripper* gripper,
                   const Config& config,
                   const std::string& sysName = "Follower")
         : System(sysName)
         , config(config)
-        , control(0.0)
-        , applied_control(0.0)
+        , control(jt_teleop_type::Zero())
+        , wam_torque_(jt_type::Zero())
         , wamJPIn(this)
         , wamJVIn(this)
         , wamTPIn(this)
+        , dyngravcompTorqueIn(this)
+        , wamGravIn(this)
+        , wamDynIn(this)
         , basePolicyJtIn(this)
         , resPolicyJtIn(this)
         , refTorquePolicyJtIn(this)
         , environmentTorqueIn(this)
         , filteredEnvironmentTorqueIn(this)
-        , dyngravcompTorqueIn(this)
-        , wamGravIn(this)
-        , wamDynIn(this)
         , wamJTOutput(this, &jtOutputValue)
         , theirJPOutput(this, &theirJPOutputValue)
+        , currentJpOutput(this, &currentJpOutputValue)
         , basePolicyJpOutput(this, &basePolicyJpOutputValue)
         , resPolicyJpOutput(this, &resPolicyJpOutputValue)
-        , refPolicyJtOutput(this, &refPolicyJtOutputValue) {
+        , refPolicyJtOutput(this, &refPolicyJtOutputValue)
+        , gripper(gripper) {
 
         makeModules();
 
@@ -98,15 +101,20 @@ class Follower : public barrett::systems::System {
   protected:
     typename Output<jt_type>::Value* jtOutputValue;
     typename Output<jp_type>::Value* theirJPOutputValue;
-    typename Output<jp_type>::Value* basePolicyJpOutputValue;
-    typename Output<jp_type>::Value* resPolicyJpOutputValue;
-    typename Output<jt_type>::Value* refPolicyJtOutputValue;
+    typename Output<jp_teleop_type>::Value* currentJpOutputValue;
+    typename Output<jp_teleop_type>::Value* basePolicyJpOutputValue;
+    typename Output<jp_teleop_type>::Value* resPolicyJpOutputValue;
+    typename Output<jt_teleop_type>::Value* refPolicyJtOutputValue;
 
     // All cross-thread / packet-bound state lives here and is passed around by
     // reference. See utils/data_packets.h.
     TeleopState<DOF> state;
 
     Config config;
+
+    // The WAM works in DOF; this holds the arm slice of the control torque.
+    jp_type their_arm_jp_;
+    jt_type wam_torque_;
 
     virtual void operate() {
         const uint64_t now_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(
@@ -117,7 +125,8 @@ class Follower : public barrett::systems::System {
         auto state_lock = state.lock();
         TeleopData<DOF>& st = *state_lock;
 
-        // always known vals
+        // WAM values are arm-wide; they land in the first DOF entries of the
+        // full 7-wide state. The follower has no wrist today, so the rest is zero.
         setLocalStateValue(wamJPIn, st.follower_jp);
         setLocalStateValue(wamJVIn, st.follower_jv);
         auto wam_tp = wamTPIn.getValue();
@@ -136,12 +145,14 @@ class Follower : public barrett::systems::System {
         ctx.cur_pos = &st.follower_jp;
 
         teleop_module_->receive(ctx, st);
-        theirJPOutputValue->setData(&st.leader_jp);
+        their_arm_jp_ = st.leader_jp.head(DOF);
+        theirJPOutputValue->setData(&their_arm_jp_);
         ctx.cancel_policy = (st.cancel_policy == 1.0);
 
         // set policy if p toggled
         policy_module_->receive(ctx, st);
 
+        currentJpOutputValue->setData(&st.follower_jp);
         basePolicyJpOutputValue->setData(&st.policyJp);
         resPolicyJpOutputValue->setData(&st.resPolicyJp);
         refPolicyJtOutputValue->setData(&st.refPolicyTorque);
@@ -159,10 +170,10 @@ class Follower : public barrett::systems::System {
 
         // this control will only be applied if the necessary module is loaded
         control = compute_control(ctx);
-        setLocalStateValue(control, st.control_torque);
+        st.control_torque = control;
 
-        applied_control = control;
-        jtOutputValue->setData(&applied_control);
+        wam_torque_ = control.head(DOF);
+        jtOutputValue->setData(&wam_torque_);
         setLocalStateValue(now_ns, st.timestamp);
 
         // send to leader then send to policy
@@ -173,13 +184,14 @@ class Follower : public barrett::systems::System {
         logging_module_->update(ctx);
     }
 
-    jt_type control;
-    jt_type applied_control;
+    jt_teleop_type control;
 
   private:
     DISALLOW_COPY_AND_ASSIGN(Follower);
 
     std::unique_ptr<GripperModule<DOF>> gripper_module_;
+
+    gripper::gecko::GeckoGripper* gripper;
 
     std::unique_ptr<TeleopModule<DOF, FollowerUDPHandler<DOF>>> teleop_module_;
     std::unique_ptr<PolicyModule<DOF>> policy_module_;
@@ -220,7 +232,7 @@ class Follower : public barrett::systems::System {
 
     // A module produces the control torque it wants; here we simply sum the
     // torques of every loaded module.
-    jt_type compute_control(const ControlContext<DOF>& ctx) {
+    jt_teleop_type compute_control(const ControlContext<DOF>& ctx) {
         return modules_.sumTorque(ctx);
     }
 };

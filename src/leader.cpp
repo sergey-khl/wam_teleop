@@ -11,6 +11,7 @@
 // This a version of 7dof-7dof control
 
 #include <iostream>
+#include <memory>
 #include <string>
 
 #include <boost/thread.hpp>
@@ -25,8 +26,9 @@
 #include <barrett/standard_main_function.h>
 
 #include <haptic_wrist/handle.h>
+#include <haptic_wrist/haptic_wrist.h>
 #include "lib/leader.h"
-#include "lib/dynamics/leader_dynamics_4dof.h"
+#include "lib/dynamics/leader_dynamics.h"
 #include "lib/dynamics/dynamic_external_torque.h"
 #include "lib/dynamics/leader_vertical_dynamics.h"
 #include "lib/policy/policy_torque.h"
@@ -62,48 +64,55 @@ int wam_main(int argc, char **argv, ProductManager &pm, systems::Wam<DOF> &wam) 
 
     const Config config = load_config(config_dir);
 
-    jp_type SYNC_POS; // the position each WAM should move to before linking
-    if (DOF == 7) {
-        for (int i = 0; i < 7; ++i) {
-            SYNC_POS[i] = config.leader.sync_pos[i];
-        }
-    } else {
-        printf("Error: 7 DOF supported\n");
+    jp_teleop_type SYNC_POS; // the position each WAM should move to before linking
+    if (DOF != 4 && DOF != 7) {
+        printf("Error: only 4 or 7 DOF supported\n");
         return false;
+    }
+    for (size_t i = 0; i < TELEOP_DOF; ++i) {
+        SYNC_POS[i] = config.leader.sync_pos[i];
     }
 
     haptic_wrist::Handle handle;
 
+    // A custom wrist is only mounted on the 4 DOF arm; the 7 DOF WAM has its own.
+    std::unique_ptr<haptic_wrist::HapticWrist> wrist;
+    if (DOF < 7) {
+        wrist.reset(new haptic_wrist::HapticWrist());
+        wrist->gravityCompensate(false);
+        wrist->run();
+    }
+
     barrett::systems::Summer<jt_type, 3> customjtSum;
     pm.getExecutionManager()->startManaging(customjtSum);
 
-    barrett::systems::PIDController<jp_type, jt_type> base_policy_controller;
-    apply_gains<DOF>(base_policy_controller, config.policy.base);
-    barrett::systems::PIDController<jp_type, jt_type> res_policy_controller;
-    apply_gains<DOF>(res_policy_controller, config.policy.res);
-    barrett::systems::PIDController<jt_type, jt_type> torque_policy_controller;
-    apply_gains<DOF>(torque_policy_controller, config.policy.torque);
+    barrett::systems::PIDController<jp_teleop_type, jt_teleop_type> base_policy_controller;
+    apply_gains<TELEOP_DOF>(base_policy_controller, config.policy.base);
+    barrett::systems::PIDController<jp_teleop_type, jt_teleop_type> res_policy_controller;
+    apply_gains<TELEOP_DOF>(res_policy_controller, config.policy.res);
+    barrett::systems::PIDController<jt_teleop_type, jt_teleop_type> torque_policy_controller;
+    apply_gains<TELEOP_DOF>(torque_policy_controller, config.policy.torque);
 
-    LeaderDynamics<DOF> leaderDynamics(pm.getExecutionManager());
+    LeaderDynamics<DOF> leaderDynamics(pm.getExecutionManager(), config.dynamics);
     DynamicExternalTorque<DOF> dynamicExternalTorque(pm.getExecutionManager());
     PolicyTorque<DOF> policyTorque(pm.getExecutionManager());
 
     LeaderDynamics<DOF>* horizontalGravity = nullptr;
     LeaderVerticalDynamics<DOF>* leaderVerticalDynamics = nullptr;
     if (config.leader.vertical) {
-        horizontalGravity = new LeaderDynamics<DOF>(pm.getExecutionManager());
+        horizontalGravity = new LeaderDynamics<DOF>(pm.getExecutionManager(), config.dynamics);
         leaderVerticalDynamics = new LeaderVerticalDynamics<DOF>(pm.getExecutionManager());
     }
 
     // filters
-    barrett::systems::FirstOrderFilter<jt_type> extFilter;
-    jt_type omega_p(80.0);
+    barrett::systems::FirstOrderFilter<jt_teleop_type> extFilter;
+    jt_teleop_type omega_p(80.0);
     extFilter.setLowPass(omega_p);
     pm.getExecutionManager()->startManaging(extFilter);
 
-    jp_type jp;
+    jp_teleop_type jp;
     jp.setConstant(0.0);
-    systems::Constant<jp_type> zeroPosition(jp);
+    systems::Constant<jp_teleop_type> zeroPosition(jp);
     pm.getExecutionManager()->startManaging(zeroPosition);
 
     jv_type jv; jv.setConstant(0.0);
@@ -114,7 +123,7 @@ int wam_main(int argc, char **argv, ProductManager &pm, systems::Wam<DOF> &wam) 
     systems::Constant<ja_type> zeroAcceleration(ja);
     pm.getExecutionManager()->startManaging(zeroAcceleration);
 
-    Leader<DOF> leader(pm.getExecutionManager(), &handle, config);
+    Leader<DOF> leader(pm.getExecutionManager(), &handle, wrist.get(), config);
 
     systems::PrintToStream<jt_type> printTOQ(pm.getExecutionManager(), "TOQ: ");
 
@@ -190,7 +199,7 @@ int wam_main(int argc, char **argv, ProductManager &pm, systems::Wam<DOF> &wam) 
 
     // policy impedance control
     systems::connect(leader.basePolicyJpOutput, base_policy_controller.referenceInput);
-    systems::connect(wam.jpOutput, base_policy_controller.feedbackInput);
+    systems::connect(leader.currentJpOutput, base_policy_controller.feedbackInput);
     systems::connect(leader.resPolicyJpOutput, res_policy_controller.referenceInput);
     systems::connect(zeroPosition.output, res_policy_controller.feedbackInput);
     systems::connect(leader.refPolicyJtOutput, torque_policy_controller.referenceInput);
@@ -215,14 +224,15 @@ int wam_main(int argc, char **argv, ProductManager &pm, systems::Wam<DOF> &wam) 
                 printf("Unlinked.\n");
             } else {
                 // Sync both arm and wrist before link
-                wam.moveTo(SYNC_POS, true);
+                wam.moveTo(jp_type(SYNC_POS.head(DOF)), true);
+                leader.syncWrist(SYNC_POS);
 
                 printf("Press [Enter] to link with the other WAM.\n");
                 waitForEnter();
 
                 // Only link when both arms are (nearly) at the same position.
                 const jp_type our_jp = wam.getJointPositions();
-                if (!leader.teleop().theirIsNear(our_jp, config.link_tolerance)) {
+                if (!leader.teleop().theirIsNear(config.link_tolerance)) {
                     std::cout << "WARNING: their WAM is not near ours; refusing to link.\n"
                               << "         ours:      [" << our_jp.transpose() << "]\n"
                               << "         tolerance: " << config.link_tolerance << " rad\n";
@@ -307,6 +317,10 @@ int wam_main(int argc, char **argv, ProductManager &pm, systems::Wam<DOF> &wam) 
             printf("    'x' to exit\n");
             break;
         }
+    }
+
+    if (wrist) {
+        wrist->stop();
     }
 
     pm.getSafetyModule()->waitForMode(SafetyModule::IDLE);

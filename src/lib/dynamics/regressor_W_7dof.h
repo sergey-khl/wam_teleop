@@ -9,9 +9,14 @@
 //
 
 // Include files
+#ifndef REGRESSOR_W_7DOF_H_
+#define REGRESSOR_W_7DOF_H_
+
 #include <eigen3/Eigen/Dense>
 #include <array>
 #include <cmath>
+
+namespace dynamics7 {
 
 // Function Definitions
 void calculate_W(const double q[7], const double dq[7],
@@ -1735,4 +1740,7 @@ Eigen::MatrixXd calculate_W_eigen(const Eigen::VectorXd& q,
     return W;
 }
 
+}  // namespace dynamics7
+
 // End of code generation (regressor_W.h)
+#endif /* REGRESSOR_W_7DOF_H_ */

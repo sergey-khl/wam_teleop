@@ -1,8 +1,10 @@
 // Estimated Pvector, gravity included.
-#ifndef LEADER_BETA_VECTOR_H_
-#define LEADER_BETA_VECTOR_H_
+#ifndef ZEUS_BWRIST_7DOF_H_
+#define ZEUS_BWRIST_7DOF_H_
 
 #include <eigen3/Eigen/Dense>
+
+namespace dynamics7 {
 
 // coulomb: 3, 12. 21. 30. 39, 48, 57
 // if leader_beta on line 11, then 0 out: 14, 23, 32, 41, 50, 59, 68
@@ -69,5 +71,7 @@ Eigen::Matrix<double, 57, 1> initialize_leader_beta() {
 
     return leader_beta;
 }
+
+}  // namespace dynamics7
 
 #endif

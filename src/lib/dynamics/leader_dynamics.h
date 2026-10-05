@@ -1,0 +1,89 @@
+// Arm inverse-dynamics feed-forward. The beta vector and regressor are chosen
+// from the dynamics config, whose DOF is independent of the arm DOF (a 4 DOF
+// model on a 7 DOF arm zero pads the extra joints).
+
+#pragma once
+#ifndef LEADER_DYNAMICS_H_
+#define LEADER_DYNAMICS_H_
+
+#include <algorithm>
+#include <iostream>
+#include <string>
+
+#include <eigen3/Eigen/Dense>
+#include <barrett/detail/ca_macro.h>
+#include <barrett/units.h>
+#include <barrett/systems.h>
+#include <barrett/math/kinematics.h>
+
+#include "../utils/dynamics_config_loader.h"
+#include "regressor_W_4dof.h"
+#include "regressor_W_7dof.h"
+#include "leader_beta/zeus_bwrist_4dof.h"
+#include "leader_beta/zeus_bwrist_7dof.h"
+
+template <size_t DOF>
+class LeaderDynamics : public barrett::systems::System {
+    BARRETT_UNITS_TEMPLATE_TYPEDEFS(DOF);
+
+  public:
+    Input<jp_type> jpInputDynamics;
+    Input<jv_type> jvInputDynamics;
+    Input<ja_type> jaInputDynamics;
+    Output<jt_type> dynamicsFeedFWD;
+
+    explicit LeaderDynamics(barrett::systems::ExecutionManager* em, const DynamicsConfig& config)
+        : jpInputDynamics(this)
+        , jvInputDynamics(this)
+        , jaInputDynamics(this)
+        , dynamicsFeedFWD(this, &dynamicsFeedFWDValue)
+        , model_dof_(config.dof)
+        , beta_name_(config.leader_beta) {
+        (void)em;
+        if (config.dof != 4 && config.dof != 7) {
+            std::cerr << "WARNING: dynamics.dof must be 4 or 7, using 4" << std::endl;
+        }
+    }
+
+    virtual ~LeaderDynamics() {
+        this->mandatoryCleanUp();
+    }
+
+  protected:
+    typename Output<jt_type>::Value* dynamicsFeedFWDValue;
+    size_t model_dof_;
+    std::string beta_name_;
+    jt_type dynFeedFWD;
+
+    virtual void operate() {
+        const Eigen::VectorXd q = this->jpInputDynamics.getValue().head(model_dof_);
+        const Eigen::VectorXd dq = this->jvInputDynamics.getValue().head(model_dof_);
+        Eigen::VectorXd ddq = this->jaInputDynamics.getValue().head(model_dof_);
+
+        Eigen::VectorXd feed_fwd;
+        if (model_dof_ == 7) {
+            ddq *= 0.14;
+            feed_fwd = dynamics7::calculate_W_eigen(q, dq, ddq) * beta7(beta_name_);
+        } else {
+            ddq *= 0.25;
+            feed_fwd = dynamics4::calculate_W_eigen(q, dq, ddq) * beta4(beta_name_);
+        }
+
+        dynFeedFWD.setZero();
+        dynFeedFWD.head(model_dof_) = feed_fwd;
+        this->dynamicsFeedFWDValue->setData(&dynFeedFWD);
+    }
+
+  private:
+    static Eigen::VectorXd beta4(const std::string& name) {
+        return dynamics4::initialize_leader_beta();
+    }
+
+    static Eigen::VectorXd beta7(const std::string& name) {
+        return dynamics7::initialize_leader_beta();
+    }
+
+    DISALLOW_COPY_AND_ASSIGN(LeaderDynamics);
+};
+
+#endif /* LEADER_DYNAMICS_H_ */

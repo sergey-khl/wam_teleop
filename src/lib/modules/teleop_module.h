@@ -31,12 +31,13 @@ class TeleopModule : public Module<DOF> {
     void unlink() { this->unload(); }
 
     // both robots must be within radian tolerance when linking
-    bool theirIsNear(const jp_type& our_jp, double tolerance) {
+    bool theirIsNear(double tolerance) {
         if (!have_their_ || state_ == nullptr) return false;
-        const jp_type their_jp = state_->with_lock([this](TeleopData<DOF>& st) {
-            return (role_ == ModuleRole::Leader) ? st.follower_jp : st.leader_jp;
+        return state_->with_lock([this, tolerance](TeleopData<DOF>& st) {
+            const jp_teleop_type& ours = (role_ == ModuleRole::Leader) ? st.leader_jp : st.follower_jp;
+            const jp_teleop_type& theirs = (role_ == ModuleRole::Leader) ? st.follower_jp : st.leader_jp;
+            return (ours - theirs).cwiseAbs().maxCoeff() <= tolerance;
         });
-        return (our_jp - their_jp).cwiseAbs().maxCoeff() <= tolerance;
     }
 
     void receive(ControlContext<DOF>& ctx, TeleopData<DOF>& st) override {
@@ -62,17 +63,17 @@ class TeleopModule : public Module<DOF> {
             setLocalStateValue(st.leader_jv, st.follower_jv);
             setLocalStateValue(st.leader_cart_pos, st.follower_cart_pos);
             setLocalStateValue(st.leader_quat, st.follower_quat);
-            setLocalStateValue(jt_type::Zero(), st.follower_dyngravcomp_torque);
-            setLocalStateValue(jt_type::Zero(), st.environment_torque);
-            setLocalStateValue(jt_type::Zero(), st.filtered_environment_torque);
+            setLocalStateValue(jt_teleop_type::Zero(), st.follower_dyngravcomp_torque);
+            setLocalStateValue(jt_teleop_type::Zero(), st.environment_torque);
+            setLocalStateValue(jt_teleop_type::Zero(), st.filtered_environment_torque);
         } else {
             setLocalStateValue(st.follower_jp, st.leader_jp);
             setLocalStateValue(st.follower_jv, st.leader_jv);
             setLocalStateValue(st.follower_cart_pos, st.leader_cart_pos);
             setLocalStateValue(st.follower_quat, st.leader_quat);
-            setLocalStateValue(jt_type::Zero(), st.leader_dyngravcomp_torque);
-            setLocalStateValue(jt_type::Zero(), st.human_torque);
-            setLocalStateValue(jt_type::Zero(), st.filtered_human_torque);
+            setLocalStateValue(jt_teleop_type::Zero(), st.leader_dyngravcomp_torque);
+            setLocalStateValue(jt_teleop_type::Zero(), st.human_torque);
+            setLocalStateValue(jt_teleop_type::Zero(), st.filtered_human_torque);
         }
 
         have_their_ = false;
@@ -101,7 +102,7 @@ class TeleopModule : public Module<DOF> {
     // NOTE: the follower does the exact opposite of the leader.
     void mirrorAndOffset(TeleopData<DOF>& st) {
         if (role_ == ModuleRole::Leader) {
-            for (size_t i = 0; i < DOF; ++i) {
+            for (size_t i = 0; i < TELEOP_DOF; ++i) {
                 st.follower_jp[i] = (st.follower_jp[i] - config_.sync_mapping.offsets[i]) / config_.sync_mapping.scales[i];
                 st.follower_jv[i] = st.follower_jv[i] / config_.sync_mapping.scales[i];
                 st.follower_dyngravcomp_torque[i] = st.follower_dyngravcomp_torque[i] / config_.sync_mapping.scales[i];
@@ -109,7 +110,7 @@ class TeleopModule : public Module<DOF> {
                 st.filtered_environment_torque[i] = st.filtered_environment_torque[i] / config_.sync_mapping.scales[i];
             }
         } else {
-            for (size_t i = 0; i < DOF; ++i) {
+            for (size_t i = 0; i < TELEOP_DOF; ++i) {
                 st.leader_jp[i] = st.leader_jp[i] * config_.sync_mapping.scales[i] + config_.sync_mapping.offsets[i];
                 st.leader_jv[i] = st.leader_jv[i] * config_.sync_mapping.scales[i];
                 st.leader_dyngravcomp_torque[i] = st.leader_dyngravcomp_torque[i] * config_.sync_mapping.scales[i];

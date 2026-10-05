@@ -23,6 +23,7 @@
 #include "modules/dynamics_module.h"
 #include "modules/logging_module.h"
 #include "modules/handle_module.h"
+#include "modules/wrist_module.h"
 
 template <size_t DOF>
 class Leader : public barrett::systems::System {
@@ -32,30 +33,32 @@ class Leader : public barrett::systems::System {
     Input<jp_type> wamJPIn;
     Input<jv_type> wamJVIn;
     Input<boost::tuple<cp_type, Eigen::Quaterniond>> wamTPIn;
-    Input<jt_type> dyngravcompTorqueIn;   // may be undefined
+    Input<jt_teleop_type> dyngravcompTorqueIn; // may be undefined
     Input<jt_type> wamGravIn;
     Input<jt_type> wamDynIn;
-    Input<jt_type> basePolicyJtIn;
-    Input<jt_type> resPolicyJtIn;
-    Input<jt_type> refTorquePolicyJtIn;
-    Input<jt_type> policyTorqueScaleIn;
-    Input<jt_type> humanTorqueIn;
-    Input<jt_type> filteredHumanTorqueIn;
+    Input<jt_teleop_type> basePolicyJtIn;
+    Input<jt_teleop_type> resPolicyJtIn;
+    Input<jt_teleop_type> refTorquePolicyJtIn;
+    Input<jt_teleop_type> policyTorqueScaleIn;
+    Input<jt_teleop_type> humanTorqueIn;
+    Input<jt_teleop_type> filteredHumanTorqueIn;
 
-    Output<jt_type> wamJTOutput;      // control torque command for the WAM arm (DOF)
-    Output<jp_type> theirJPOutput;    // their arm JP (DOF) for logging/monitoring
-    Output<jp_type> basePolicyJpOutput;
-    Output<jp_type> resPolicyJpOutput;
-    Output<jt_type> refPolicyJtOutput;
-    Output<jt_type> filteredEnvironmentTorqueOutput;
+    Output<jt_type> wamJTOutput;     // control torque command for the WAM arm (DOF)
+    Output<jp_type> theirJPOutput;   // their arm JP (DOF) for logging/monitoring
+    Output<jp_teleop_type> currentJpOutput;
+    Output<jp_teleop_type> basePolicyJpOutput;
+    Output<jp_teleop_type> resPolicyJpOutput;
+    Output<jt_teleop_type> refPolicyJtOutput;
+    Output<jt_teleop_type> filteredEnvironmentTorqueOutput;
 
     explicit Leader(barrett::systems::ExecutionManager* em, haptic_wrist::Handle* handle,
+                haptic_wrist::HapticWrist* wrist,
                 const Config& config,
                 const std::string& sysName = "Leader")
         : System(sysName)
         , config(config)
-        , control(0.0)
-        , applied_control(0.0)
+        , control(jt_teleop_type::Zero())
+        , wam_torque_(jt_type::Zero())
         , wamJPIn(this)
         , wamJVIn(this)
         , wamTPIn(this)
@@ -70,10 +73,13 @@ class Leader : public barrett::systems::System {
         , filteredHumanTorqueIn(this)
         , wamJTOutput(this, &jtOutputValue)
         , theirJPOutput(this, &theirJPOutputValue)
+        , currentJpOutput(this, &currentJpOutputValue)
         , basePolicyJpOutput(this, &basePolicyJpOutputValue)
         , resPolicyJpOutput(this, &resPolicyJpOutputValue)
         , refPolicyJtOutput(this, &refPolicyJtOutputValue)
-        , filteredEnvironmentTorqueOutput(this, &filteredEnvironmentTorqueOutputValue) {
+        , filteredEnvironmentTorqueOutput(this, &filteredEnvironmentTorqueOutputValue)
+        , handle(handle)
+        , wrist(wrist) {
 
         makeModules();
 
@@ -84,6 +90,7 @@ class Leader : public barrett::systems::System {
 
     virtual ~Leader() {
         handle_module_->stop();
+        if (wrist_module_) wrist_module_->stop();
         this->mandatoryCleanUp();
     }
 
@@ -100,13 +107,19 @@ class Leader : public barrett::systems::System {
     bool dynamicsLoaded() const { return dynamics_module_ && dynamics_module_->isLoaded(); }
     bool loggingLoaded() const { return logging_module_ && logging_module_->isLoaded(); }
 
+    bool hasWrist() const { return wrist_module_ != nullptr; }
+    void syncWrist(const jp_teleop_type& sync_pos) {
+        if (wrist_module_) wrist_module_->sync(sync_pos);
+    }
+
   protected:
     typename Output<jt_type>::Value* jtOutputValue;
     typename Output<jp_type>::Value* theirJPOutputValue;
-    typename Output<jp_type>::Value* basePolicyJpOutputValue;
-    typename Output<jp_type>::Value* resPolicyJpOutputValue;
-    typename Output<jt_type>::Value* refPolicyJtOutputValue;
-    typename Output<jt_type>::Value* filteredEnvironmentTorqueOutputValue;
+    typename Output<jp_teleop_type>::Value* currentJpOutputValue;
+    typename Output<jp_teleop_type>::Value* basePolicyJpOutputValue;
+    typename Output<jp_teleop_type>::Value* resPolicyJpOutputValue;
+    typename Output<jt_teleop_type>::Value* refPolicyJtOutputValue;
+    typename Output<jt_teleop_type>::Value* filteredEnvironmentTorqueOutputValue;
 
     Config config;
 
@@ -114,7 +127,9 @@ class Leader : public barrett::systems::System {
     // reference. See utils/data_packets.h.
     TeleopState<DOF> state;
 
-    jt_type humanTorque;
+    // The WAM works in DOF; this holds the arm slice of the control torque.
+    jp_type their_arm_jp_;
+    jt_type wam_torque_;
 
     virtual void operate() {
         const uint64_t now_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(
@@ -126,7 +141,8 @@ class Leader : public barrett::systems::System {
         auto state_lock = state.lock();
         TeleopData<DOF>& st = *state_lock;
 
-        // always known vals
+        // WAM values are arm-wide; they land in the first DOF entries of the
+        // full 7-wide state. The wrist fills the rest (see WristModule).
         setLocalStateValue(wamJPIn, st.leader_jp);
         setLocalStateValue(wamJVIn, st.leader_jv);
         auto wam_tp = wamTPIn.getValue();
@@ -139,18 +155,25 @@ class Leader : public barrett::systems::System {
         ControlContext<DOF> ctx;
         ctx.st = &st;
         ctx.ref_ext_torque = &st.environment_torque;
-        ctx.cur_ext_torque = &humanTorque;
+        ctx.cur_ext_torque = &st.human_torque;
         ctx.cur_dyn = &st.wam_dyn;
         ctx.cur_grav = &st.wam_grav;
         ctx.cur_pos = &st.leader_jp;
         ctx.cancel_policy = (st.cancel_policy == 1.0);
 
         teleop_module_->receive(ctx, st);
-        theirJPOutputValue->setData(&st.follower_jp);
+        their_arm_jp_ = st.follower_jp.head(DOF);
+        theirJPOutputValue->setData(&their_arm_jp_);
+
+        // the wrist only tracks the peer while teleop is linked
+        if (wrist_module_ && teleop_module_->isLinked()) {
+            wrist_module_->follow(st.follower_jp);
+        }
 
         // set policy if p toggled
         policy_module_->receive(ctx, st);
 
+        currentJpOutputValue->setData(&st.leader_jp);
         basePolicyJpOutputValue->setData(&st.policyJp);
         resPolicyJpOutputValue->setData(&st.resPolicyJp);
         filteredEnvironmentTorqueOutputValue->setData(&st.filtered_environment_torque);
@@ -160,8 +183,7 @@ class Leader : public barrett::systems::System {
         // also cant put this before the policy read. TODO: see why
         setLocalStateValue(dyngravcompTorqueIn, st.leader_dyngravcomp_torque);
         setLocalStateValue(filteredHumanTorqueIn, st.filtered_human_torque);
-        setLocalStateValue(humanTorqueIn, humanTorque);
-        setLocalStateValue(humanTorque, st.human_torque);
+        setLocalStateValue(humanTorqueIn, st.human_torque);
 
         // impedance results
         setLocalStateValue(basePolicyJtIn, st.policyJt);
@@ -173,10 +195,10 @@ class Leader : public barrett::systems::System {
 
         // this control will only be applied if the necessary module is loaded
         control = compute_control(ctx);
-        setLocalStateValue(control, st.control_torque);
+        st.control_torque = control;
 
-        applied_control = control;
-        jtOutputValue->setData(&applied_control);
+        wam_torque_ = control.head(DOF);
+        jtOutputValue->setData(&wam_torque_);
         setLocalStateValue(now_ns, st.timestamp);
 
         // Packet contents are driven by `data_routing` in the config.
@@ -188,13 +210,16 @@ class Leader : public barrett::systems::System {
     }
 
     // Internal
-    jt_type control;
-    jt_type applied_control;
+    jt_teleop_type control;
 
   private:
     DISALLOW_COPY_AND_ASSIGN(Leader);
 
     std::unique_ptr<HandleModule<DOF>> handle_module_;
+    std::unique_ptr<WristModule<DOF>> wrist_module_;
+
+    haptic_wrist::Handle* handle;
+    haptic_wrist::HapticWrist* wrist;
 
     std::unique_ptr<TeleopModule<DOF, LeaderUDPHandler<DOF>>> teleop_module_;
     std::unique_ptr<PolicyModule<DOF>> policy_module_;
@@ -231,10 +256,14 @@ class Leader : public barrett::systems::System {
 
         // always start
         handle_module_->start();
+        if (wrist != nullptr) {
+            wrist_module_.reset(new WristModule<DOF>(wrist, &state));
+            wrist_module_->start();
+        }
     }
 
     // only loaded modules will add to the torque (policy, dynamics)
-    jt_type compute_control(const ControlContext<DOF>& ctx) {
+    jt_teleop_type compute_control(const ControlContext<DOF>& ctx) {
         return modules_.sumTorque(ctx);
     }
 };

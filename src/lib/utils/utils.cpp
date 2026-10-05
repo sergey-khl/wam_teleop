@@ -18,7 +18,7 @@ void print_leader_banner(const Config& config) {
     printf("  LEADER \n");
     printf("========================================\n");
     printf("  Sync pos      : [");
-    for (int i = 0; i < 7; ++i)
+    for (size_t i = 0; i < sync_pos.size(); ++i)
         printf("%s%.4f", i ? ", " : "", sync_pos[i]);
     printf("]\n");
     printf("  Vertical      : %s\n",   vertical ? "yes" : "no");
@@ -41,7 +41,7 @@ void print_follower_banner(const Config& config) {
     printf("  FOLLOWER \n");
     printf("========================================\n");
     printf("  Sync pos      : [");
-    for (int i = 0; i < 7; ++i)
+    for (size_t i = 0; i < sync_pos.size(); ++i)
         printf("%s%.4f", i ? ", " : "", sync_pos[i]);
     printf("]\n");
     printf("  Vertical      : %s\n",   vertical ? "yes" : "no");
@@ -100,28 +100,3 @@ std::string get_teleop_config_directory() {
     std::cerr << "No valid configuration directory found.\n";
     return "";
 }
-
-template <size_t DOF, typename Controller>
-void apply_gains(Controller& controller, const PolicyGains& gains) {
-    typename Controller::unitless_type kp, ki, kd, int_limit, cs_limit;
-    
-    for (int i = 0; i < DOF; ++i) {
-        kp[i] = gains.kp[i];
-        ki[i] = gains.ki[i];
-        kd[i] = gains.kd[i];
-        int_limit[i] = gains.integrator_limit[i];
-        cs_limit[i] = gains.control_signal_limit[i];
-    }
-    
-    controller.setKp(kp);
-    controller.setKi(ki);
-    controller.setKd(kd);
-    controller.setIntegratorLimit(int_limit);
-    controller.setControlSignalLimit(cs_limit);
-}
-
-BARRETT_UNITS_TEMPLATE_TYPEDEFS(7);
-template void apply_gains<7, systems::PIDController<jp_type, jt_type>>(
-    systems::PIDController<jp_type, jt_type>&, const PolicyGains&);
-template void apply_gains<7, systems::PIDController<jt_type, jt_type>>(
-    systems::PIDController<jt_type, jt_type>&, const PolicyGains&);
