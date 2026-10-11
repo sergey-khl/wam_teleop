@@ -13,7 +13,7 @@ class DynamicsModule : public Module<DOF> {
 
   public:
     explicit DynamicsModule(const Config& config) : config_(config) {
-        law_ = parseLaw(config_.dynamics.law);
+        law_ = config_.dynamics.law;
     }
 
     char key() const override { return 'd'; }
@@ -33,26 +33,18 @@ class DynamicsModule : public Module<DOF> {
 
         jt_type u = jt_type::Zero();
 
-        if (law_ == "u1") {
+        if (law_ == "u1") { // zero feedforward
             u = 0.0 * cur;
-        } else if (law_ == "u2") {
+        } else if (law_ == "u2") { // P-P with dynamic compensation
             u = dyn - grav;
-        } else if (law_ == "u3") {
+        } else if (law_ == "u3") {  // PF-PF with ref external torque feedback
             u = -0.5 * ref;
-        } else if (law_ == "u4") {
+        } else if (law_ == "u4") { // PF-PF with ref external torque feedback and dynamic compensation (Lawrence's perfect transparency architecture);
             u = -0.5 * ref + dyn - grav;
-        } else if (law_ == "u5") {
+        } else if (law_ == "u5") { // PF-PF with ref external torque and cur external torque feedback
             u = -0.5 * ref - 0.15 * (ref + cur);
-        } else if (law_ == "u6") {
+        } else if (law_ == "u6") { // best performance
             u = -0.1 * ref - 0.03 * (ref + cur) + dyn - grav;
-        } else if (law_ == "u7") {
-            u = -0.0 * cur;
-        } else if (law_ == "u8") {
-            u = -0.0 * (ref + cur);
-        } else if (law_ == "u9") {
-            u = -0.5 * ref;
-        } else if (law_ == "u10") {
-            u = -0.5 * ref;
         } else {
             // default / fallback: 0
             std::cerr << "WARNING: invalid control law." << std::endl;
@@ -71,19 +63,6 @@ class DynamicsModule : public Module<DOF> {
     }
 
   private:
-    static const char* parseLaw(const std::string& law) {
-        static const char* kLaws[] = {"u1", "u2", "u3", "u4", "u5", "u6", "u7", "u8", "u9", "u10"};
-        for (const char* candidate : kLaws) {
-            if (law == candidate) return candidate;
-        }
-        // also accept the bare number ("2")
-        for (int i = 1; i <= 10; ++i) {
-            if (law == std::to_string(i)) return kLaws[i - 1];
-        }
-        std::cerr << "WARNING: unknown dynamics.law '" << law << "'; defaulting to 0 output" << std::endl;
-        return kLaws[0];
-    }
-
     Config config_;
     const char* law_ = "u1";
 };

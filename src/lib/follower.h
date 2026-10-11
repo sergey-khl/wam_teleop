@@ -112,7 +112,7 @@ class Follower : public barrett::systems::System {
 
     Config config;
 
-    // The WAM works in DOF; this holds the arm slice of the control torque.
+    // control for the barrett part of the arm
     jp_type their_arm_jp_;
     jt_type wam_torque_;
 
@@ -125,8 +125,7 @@ class Follower : public barrett::systems::System {
         auto state_lock = state.lock();
         TeleopData<DOF>& st = *state_lock;
 
-        // WAM values are arm-wide; they land in the first DOF entries of the
-        // full 7-wide state. The follower has no wrist today, so the rest is zero.
+        // set values we always know
         setLocalStateValue(wamJPIn, st.follower_jp);
         setLocalStateValue(wamJVIn, st.follower_jv);
         auto wam_tp = wamTPIn.getValue();

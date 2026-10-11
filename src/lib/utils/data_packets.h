@@ -16,7 +16,7 @@
 #include <barrett/units.h>
 
 // The shared state always carries all 7 joints. The arm occupies the first DOF
-// entries; whatever is left (TELEOP_DOF - DOF) belongs to the wrist.
+// entries; whatever is left (TELEOP_DOF - DOF) belongs to the custom wrist.
 constexpr size_t TELEOP_DOF = 7;
 
 using jp_teleop_type = barrett::units::JointPositions<TELEOP_DOF>::type;
@@ -153,8 +153,6 @@ bool formatField(std::ostream& os, const TeleopData<DOF>& d, const std::string& 
     switch (ref.type) {
     case FieldType::Vector7: {
         const double* v = static_cast<const double*>(ref.ptr);
-        // barrett unit types carry a gsl struct after the coefficients, so the
-        // joint count is TELEOP_DOF, not ref.bytes / sizeof(double).
         size_t n = ref.bytes / sizeof(double);
         if (n > TELEOP_DOF) n = TELEOP_DOF;
         os << "[";
@@ -213,7 +211,7 @@ bool encode(const std::vector<std::string>& names, const Data& data, std::vector
     for (const std::string& name : names) {
         const ConstFieldRef ref = field(data, name);
         if (ref.ptr == nullptr) return false;
-        // copy local state into output to be sent over udp
+        // copy local state into out to be sent over udp
         const size_t offset = out.size();
         out.resize(offset + ref.bytes);
         std::memcpy(out.data() + offset, ref.ptr, ref.bytes);
@@ -229,7 +227,7 @@ bool decode(const std::vector<std::string>& names, const uint8_t* bytes, size_t 
         const FieldRef ref = field(data, name);
         if (ref.ptr == nullptr) return false;
         if (offset + ref.bytes > length) return false;
-        // copy a local state field into data as output
+        // copy data into local state
         std::memcpy(ref.ptr, bytes + offset, ref.bytes);
         offset += ref.bytes;
     }

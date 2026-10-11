@@ -34,15 +34,11 @@ class TeleopModule : public Module<DOF> {
     bool theirIsNear(double tolerance) {
         if (!have_their_ || state_ == nullptr) return false;
         return state_->with_lock([this, tolerance](TeleopData<DOF>& st) {
-            const jp_teleop_type& ours = (role_ == ModuleRole::Leader) ? st.leader_jp : st.follower_jp;
-            const jp_teleop_type& theirs = (role_ == ModuleRole::Leader) ? st.follower_jp : st.leader_jp;
-            return (ours - theirs).cwiseAbs().maxCoeff() <= tolerance;
+            return (st.leader_jp - st.follower_jp).cwiseAbs().maxCoeff() <= tolerance;
         });
     }
 
     void receive(ControlContext<DOF>& ctx, TeleopData<DOF>& st) override {
-        (void)ctx;
-
         const uint64_t now_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(
                                     std::chrono::steady_clock::now().time_since_epoch())
                                     .count();

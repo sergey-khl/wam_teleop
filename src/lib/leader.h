@@ -44,7 +44,7 @@ class Leader : public barrett::systems::System {
     Input<jt_teleop_type> filteredHumanTorqueIn;
 
     Output<jt_type> wamJTOutput;     // control torque command for the WAM arm (DOF)
-    Output<jp_type> theirJPOutput;   // their arm JP (DOF) for logging/monitoring
+    Output<jp_type> theirJPOutput;   // their arm to follow
     Output<jp_teleop_type> currentJpOutput;
     Output<jp_teleop_type> basePolicyJpOutput;
     Output<jp_teleop_type> resPolicyJpOutput;
@@ -127,7 +127,7 @@ class Leader : public barrett::systems::System {
     // reference. See utils/data_packets.h.
     TeleopState<DOF> state;
 
-    // The WAM works in DOF; this holds the arm slice of the control torque.
+    // control for the barrett part of the arm
     jp_type their_arm_jp_;
     jt_type wam_torque_;
 
@@ -141,8 +141,7 @@ class Leader : public barrett::systems::System {
         auto state_lock = state.lock();
         TeleopData<DOF>& st = *state_lock;
 
-        // WAM values are arm-wide; they land in the first DOF entries of the
-        // full 7-wide state. The wrist fills the rest (see WristModule).
+        // set values we always know
         setLocalStateValue(wamJPIn, st.leader_jp);
         setLocalStateValue(wamJVIn, st.leader_jv);
         auto wam_tp = wamTPIn.getValue();
@@ -170,7 +169,6 @@ class Leader : public barrett::systems::System {
             wrist_module_->follow(st.follower_jp);
         }
 
-        // set policy if p toggled
         policy_module_->receive(ctx, st);
 
         currentJpOutputValue->setData(&st.leader_jp);

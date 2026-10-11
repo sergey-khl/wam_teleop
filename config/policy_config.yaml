@@ -25,8 +25,11 @@ data_routing:
 
 policy:
   type: "base" # one of base, cr or dg
+  
+  # only one of these should be true. kinda broken right now since torque scale only determined by leader rn
   on_leader: true
   on_follower: false
+
   # load the module on startup instead of waiting for the 'p' toggle
   auto_load: false
 
