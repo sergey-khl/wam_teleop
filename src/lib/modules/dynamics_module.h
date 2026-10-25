@@ -20,7 +20,7 @@ class DynamicsModule : public Module<DOF> {
     const char* name() const override { return "dynamics"; }
     bool producesTorque() const override { return true; }
 
-    const char* law() const { return law_; }
+    std::string law() const { return law_; }
 
     void onLoad() override { std::cout << "dynamics module loaded (" << law_ << ")" << std::endl; }
     void onUnload() override { std::cout << "dynamics module unloaded" << std::endl; }
@@ -64,5 +64,5 @@ class DynamicsModule : public Module<DOF> {
 
   private:
     Config config_;
-    const char* law_ = "u1";
+    std::string law_ = "u1";
 };

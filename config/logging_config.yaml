@@ -1,16 +1,18 @@
 # print these state variables
 every_n_loops: 250
 # load the module on startup instead of waiting for the 'g' toggle
-auto_load: false
+auto_load: true
 
 # Printed on the leader node.
-leader: [leader_jp, leader_jv, human_torque, filtered_human_torque,
+leader: [leader_jp, leader_jv, follower_jp, follower_jv, human_torque, filtered_human_torque,
+         filtered_environment_torque,
          policyTorqueScale, policyJp, policyJt, resPolicyJp, resPolicyJt,
          refPolicyTorque, refTorquePolicyJt,
          control_torque, wam_dyn, wam_grav, timestamp]
 
 # Printed on the follower node.
-follower: [follower_jp, follower_jv, environment_torque, filtered_environment_torque,
+follower: [leader_jp, leader_jv, follower_jp, follower_jv, environment_torque, filtered_environment_torque,
+           filtered_human_torque,
            policyTorqueScale, policyJp, policyJt, resPolicyJp, resPolicyJt,
            refPolicyTorque, refTorquePolicyJt,
            gripper_pos, gripper_vel, gripper_torque,
