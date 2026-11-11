@@ -212,6 +212,10 @@ template <size_t DOF> int wam_main(int argc, char **argv, ProductManager &pm, sy
 
     wam.gravityCompensate();
 
+    // NOTE: avoid connecting multiple signals to wam.input because it causes free motion to be worse. even if the signal is 0
+    connect(follower.wamJTOutput, wam.input);
+
+
     std::string line;
     v_type gainTmp;
 
@@ -244,7 +248,6 @@ template <size_t DOF> int wam_main(int argc, char **argv, ProductManager &pm, sy
 
                 follower.tryLink();
                 wam.trackReferenceSignal(follower.theirJPOutput);
-                systems::connect(follower.wamJTOutput, wam.input); // careful with this. can be in both link and in inference
 
                 btsleep(0.1); // wait an execution cycle or two
                 if (follower.isLinked()) {

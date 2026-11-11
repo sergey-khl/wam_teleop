@@ -208,6 +208,10 @@ int wam_main(int argc, char **argv, ProductManager &pm, systems::Wam<DOF> &wam) 
 
     wam.gravityCompensate();
 
+    // NOTE: avoid connecting multiple signals to wam.input because it causes free motion to be worse. even if the signal is 0
+    connect(leader.wamJTOutput, wam.input);
+
+
     std::string line;
     v_type gainTmp;
     bool going = true;
@@ -241,8 +245,6 @@ int wam_main(int argc, char **argv, ProductManager &pm, systems::Wam<DOF> &wam) 
 
                 leader.tryLink();
                 wam.trackReferenceSignal(leader.theirJPOutput);
-                // NOTE: avoid connecting multiple signals to wam.input because it causes free motion to be worse. even if the signal is 0
-                connect(leader.wamJTOutput, wam.input);
 
                 btsleep(0.1); // wait an execution cycle or two
                 if (leader.isLinked()) {
