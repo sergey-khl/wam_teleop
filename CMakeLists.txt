@@ -71,6 +71,10 @@ target_link_libraries(follower ${BARRETT_LIBRARIES} ${catkin_LIBRARIES} gripper:
 # target_link_options(follower PRIVATE -fsanitize=address)
 add_dependencies(follower ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 
-add_executable(test_handle src/test_handle_gripper.cpp)
-target_link_libraries(test_handle ${BARRETT_LIBRARIES} ${catkin_LIBRARIES} haptic_wrist gripper::gripper Boost::system Boost::thread)
+add_executable(test_joystick_gecko src/test_joystick_gecko.cpp)
+target_link_libraries(test_joystick_gecko ${BARRETT_LIBRARIES} ${catkin_LIBRARIES} haptic_wrist gripper::gripper Boost::system Boost::thread)
+add_dependencies(leader ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+
+add_executable(test_joystick_robotiq src/test_joystick_robotiq.cpp)
+target_link_libraries(test_joystick_robotiq ${BARRETT_LIBRARIES} ${catkin_LIBRARIES} haptic_wrist gripper::gripper Boost::system Boost::thread)
 add_dependencies(leader ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
