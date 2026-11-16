@@ -23,6 +23,7 @@ using jp_teleop_type = barrett::units::JointPositions<TELEOP_DOF>::type;
 using jv_teleop_type = barrett::units::JointVelocities<TELEOP_DOF>::type;
 using jt_teleop_type = barrett::units::JointTorques<TELEOP_DOF>::type;
 
+
 template <size_t DOF>
 struct TeleopData {
     static constexpr size_t WRIST_DOF = TELEOP_DOF - DOF;
@@ -88,28 +89,29 @@ struct ConstFieldRef {
     FieldType type;
 };
 
+// barrett adds gsl to the eigen math matrix. so using sizeof on a jp_type will report an extra 40bytes of metadata we dont need
 template <size_t DOF>
 ConstFieldRef field(const TeleopData<DOF>& d, const std::string& name) {
-    if (name == "leader_jp") return {&d.leader_jp, sizeof(d.leader_jp), FieldType::Vector7};
-    if (name == "leader_jv") return {&d.leader_jv, sizeof(d.leader_jv), FieldType::Vector7};
-    if (name == "leader_dyngravcomp_torque") return {&d.leader_dyngravcomp_torque, sizeof(d.leader_dyngravcomp_torque), FieldType::Vector7};
-    if (name == "follower_jp") return {&d.follower_jp, sizeof(d.follower_jp), FieldType::Vector7};
-    if (name == "follower_jv") return {&d.follower_jv, sizeof(d.follower_jv), FieldType::Vector7};
-    if (name == "follower_dyngravcomp_torque") return {&d.follower_dyngravcomp_torque, sizeof(d.follower_dyngravcomp_torque), FieldType::Vector7};
-    if (name == "human_torque") return {&d.human_torque, sizeof(d.human_torque), FieldType::Vector7};
-    if (name == "filtered_human_torque") return {&d.filtered_human_torque, sizeof(d.filtered_human_torque), FieldType::Vector7};
-    if (name == "environment_torque") return {&d.environment_torque, sizeof(d.environment_torque), FieldType::Vector7};
-    if (name == "filtered_environment_torque") return {&d.filtered_environment_torque, sizeof(d.filtered_environment_torque), FieldType::Vector7};
-    if (name == "policyJp") return {&d.policyJp, sizeof(d.policyJp), FieldType::Vector7};
-    if (name == "policyJt") return {&d.policyJt, sizeof(d.policyJt), FieldType::Vector7};
-    if (name == "policyTorqueScale") return {&d.policyTorqueScale, sizeof(d.policyTorqueScale), FieldType::Vector7};
-    if (name == "resPolicyJp") return {&d.resPolicyJp, sizeof(d.resPolicyJp), FieldType::Vector7};
-    if (name == "resPolicyJt") return {&d.resPolicyJt, sizeof(d.resPolicyJt), FieldType::Vector7};
-    if (name == "refPolicyTorque") return {&d.refPolicyTorque, sizeof(d.refPolicyTorque), FieldType::Vector7};
-    if (name == "refTorquePolicyJt") return {&d.refTorquePolicyJt, sizeof(d.refTorquePolicyJt), FieldType::Vector7};
-    if (name == "control_torque") return {&d.control_torque, sizeof(d.control_torque), FieldType::Vector7};
-    if (name == "wam_dyn") return {&d.wam_dyn, sizeof(d.wam_dyn), FieldType::Vector7};
-    if (name == "wam_grav") return {&d.wam_grav, sizeof(d.wam_grav), FieldType::Vector7};
+    if (name == "leader_jp") return {&d.leader_jp, TELEOP_DOF * sizeof(double), FieldType::Vector7};
+    if (name == "leader_jv") return {&d.leader_jv, TELEOP_DOF * sizeof(double), FieldType::Vector7};
+    if (name == "leader_dyngravcomp_torque") return {&d.leader_dyngravcomp_torque, TELEOP_DOF * sizeof(double), FieldType::Vector7};
+    if (name == "follower_jp") return {&d.follower_jp, TELEOP_DOF * sizeof(double), FieldType::Vector7};
+    if (name == "follower_jv") return {&d.follower_jv, TELEOP_DOF * sizeof(double), FieldType::Vector7};
+    if (name == "follower_dyngravcomp_torque") return {&d.follower_dyngravcomp_torque, TELEOP_DOF * sizeof(double), FieldType::Vector7};
+    if (name == "human_torque") return {&d.human_torque, TELEOP_DOF * sizeof(double), FieldType::Vector7};
+    if (name == "filtered_human_torque") return {&d.filtered_human_torque, TELEOP_DOF * sizeof(double), FieldType::Vector7};
+    if (name == "environment_torque") return {&d.environment_torque, TELEOP_DOF * sizeof(double), FieldType::Vector7};
+    if (name == "filtered_environment_torque") return {&d.filtered_environment_torque, TELEOP_DOF * sizeof(double), FieldType::Vector7};
+    if (name == "policyJp") return {&d.policyJp, TELEOP_DOF * sizeof(double), FieldType::Vector7};
+    if (name == "policyJt") return {&d.policyJt, TELEOP_DOF * sizeof(double), FieldType::Vector7};
+    if (name == "policyTorqueScale") return {&d.policyTorqueScale, TELEOP_DOF * sizeof(double), FieldType::Vector7};
+    if (name == "resPolicyJp") return {&d.resPolicyJp, TELEOP_DOF * sizeof(double), FieldType::Vector7};
+    if (name == "resPolicyJt") return {&d.resPolicyJt, TELEOP_DOF * sizeof(double), FieldType::Vector7};
+    if (name == "refPolicyTorque") return {&d.refPolicyTorque, TELEOP_DOF * sizeof(double), FieldType::Vector7};
+    if (name == "refTorquePolicyJt") return {&d.refTorquePolicyJt, TELEOP_DOF * sizeof(double), FieldType::Vector7};
+    if (name == "control_torque") return {&d.control_torque, TELEOP_DOF * sizeof(double), FieldType::Vector7};
+    if (name == "wam_dyn") return {&d.wam_dyn, TELEOP_DOF * sizeof(double), FieldType::Vector7};
+    if (name == "wam_grav") return {&d.wam_grav, TELEOP_DOF * sizeof(double), FieldType::Vector7};
     if (name == "leader_cart_pos") return {&d.leader_cart_pos, sizeof(d.leader_cart_pos), FieldType::Vector3};
     if (name == "leader_quat") return {&d.leader_quat, sizeof(d.leader_quat), FieldType::Quaternion};
     if (name == "follower_cart_pos") return {&d.follower_cart_pos, sizeof(d.follower_cart_pos), FieldType::Vector3};
