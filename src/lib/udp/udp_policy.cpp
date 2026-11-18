@@ -26,14 +26,16 @@ PolicyUDPHandler<DOF>::PolicyUDPHandler(const Config& config, bool send_active, 
     };
 
     if (type == "dg") {
-        dg_stream = make_stream(action.dg, policy_recv_port);
-        primary = dg_stream.get();
+        base_stream = make_stream(action.dg, policy_recv_port);
+        primary = base_stream.get();
     } else {
         base_stream = make_stream(action.base, policy_recv_port);
         primary = base_stream.get();
     }
     if (type == "cr") {
-        res_stream = make_stream(action.res, policy_recv_port + 1);
+        res_stream = make_stream(action.cr, policy_recv_port + 1);
+    } else if (type == "rlpd")  {
+        res_stream = make_stream(action.rlpd, policy_recv_port + 1);
     }
 
     startStream(*primary);
@@ -58,7 +60,6 @@ std::vector<typename PolicyUDPHandler<DOF>::Stream*> PolicyUDPHandler<DOF>::acti
     std::vector<Stream*> streams;
     if (base_stream) streams.push_back(base_stream.get());
     if (res_stream) streams.push_back(res_stream.get());
-    if (dg_stream) streams.push_back(dg_stream.get());
     return streams;
 }
 
@@ -153,6 +154,7 @@ void PolicyUDPHandler<DOF>::receiveLoop(Stream& s) {
         const uint64_t total_new_samples = static_cast<uint64_t>(s.config.horizon) * s.samples_per_segment;
         uint64_t skip_samples = static_cast<uint64_t>(time_to_skip / (1e9 / interp_hz));
         skip_samples = std::min(skip_samples, total_new_samples);
+
 
         const int64_t now_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(
             std::chrono::steady_clock::now().time_since_epoch()).count();
@@ -293,7 +295,7 @@ boost::optional<PolicyReceivedData> PolicyUDPHandler<DOF>::getLatestPolicyReceiv
         if (primary->action_queue.size() > 1) primary->action_queue.pop_front();
     }
 
-    if (type == "cr") {
+    if (type == "cr" || type == "rlpd") {
         if (!res_stream) return boost::none;
 
         std::lock_guard<std::mutex> lock(res_stream->mutex);

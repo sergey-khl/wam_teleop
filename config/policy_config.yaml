@@ -1,6 +1,6 @@
 interp_hz: 500.0
 # 1 is real time exec. the larger the number the slower the execution
-slow_down_factor: 2
+slow_down_factor: 1
 
 network:
   policy_host: "127.0.0.1"
@@ -24,7 +24,7 @@ data_routing:
                        time_to_chunk_end, res_time_to_chunk_end]
 
 policy:
-  type: "base" # one of base, cr or dg
+  type: "rlpd" # one of base, rlpd, cr or dg
   
   # only one of these should be true. kinda broken right now since torque scale only determined by leader rn
   on_leader: true
@@ -39,7 +39,8 @@ policy:
 
   action:
     base: {fields: [jp], horizon: 8, uninterp_hz: 10.0}
-    res:  {fields: [delta_jp, ext_torque], horizon: 5, uninterp_hz: 50.0}
+    rlpd:  {fields: [delta_jp], horizon: 1, uninterp_hz: 10.0}
+    cr:  {fields: [delta_jp, ext_torque], horizon: 5, uninterp_hz: 50.0}
     dg:   {fields: [jp, ext_torque], horizon: 8, uninterp_hz: 10.0}
 
   # used by base, cr dagger base component and dg dagger

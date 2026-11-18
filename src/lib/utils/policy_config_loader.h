@@ -35,7 +35,8 @@ struct ActionStreamConfig {
 
 struct ActionConfig {
     ActionStreamConfig base;
-    ActionStreamConfig res;
+    ActionStreamConfig rlpd;
+    ActionStreamConfig cr;
     ActionStreamConfig dg;
 };
 
@@ -85,7 +86,8 @@ template<> struct convert<ActionStreamConfig> {
 template<> struct convert<ActionConfig> {
     static bool decode(const Node& node, ActionConfig& c) {
         c.base = node["base"].as<ActionStreamConfig>();
-        c.res = node["res"].as<ActionStreamConfig>();
+        c.rlpd = node["rlpd"].as<ActionStreamConfig>();
+        c.cr = node["cr"].as<ActionStreamConfig>();
         c.dg = node["dg"].as<ActionStreamConfig>();
         return true;
     }
@@ -105,7 +107,7 @@ template<> struct convert<PolicyConfig> {
         c.clip_val = node["clip_val"].as<std::vector<double>>();
         c.clip_ref_torque = node["clip_ref_torque"].as<std::vector<double>>();
         c.action = node["action"].as<ActionConfig>();
-        if (c.type != "base" && c.type != "cr" && c.type != "dg") {
+        if (c.type != "base" && c.type != "rlpd" && c.type != "cr" && c.type != "dg") {
             std::cerr << "Policy type must be one of base, cr or dg. Got: " << c.type << std::endl;
             return false;
         }

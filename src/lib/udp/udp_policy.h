@@ -87,9 +87,8 @@ private:
     double interp_hz;
 
     boost::asio::io_context io_context;
-    std::unique_ptr<Stream> base_stream; // base or cr primary
-    std::unique_ptr<Stream> res_stream;  // cr residual
-    std::unique_ptr<Stream> dg_stream;   // dg
+    std::unique_ptr<Stream> base_stream;
+    std::unique_ptr<Stream> res_stream;  // cr, rlpd (the way i used it)
     Stream* primary = nullptr;
 
     boost::asio::ip::udp::socket send_socket;
