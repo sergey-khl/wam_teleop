@@ -75,6 +75,13 @@ class PolicyModule : public Module<DOF> {
                 clipToRange(ref_torque, st.filtered_environment_torque, clip_ref_torque_),
                 st.refPolicyTorque);
         }
+
+        if (config_.policy.type == "rlpd") {
+            jp_teleop_type res_jp;
+            for (size_t i = 0; i < TELEOP_DOF; ++i) res_jp[i] = data->res.delta_jp[i];
+            const jp_teleop_type zero_jp = jp_teleop_type::Zero();
+            setLocalStateValue(clipToRange(res_jp, zero_jp, clip_val_), st.resPolicyJp);
+        }
     }
 
     void send(TeleopData<DOF>& st) override { handler_->send(st); }
@@ -90,6 +97,9 @@ class PolicyModule : public Module<DOF> {
         } else if (config_.policy.type == "cr") {
             // policy torque treated as a desired torque, PID tracks it
             u = base + st.resPolicyJt + st.refTorquePolicyJt;
+        } else if (config_.policy.type == "rlpd") {
+            // residual delta jp from rl policy
+            u = base + st.resPolicyJt;
         }
         return u;
     }
